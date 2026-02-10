@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>互动抽奖中心 - 梦幻粉紫版</title>
+    <style>
+        /* 修改主题色变量为紫色系 */
+        :root { 
+            --main-purple: #9b59b6; 
+            --dark-purple: #8e44ad; 
+            --btn-shadow: #7d3c98; 
+            --bg-color: #f0f2f5; 
+        }
+        body { margin: 0; display: flex; height: 100vh; font-family: "Microsoft YaHei", sans-serif; background: var(--bg-color); overflow: hidden; }
+
+        #main-container { display: flex; width: 100%; height: 100%; z-index: 10; }
+
+        /* 左侧：转盘区 */
+        #wheel-section { flex: 1.6; position: relative; display: flex; align-items: center; justify-content: center; background: #fff; border-right: 1px solid #eee; }
+        
+        /* 右侧：控制区 */
+        #control-section { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--bg-color); padding: 40px; }
+
+        /* 转盘容器 */
+        .wheel-wrapper { position: relative; width: 620px; height: 620px; }
+        canvas#wheel { width: 100%; height: 100%; transition: transform 4s cubic-bezier(0.1, 0, 0.1, 1); filter: drop-shadow(0 15px 35px rgba(0,0,0,0.1)); }
+        
+        /* 特效画布 */
+        canvas#confetti { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 100; }
+
+        /* 中心图片 */
+        .center-avatar { 
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+            width: 200px; height: 200px; z-index: 20; background: white; border-radius: 50%; 
+            border: 10px solid #fff; box-shadow: 0 4px 20px rgba(0,0,0,0.15); object-fit: cover; 
+        }
+
+        /* 修改指针颜色为紫色 */
+        .pointer { position: absolute; top: -20px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 25px solid transparent; border-right: 25px solid transparent; border-bottom: 50px solid var(--main-purple); z-index: 30; }
+
+        /* 对话框弹窗 */
+        #result-bubble { 
+            position: absolute; top: 40%; left: 50%; transform: translate(-50%, -100%) scale(0);
+            transform-origin: bottom center; background: white; border: 4px solid var(--main-purple); border-radius: 20px; padding: 25px 45px;
+            z-index: 110; box-shadow: 0 15px 50px rgba(0,0,0,0.3);
+            transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            text-align: center; pointer-events: none;
+        }
+        #result-bubble.show { transform: translate(-50%, -100%) scale(1); }
+        #result-bubble::after { content: ''; position: absolute; bottom: -20px; left: 50%; transform: translateX(-50%); border-top: 20px solid var(--main-purple); border-left: 15px solid transparent; border-right: 15px solid transparent; }
+
+        /* 修改按钮为紫色 */
+        #start-btn { width: 320px; height: 110px; background: var(--main-purple); color: white; border: none; border-radius: 55px; font-size: 45px; font-weight: bold; cursor: pointer; box-shadow: 0 10px 0 var(--btn-shadow); transition: 0.1s; margin-bottom: 60px; z-index: 200; }
+        #start-btn:active { transform: translateY(6px); box-shadow: 0 4px 0 var(--btn-shadow); }
+
+        .config-box { width: 100%; max-width: 420px; }
+        .prize-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        input { padding: 12px; border: 1px solid #ccc; border-radius: 8px; font-size: 16px; background: white; }
+    </style>
+</head>
+<body>
+
+<canvas id="confetti"></canvas>
+
+<div id="main-container">
+    <section id="wheel-section">
+        <div class="wheel-wrapper">
+            <div class="pointer"></div>
+            <img id="avatar" src="bg.png" class="center-avatar" alt="👤" onerror="this.src='https://api.dicebear.com/7.x/avataaars/svg?seed=Lucky'">
+            <canvas id="wheel" width="620" height="620"></canvas>
+            
+            <div id="result-bubble">
+                <div style="font-size: 20px; color: #666;">🎉 恭喜获得</div>
+                <div id="winner-name" style="font-size: 52px; font-weight: bold; color: var(--main-purple); margin-top: 10px;">? ? ?</div>
+            </div>
+        </div>
+    </section>
+
+    <section id="control-section">
+        <button id="start-btn">开始抽奖</button>
+        <div class="config-box">
+            <div id="prize-inputs" class="prize-inputs"></div>
+            <p style="font-size: 14px; color: #888; margin-top: 40px; text-align: center;"></p>
+        </div>
+    </section>
+</div>
+
+<script>
+    const canvas = document.getElementById('wheel');
+    const ctx = canvas.getContext('2d');
+    const btn = document.getElementById('start-btn');
+    const bubble = document.getElementById('result-bubble');
+    const winnerDisplay = document.getElementById('winner-name');
+    
+    let prizes = ["免作业卡", "精美礼品", "加学分", "谢谢参与", "再抽一次", "神秘大礼", "咖啡券", "笔记本"];
+    
+    // 【核心修改】转盘颜色改为紫色和粉色相间
+    const colors = ['#9b59b6', '#ffb6c1', '#9b59b6', '#ffb6c1', '#9b59b6', '#ffb6c1', '#9b59b6', '#ffb6c1'];
+
+    const inputContainer = document.getElementById('prize-inputs');
+    prizes.forEach((p, i) => {
+        const input = document.createElement('input');
+        input.value = p;
+        input.oninput = (e) => { prizes[i] = e.target.value; draw(); };
+        inputContainer.appendChild(input);
+    });
+
+    function draw() {
+        const arc = (Math.PI * 2) / 8;
+        ctx.clearRect(0,0,620,620);
+        for(let i=0; i<8; i++) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.fillStyle = colors[i];
+            ctx.moveTo(310, 310);
+            ctx.arc(310, 310, 300, i*arc, (i+1)*arc);
+            ctx.fill();
+            ctx.strokeStyle = '#fff'; ctx.lineWidth = 6; ctx.stroke();
+            ctx.fillStyle = "#fff"; ctx.font = "bold 24px Microsoft YaHei"; ctx.textAlign = "right";
+            ctx.translate(310, 310); ctx.rotate(i*arc + arc/2);
+            ctx.fillText(prizes[i], 280, 10); ctx.restore();
+        }
+    }
+
+    // --- 撒花特效逻辑 ---
+    const confettiCanvas = document.getElementById('confetti');
+    const cfx = confettiCanvas.getContext('2d');
+    let particles = [];
+    function resizeConfetti() { confettiCanvas.width = window.innerWidth; confettiCanvas.height = window.innerHeight; }
+    window.onresize = resizeConfetti; resizeConfetti();
+    function createParticle() { return { x: window.innerWidth * 0.35, y: window.innerHeight * 0.5, size: Math.random() * 10 + 5, color: `hsl(${Math.random() * 360}, 70%, 60%)`, vx: (Math.random() - 0.5) * 20, vy: (Math.random() - 0.7) * 20, gravity: 0.5, rotation: Math.random() * 360, rotationSpeed: Math.random() * 10 - 5 }; }
+    function shootConfetti() { particles = []; for(let i=0; i<100; i++) particles.push(createParticle()); animateConfetti(); }
+    function animateConfetti() { cfx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height); particles.forEach((p, i) => { p.vx *= 0.99; p.vy += p.gravity; p.x += p.vx; p.y += p.vy; p.rotation += p.rotationSpeed; cfx.save(); cfx.translate(p.x, p.y); cfx.rotate(p.rotation * Math.PI / 180); cfx.fillStyle = p.color; cfx.fillRect(-p.size/2, -p.size/2, p.size, p.size); cfx.restore(); if(p.y > confettiCanvas.height) particles.splice(i, 1); }); if(particles.length > 0) requestAnimationFrame(animateConfetti); }
+
+    // --- 抽奖核心逻辑 ---
+    let rotation = 0;
+    let isSpinning = false;
+
+    btn.onclick = (e) => {
+        e.stopPropagation();
+        if (isSpinning) return;
+        isSpinning = true;
+        bubble.classList.remove('show');
+        const additionalSpin = Math.floor(Math.random() * 360) + 2880; 
+        rotation += additionalSpin;
+        canvas.style.transform = `rotate(${rotation}deg)`;
+        
+        setTimeout(() => {
+            isSpinning = false;
+            // 修正后的索引计算逻辑
+            let actualRotation = rotation % 360;
+            let pointerAngle = (360 - actualRotation + 270) % 360;
+            let index = Math.floor(pointerAngle / 45) % 8;
+            
+            winnerDisplay.innerText = prizes[index];
+            bubble.classList.add('show');
+            shootConfetti(); 
+        }, 4000);
+    };
+
+    window.onclick = () => { if (!isSpinning) bubble.classList.remove('show'); };
+    draw();
+</script>
+</body>
+</html>
