@@ -204,7 +204,7 @@
 
     async function callAI(mode, base64Img) {
         const prompt = mode === 'KEY' 
-            ? `你是一个日语阅卷专家。识别此标准答案卡：
+            ? `你是一个日语阅卷专家。识别此答案卡：
                1. 自动识别各大题（听力、阅读、完形、填空）对应的总分和题数。
                2. 计算每小题分值（分值 = 总分 / 题数）。
                3. 提取每道填涂题中填涂最黑、灰度最高的选项作为正确答案。
@@ -218,7 +218,7 @@
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${appState.apiKey}` },
             body: JSON.stringify({
-                model: "qwen3-vl-flash",
+                model: "qwen3-vl-plus",
                 messages: [{ role: "user", content: [{ type: "text", text: prompt }, { type: "image_url", image_url: { url: base64Img } }]}],
                 response_format: { type: "json_object" }
             })
