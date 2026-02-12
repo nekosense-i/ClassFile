@@ -154,7 +154,7 @@
         const btnStudent = document.getElementById('btnStudent');
         
         // 1. 立即捕获图像 (不等待 UI 更新，防止卡死)
-        const scale = Math.min(1024 / video.videoWidth, 1024 / video.videoHeight);
+        const scale = Math.min(2048 / video.videoWidth, 2048 / video.videoHeight);
         canvas.width = video.videoWidth * scale;
         canvas.height = video.videoHeight * scale;
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
