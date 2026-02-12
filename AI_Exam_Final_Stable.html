@@ -1,0 +1,315 @@
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 智能阅卷终端 - 稳定版</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://docs.opencv.org/4.5.2/opencv.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <style>
+        :root { --primary-color: #0d6efd; --bg-light: #f1f3f5; }
+        body { background-color: var(--bg-light); font-family: system-ui, -apple-system, sans-serif; }
+        .app-container { max-width: 1400px; margin: 2rem auto; padding: 0 1rem; }
+        
+        .camera-card { border: none; border-radius: 1rem; box-shadow: 0 10px 25px rgba(0,0,0,0.08); background: #fff; overflow: hidden; }
+        .video-container { 
+            position: relative; 
+            background: #000; 
+            width: 100%; 
+            aspect-ratio: 210 / 297; 
+            margin: 0 auto;
+        }
+        #video { width: 100%; height: 100%; object-fit: cover; }
+        
+        #answerStatus { font-size: 0.8rem; border-radius: 20px; padding: 4px 12px; display: inline-block; cursor: pointer; transition: 0.3s; }
+        .status-none { background: #ffebee; color: #c62828; border: 1px solid #ffcdd2; }
+        .status-ready { background: #e8f5e9; color: #2e7d32; border: 1px solid #c8e6c9; }
+
+        .table-card { border: none; border-radius: 1rem; box-shadow: 0 10px 25px rgba(0,0,0,0.05); background: #fff; padding: 1.5rem; }
+        .btn-delete { color: #dc3545; cursor: pointer; border: none; background: none; font-size: 1.2rem; }
+        
+        #apiOverlay, #answerModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+                                    background: rgba(0,0,0,0.8); z-index: 10000; backdrop-filter: blur(4px);
+                                    justify-content: center; align-items: center; }
+        .modal-box { background: #fff; padding: 2rem; border-radius: 1.2rem; width: 90%; max-width: 500px; }
+        
+        #loadingLayer { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+                         background: rgba(255,255,255,0.9); z-index: 9000; flex-direction: column; 
+                         justify-content: center; align-items: center; }
+    </style>
+</head>
+<body>
+
+<div id="apiOverlay">
+    <div class="modal-box text-center shadow-lg">
+        <h4 class="fw-bold mb-3">🔑 API 初始化</h4>
+        <input type="password" id="apiKeyInput" class="form-control form-control-lg mb-4" placeholder="sk-xxxx">
+        <button class="btn btn-primary btn-lg w-100 shadow-sm" onclick="saveKey()">保存并启动</button>
+    </div>
+</div>
+
+<div id="answerModal">
+    <div class="modal-box shadow-lg">
+        <h5 class="fw-bold mb-3">🎯 标准答案预览</h5>
+        <div id="answerContent" class="p-3 bg-light rounded mb-4 small" style="white-space: pre-wrap; max-height: 300px; overflow-y: auto;"></div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-secondary w-100" onclick="closeAnswerModal()">关闭</button>
+            <button class="btn btn-outline-danger w-100" onclick="clearAnswers()">重录答案</button>
+        </div>
+    </div>
+</div>
+
+<div id="loadingLayer">
+    <div class="spinner-border text-primary mb-3" style="width: 3rem; height: 3rem;"></div>
+    <h5 id="loadingText" class="fw-bold text-primary">AI 正在扫描...</h5>
+</div>
+
+<div class="app-container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold mb-1">📖 AI 智能阅卷终端</h2>
+            <div id="answerStatus" class="status-none" onclick="previewAnswers()">⚠️ 尚未录入答案 (点击预览)</div>
+        </div>
+        <div class="btn-group">
+            <button class="btn btn-outline-danger btn-sm" onclick="fullReset()">🧹 全部清空</button>
+            <button class="btn btn-success fw-bold ms-2" onclick="exportExcel()">📊 导出表格</button>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-lg-5">
+            <div class="camera-card">
+                <div class="video-container">
+                    <video id="video" autoplay playsinline></video>
+                </div>
+                <div class="p-3 bg-white">
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <button class="btn btn-warning btn-lg w-100 py-3 fw-bold shadow-sm" id="btnKey" onclick="scanMode('KEY')">🎯 录入答案卡</button>
+                        </div>
+                        <div class="col-6">
+                            <button class="btn btn-primary btn-lg w-100 py-3 fw-bold shadow-sm" id="btnStudent" onclick="scanMode('STUDENT')">📝 批改学生卡</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <canvas id="hiddenCanvas" style="display:none;"></canvas>
+        </div>
+
+        <div class="col-lg-7">
+            <div class="table-card">
+                <h5 class="fw-bold mb-4">成绩表 (自动存档)</h5>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle" id="mainTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th>班级</th><th>姓名</th><th>听力</th><th>阅读</th><th>完形</th><th>填空</th><th class="table-warning">作文</th><th>总分</th><th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('hiddenCanvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    
+    let appState = {
+        apiKey: localStorage.getItem('ALI_QWEN_KEY'),
+        savedAnswers: JSON.parse(localStorage.getItem('SAVED_ANSWERS')) || null,
+        records: JSON.parse(localStorage.getItem('STUDENT_RECORDS')) || []
+    };
+
+    window.onload = () => {
+        if (!appState.apiKey) document.getElementById('apiOverlay').style.display = 'flex';
+        else { initApp(); renderSavedData(); }
+    };
+
+    function saveKey() {
+        const val = document.getElementById('apiKeyInput').value.trim();
+        if (val.startsWith('sk-')) {
+            localStorage.setItem('ALI_QWEN_KEY', val);
+            location.reload();
+        }
+    }
+
+    async function initApp() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } } 
+            });
+            video.srcObject = stream;
+            // 确保视频始终播放，防止冻结
+            video.onloadedmetadata = () => video.play(); 
+            updateAnswerStatus();
+        } catch (e) { alert("相机权限被拒绝"); }
+    }
+
+    function renderSavedData() {
+        const tbody = document.querySelector('#mainTable tbody');
+        tbody.innerHTML = "";
+        appState.records.forEach((record, index) => appendRowToTable(record, index));
+    }
+
+    function updateAnswerStatus() {
+        const status = document.getElementById('answerStatus');
+        if (appState.savedAnswers) {
+            status.innerText = "✅ 答案已就绪 (点击预览)";
+            status.className = "status-ready";
+        } else {
+            status.innerText = "⚠️ 尚未录入答案 (请先扫描)";
+            status.className = "status-none";
+        }
+    }
+
+    async function scanMode(mode) {
+        if (mode === 'STUDENT' && !appState.savedAnswers) return alert("请先录入答案卡！");
+
+        const btnKey = document.getElementById('btnKey');
+        const btnStudent = document.getElementById('btnStudent');
+        
+        try {
+            // 锁定按钮防止重入
+            btnKey.disabled = true;
+            btnStudent.disabled = true;
+
+            const MAX_SIDE = 1024;
+            let scale = Math.min(MAX_SIDE / video.videoWidth, MAX_SIDE / video.videoHeight);
+            canvas.width = video.videoWidth * scale;
+            canvas.height = video.videoHeight * scale;
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            if (typeof cv !== 'undefined' && cv.Mat) {
+                try {
+                    let mat = cv.imread(canvas);
+                    cv.cvtColor(mat, mat, cv.ColorConversionCodes.COLOR_RGBA2GRAY);
+                    cv.convertScaleAbs(mat, mat, 1.4, 20); // 略微增强对比度
+                    cv.imshow(canvas, mat);
+                    mat.delete();
+                } catch (e) {}
+            }
+
+            const base64Img = canvas.toDataURL('image/jpeg', 0.85);
+            document.getElementById('loadingLayer').style.display = 'flex';
+            document.getElementById('loadingText').innerText = mode === 'KEY' ? "录入标准答案..." : "正在比对批改...";
+
+            // --- 逻辑优化：明确要求填涂最黑的部分 ---
+            const prompt = mode === 'KEY' 
+                ? "你是一个精准的答题卡识别器。这是标准答案卡。答题方式为填涂（用黑色笔涂满选项框）。请识别每道大题涂黑程度最高、颜色最深的选项作为正确答案。返回 JSON：{\"listening\":\"...\",\"reading\":\"...\",\"cloze\":\"...\",\"filling\":\"...\"}"
+                : `学生阅卷。标准答案：${JSON.stringify(appState.savedAnswers)}。识别填涂最黑的选项。比对后评分。返回 JSON：{\"class\":\"\",\"name\":\"\",\"listening\":0,\"reading\":0,\"cloze\":0,\"filling\":0}`;
+
+            const response = await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${appState.apiKey}` },
+                body: JSON.stringify({
+                    model: "qwen3-vl-flash",
+                    messages: [{ role: "user", content: [{ type: "text", text: prompt }, { type: "image_url", image_url: { url: base64Img } }]}],
+                    response_format: { type: "json_object" }
+                })
+            });
+
+            if (!response.ok) throw new Error("网络请求失败");
+            
+            const resData = await response.json();
+            const result = JSON.parse(resData.choices[0].message.content);
+
+            if (mode === 'KEY') {
+                appState.savedAnswers = result;
+                localStorage.setItem('SAVED_ANSWERS', JSON.stringify(result));
+                updateAnswerStatus();
+                previewAnswers();
+            } else {
+                appState.records.push(result);
+                localStorage.setItem('STUDENT_RECORDS', JSON.stringify(appState.records));
+                renderSavedData();
+            }
+        } catch (err) {
+            alert("识别异常: " + err.message);
+        } finally {
+            // --- 关键修复：确保 UI 解锁和相机恢复 ---
+            document.getElementById('loadingLayer').style.display = 'none';
+            btnKey.disabled = false;
+            btnStudent.disabled = false;
+            video.play(); // 强制视频重新开始播放，防止在某些浏览器下因 canvas 抓取而暂停
+        }
+    }
+
+    // --- 表格交互与导出 ---
+    function appendRowToTable(data, index) {
+        const tbody = document.querySelector('#mainTable tbody');
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td contenteditable="true" oninput="updateRecord(${index}, 'class', this)">${data.class || '-'}</td>
+            <td contenteditable="true" oninput="updateRecord(${index}, 'name', this)">${data.name || '-'}</td>
+            <td contenteditable="true" class="score-input" oninput="updateRecord(${index}, 'listening', this)">${data.listening || 0}</td>
+            <td contenteditable="true" class="score-input" oninput="updateRecord(${index}, 'reading', this)">${data.reading || 0}</td>
+            <td contenteditable="true" class="score-input" oninput="updateRecord(${index}, 'cloze', this)">${data.cloze || 0}</td>
+            <td contenteditable="true" class="score-input" oninput="updateRecord(${index}, 'filling', this)">${data.filling || 0}</td>
+            <td contenteditable="true" class="score-input table-warning" oninput="updateRecord(${index}, 'essay', this)">${data.essay || 0}</td>
+            <td class="fw-bold text-primary total-score">0</td>
+            <td class="text-center"><button class="btn-delete" onclick="deleteRow(${index})">🗑️</button></td>
+        `;
+        tbody.appendChild(tr);
+        calculateTotal(tr);
+    }
+
+    function updateRecord(index, field, el) {
+        let val = (field === 'class' || field === 'name') ? el.innerText : parseFloat(el.innerText) || 0;
+        appState.records[index][field] = val;
+        localStorage.setItem('STUDENT_RECORDS', JSON.stringify(appState.records));
+        calculateTotal(el.closest('tr'));
+    }
+
+    function calculateTotal(row) {
+        let total = 0;
+        row.querySelectorAll('.score-input').forEach(td => total += parseFloat(td.innerText) || 0);
+        row.querySelector('.total-score').innerText = total;
+    }
+
+    function deleteRow(index) {
+        if (confirm("删除此行数据？")) {
+            appState.records.splice(index, 1);
+            localStorage.setItem('STUDENT_RECORDS', JSON.stringify(appState.records));
+            renderSavedData();
+        }
+    }
+
+    function previewAnswers() {
+        if (!appState.savedAnswers) return alert("暂无数据");
+        document.getElementById('answerContent').innerText = JSON.stringify(appState.savedAnswers, null, 4);
+        document.getElementById('answerModal').style.display = 'flex';
+    }
+
+    function closeAnswerModal() { document.getElementById('answerModal').style.display = 'none'; }
+
+    function clearAnswers() {
+        if(confirm("确定清除标准答案？")) {
+            appState.savedAnswers = null;
+            localStorage.removeItem('SAVED_ANSWERS');
+            updateAnswerStatus();
+            closeAnswerModal();
+        }
+    }
+
+    function fullReset() {
+        if (confirm("🚨 这将永久删除所有数据（包含 Key），确定吗？")) {
+            localStorage.clear();
+            location.reload();
+        }
+    }
+
+    function exportExcel() {
+        const wb = XLSX.utils.table_to_book(document.getElementById('mainTable'), {sheet: "Sheet1"});
+        XLSX.writeFile(wb, `阅卷汇总_${new Date().getTime()}.xlsx`);
+    }
+</script>
+
+</body>
+</html>
