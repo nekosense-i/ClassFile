@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>日语阅卷专家版 V4.8 - Polo AI 驱动</title>
+    <title>日语阅卷专家版 V5.1 - Gemini-3 驱动</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
     <style>
@@ -11,14 +11,14 @@
         body { background: var(--bg); font-family: system-ui, -apple-system, sans-serif; }
         .app-container { max-width: 1400px; margin: 2rem auto; padding: 0 1rem; }
         .camera-card { border: none; border-radius: 1.2rem; box-shadow: 0 10px 30px rgba(0,0,0,0.1); background: #fff; overflow: hidden; }
-        .video-container { position: relative; background: #000; width: 100%; aspect-ratio: 210 / 297; display: flex; align-items: center; justify-content: center; }
+        .video-container { position: relative; background: #000; aspect-ratio: 210 / 297; display: flex; align-items: center; justify-content: center; }
         #video { width: 100%; height: 100%; object-fit: cover; }
         .status-badge { font-size: 0.85rem; border-radius: 20px; padding: 6px 16px; cursor: pointer; border: 1px solid transparent; }
         .status-none { background: #fff1f0; color: #cf1322; border-color: #ffa39e; }
         .status-ready { background: #f6ffed; color: #389e0d; border-color: #b7eb8f; }
-        #loadingLayer { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.9); z-index: 9000; flex-direction: column; justify-content: center; align-items: center; }
-        .modal-box { background: #fff; padding: 2.5rem; border-radius: 1.5rem; width: 95%; max-width: 550px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); max-height: 90vh; overflow-y: auto; }
-        #apiOverlay, #editModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 10000; justify-content: center; align-items: center; backdrop-filter: blur(8px); }
+        #loadingLayer { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.9); z-index: 10000; flex-direction: column; justify-content: center; align-items: center; }
+        .modal-box { background: #fff; padding: 2rem; border-radius: 1.2rem; width: 95%; max-width: 600px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); max-height: 90vh; overflow-y: auto; }
+        #apiOverlay, #editModal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 11000; justify-content: center; align-items: center; backdrop-filter: blur(8px); }
         .ans-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
         .ans-item { border: 1px solid #dee2e6; padding: 5px; border-radius: 5px; text-align: center; }
         .ans-item input { width: 35px; text-align: center; border: none; font-weight: bold; color: #0d6efd; background: transparent; }
@@ -27,49 +27,36 @@
 <body>
 
 <div id="apiOverlay">
-    <div class="modal-box">
-        <h4 class="fw-bold mb-3 text-center">🚀 Polo AI 接口配置</h4>
-        <div class="mb-3">
-            <label class="small fw-bold">API Base URL (接口地址)</label>
-            <input type="text" id="baseUrlInput" class="form-control" placeholder="https://api.poloai.com/v1">
-        </div>
-        <div class="mb-3">
-            <label class="small fw-bold">API Key (令牌)</label>
-            <input type="password" id="apiKeyInput" class="form-control" placeholder="sk-...">
-        </div>
-        <div class="mb-4">
-            <label class="small fw-bold">Model Name (模型名称)</label>
-            <input type="text" id="modelInput" class="form-control" placeholder="gpt-4o 或 gemini-2.0-flash">
-        </div>
-        <button class="btn btn-primary btn-lg w-100 shadow" onclick="saveConfig()">保存配置并进入</button>
+    <div class="modal-box text-center">
+        <h4 class="fw-bold mb-3">🔑 配置 PoloAPI 令牌</h4>
+        <p class="text-muted small mb-4">请输入你在截图看到的以 sk- 开头的密钥</p>
+        <input type="password" id="apiKeyInput" class="form-control form-control-lg mb-4 text-center" placeholder="sk-...">
+        <button class="btn btn-primary btn-lg w-100 shadow" onclick="savePoloKey()">保存配置并进入</button>
     </div>
 </div>
 
 <div id="editModal">
     <div class="modal-box">
-        <h5 class="fw-bold mb-3 d-flex justify-content-between">
-            🎯 核对标准答案 <span class="badge bg-primary fs-6">1-50 题</span>
-        </h5>
-        <p class="text-muted small mb-3">AI 识别后请检查一遍，如有误直接在此修改。</p>
+        <h5 class="fw-bold mb-3 d-flex justify-content-between">🎯 核对标准答案 <span class="badge bg-primary fs-6">1-50 题</span></h5>
         <div class="ans-grid" id="ansGrid"></div>
-        <button class="btn btn-dark w-100 mt-4" onclick="document.getElementById('editModal').style.display='none'">确定并保存</button>
+        <button class="btn btn-dark w-100 mt-4" onclick="document.getElementById('editModal').style.display='none'">确认保存</button>
     </div>
 </div>
 
 <div id="loadingLayer">
     <div class="spinner-border text-primary mb-3" style="width: 3rem; height: 3rem;"></div>
-    <h5 id="loadingText" class="fw-bold text-primary">Polo AI 正在解析视觉数据...</h5>
+    <h5 id="loadingText" class="fw-bold text-primary">Gemini-3 正在解析视觉数据...</h5>
 </div>
 
 <div class="app-container">
     <div class="d-flex justify-content-between align-items-end mb-4">
         <div>
-            <h2 class="fw-bold mb-2">📖 日语阅卷专家版 <span class="badge bg-info fs-6">Polo AI 驱动</span></h2>
-            <div id="answerStatus" class="status-badge status-none" onclick="openEditModal()">⚠️ 尚未录入标答 (扫描或手动输入)</div>
+            <h2 class="fw-bold mb-2">📖 日语阅卷专家终端 <small class="text-muted fs-6">Gemini-3-Flash</small></h2>
+            <div id="answerStatus" class="status-badge status-none" onclick="openEditModal()">⚠️ 尚未录入标答 (点击手动输入)</div>
         </div>
         <div>
-            <button class="btn btn-outline-danger btn-sm" onclick="fullReset()">重置全部</button>
-            <button class="btn btn-success fw-bold ms-2" onclick="exportExcel()">📊 导出成绩单</button>
+            <button class="btn btn-outline-danger btn-sm" onclick="if(confirm('重置所有？')){localStorage.clear();location.reload();}">重置系统</button>
+            <button class="btn btn-success fw-bold ms-2" onclick="exportExcel()">📊 导出成绩</button>
         </div>
     </div>
 
@@ -86,16 +73,13 @@
             </div>
             <canvas id="hiddenCanvas" style="display:none;"></canvas>
         </div>
-
         <div class="col-lg-7">
             <div class="table-card bg-white p-4 rounded-4 shadow-sm h-100">
-                <h5 class="fw-bold mb-4">实时阅卷汇总表</h5>
+                <h5 class="fw-bold mb-4">阅卷结果汇总 (JS 精确计分)</h5>
                 <div class="table-responsive">
                     <table class="table table-hover text-center align-middle" id="mainTable">
                         <thead class="table-light">
-                            <tr>
-                                <th>班级</th><th>姓名</th><th>听力(30)</th><th>阅读(50)</th><th>完形(15)</th><th class="table-info">填空</th><th>总分</th><th>-</th>
-                            </tr>
+                            <tr><th>班级</th><th>姓名</th><th>听力(30)</th><th>阅读(50)</th><th>完形(15)</th><th class="table-info">填空</th><th>总分</th><th>-</th></tr>
                         </thead>
                         <tbody></tbody>
                     </table>
@@ -110,12 +94,14 @@
     const canvas = document.getElementById('hiddenCanvas');
     const ctx = canvas.getContext('2d');
     
+    // 根据截图固定的 PoloAPI 配置
+    const POLO_BASE_URL = "https://api.poloapi.com/v1/chat/completions";
+    const POLO_MODEL = "gemini-3-flash";
+
     let appState = {
-        baseUrl: localStorage.getItem('POLO_BASE_URL') || 'https://api.poloai.com/v1',
-        apiKey: localStorage.getItem('POLO_API_KEY'),
-        model: localStorage.getItem('POLO_MODEL') || 'gpt-4o',
-        savedKey: JSON.parse(localStorage.getItem('SAVED_KEY')) || {}, 
-        records: JSON.parse(localStorage.getItem('STUDENT_RECORDS')) || []
+        apiKey: localStorage.getItem('POLO_KEY_GRADUATE'),
+        savedKey: JSON.parse(localStorage.getItem('SAVED_KEY_FINAL')) || {}, 
+        records: JSON.parse(localStorage.getItem('STUDENT_RECORDS_FINAL')) || []
     };
 
     window.onload = () => {
@@ -123,26 +109,20 @@
         else { initApp(); renderRecords(); }
     };
 
-    function saveConfig() {
-        const url = document.getElementById('baseUrlInput').value.trim();
-        const key = document.getElementById('apiKeyInput').value.trim();
-        const model = document.getElementById('modelInput').value.trim();
-        if (key && url) {
-            localStorage.setItem('POLO_BASE_URL', url);
-            localStorage.setItem('POLO_API_KEY', key);
-            localStorage.setItem('POLO_MODEL', model);
-            location.reload();
-        } else { alert("地址和密钥不能为空！"); }
+    function savePoloKey() {
+        const val = document.getElementById('apiKeyInput').value.trim();
+        if (val.startsWith('sk-')) { localStorage.setItem('POLO_KEY_GRADUATE', val); location.reload(); }
+        else { alert("请输入正确的 sk- 令牌！"); }
     }
 
     async function initApp() {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ 
-                video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } } 
+                video: { facingMode: "environment", width: 1920, height: 1080 } 
             });
             video.srcObject = stream;
             updateStatusUI();
-        } catch (e) { alert("相机启动失败，请确保 HTTPS 环境并允许权限。"); }
+        } catch (e) { alert("相机启动失败，请使用 HTTPS 环境或检查浏览器权限。"); }
     }
 
     function openEditModal() {
@@ -151,96 +131,73 @@
         for (let i = 1; i <= 50; i++) {
             const div = document.createElement('div');
             div.className = 'ans-item';
-            div.innerHTML = `${i}: <input type="text" maxlength="1" value="${appState.savedKey[i] || ''}" oninput="this.value=this.value.toUpperCase(); updateSingleKey(${i}, this.value)">`;
+            div.innerHTML = `${i}: <input type="text" maxlength="1" value="${appState.savedKey[i] || ''}" oninput="this.value=this.value.toUpperCase(); appState.savedKey[${i}]=this.value; localStorage.setItem('SAVED_KEY_FINAL', JSON.stringify(appState.savedKey)); updateStatusUI();">`;
             grid.appendChild(div);
         }
         document.getElementById('editModal').style.display = 'flex';
     }
 
-    function updateSingleKey(id, val) {
-        appState.savedKey[id] = val;
-        localStorage.setItem('SAVED_KEY', JSON.stringify(appState.savedKey));
-        updateStatusUI();
-    }
-
     function updateStatusUI() {
         const s = document.getElementById('answerStatus');
         const count = Object.keys(appState.savedKey).length;
-        s.innerText = count >= 50 ? `✅ 标答就绪` : `⚠️ 标答未完成 (${count}/50)`;
+        s.innerText = count >= 50 ? `✅ 标答已准备就绪` : `⚠️ 标答不完整 (${count}/50)`;
         s.className = count >= 50 ? "status-badge status-ready" : "status-badge status-none";
     }
 
     function handleScan(mode) {
-        if (mode === 'STUDENT' && Object.keys(appState.savedKey).length < 50) return alert("请先录入完整的标准答案！");
+        if (mode === 'STUDENT' && Object.keys(appState.savedKey).length < 50) return alert("请先录入标答卡！");
         document.getElementById('loadingLayer').style.display = 'flex';
-        
         ctx.drawImage(video, 0, 0, canvas.width = video.videoWidth, canvas.height = video.videoHeight);
         const base64Img = canvas.toDataURL('image/jpeg', 0.85);
-
         setTimeout(() => callAI(mode, base64Img), 200);
     }
 
     async function callAI(mode, base64Img) {
         const prompt = mode === 'KEY' 
-            ? "你是一个精准的 OCR 阅卷机器人。任务：识别答题卡 1-50 题的选项填涂。1-20 题仅限 ABC；21-50 题为 ABCD。按列从上往下扫描。仅返回纯 JSON 格式：{'answers': {'1':'A', '2':'C', ...}}"
-            : "你是一个阅卷老师。任务：识别学生答题卡的姓名、班级和 1-50 题填涂。请极其小心地核对每一行。仅返回纯 JSON：{'class':'','name':'','stu_ans':{'1':'A', '2':'B', ...}}";
+            ? "你是一个精准的 OCR 系统。任务：识别答题卡 1-50 题标准答案。注意：1-20 题选项仅限 ABC；21-50 题为 ABCD。必须仅返回纯 JSON 格式：{'answers': {'1':'A', '2':'C', ...}}"
+            : "你是一个阅卷助手。任务：识别学生答题卡的姓名、班级和 1-50 题填涂选项。仅返回纯 JSON：{'class':'','name':'','stu_ans':{'1':'A', '2':'B', ...}}";
 
         try {
-            const url = appState.baseUrl.endsWith('/') ? appState.baseUrl + "chat/completions" : appState.baseUrl + "/chat/completions";
-            const response = await fetch(url, {
+            const response = await fetch(POLO_BASE_URL, {
                 method: 'POST',
-                headers: { 
-                    'Content-Type': 'application/json', 
-                    'Authorization': `Bearer ${appState.apiKey}` 
-                },
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${appState.apiKey}` },
                 body: JSON.stringify({
-                    model: appState.model,
-                    messages: [{
-                        role: "user",
-                        content: [
-                            { type: "text", text: prompt },
-                            { type: "image_url", image_url: { url: base64Img } }
-                        ]
-                    }],
+                    model: POLO_MODEL,
+                    messages: [{ role: "user", content: [
+                        { type: "text", text: prompt }, 
+                        { type: "image_url", image_url: { url: base64Img, detail: "high" } }
+                    ]}],
                     response_format: { type: "json_object" }
                 })
             });
 
             const data = await response.json();
-            if (!response.ok) throw new Error(data.error?.message || "接口报错");
+            if (!response.ok) throw new Error(data.error?.message || "接口异常");
 
             const raw = data.choices[0].message.content;
             const result = JSON.parse(raw.substring(raw.indexOf('{'), raw.lastIndexOf('}') + 1));
 
             if (mode === 'KEY') {
                 appState.savedKey = result.answers;
-                localStorage.setItem('SAVED_KEY', JSON.stringify(appState.savedKey));
-                openEditModal();
-                updateStatusUI();
+                localStorage.setItem('SAVED_KEY_FINAL', JSON.stringify(appState.savedKey));
+                openEditModal(); updateStatusUI();
             } else {
-                // JS 本地精准计分 
-                let scores = { listening: 0, reading: 0, cloze: 0 };
+                let scores = { listen: 0, read: 0, cloze: 0 };
                 const stu = result.stu_ans || {};
+                // JS 本地计分逻辑 [cite: 16, 85, 171]
                 for (let i = 1; i <= 50; i++) {
                     if (stu[i] === appState.savedKey[i]) {
-                        if (i <= 20) scores.listening += 1.5;     // 1.5分/题 [cite: 16-84]
-                        else if (i <= 40) scores.reading += 2.5;  // 2.5分/题 [cite: 85-170]
-                        else scores.cloze += 1.5;                 // 1.5分/题 [cite: 171-204]
+                        if (i <= 20) scores.listen += 1.5;      // 听力: 1.5/题 [cite: 16-84]
+                        else if (i <= 40) scores.read += 2.5;   // 阅读: 2.5/题 [cite: 85-170]
+                        else scores.cloze += 1.5;               // 完形: 1.5/题 [cite: 171-204]
                     }
                 }
-                appState.records.push({
-                    class: result.class || '-', name: result.name || '-',
-                    listening: scores.listening, reading: scores.reading, cloze: scores.cloze, filling: 0
-                });
-                localStorage.setItem('STUDENT_RECORDS', JSON.stringify(appState.records));
+                appState.records.push({ class: result.class || '-', name: result.name || '-', listen: scores.listen, read: scores.read, cloze: scores.cloze, filling: 0 });
+                localStorage.setItem('STUDENT_RECORDS_FINAL', JSON.stringify(appState.records));
                 renderRecords();
             }
-        } catch (e) { 
-            console.error(e);
-            alert("识别失败：" + e.message + "\\n请检查 Base URL 和 Model 名是否正确。"); 
-        } finally { 
-            document.getElementById('loadingLayer').style.display = 'none'; 
-        }
+        } catch (e) { alert("识别出错：" + e.message); }
+        finally { document.getElementById('loadingLayer').style.display = 'none'; }
     }
 
     function renderRecords() {
@@ -251,19 +208,17 @@
             tr.innerHTML = `
                 <td contenteditable="true" onblur="updateRec(${i},'class',this)">${r.class}</td>
                 <td contenteditable="true" onblur="updateRec(${i},'name',this)">${r.name}</td>
-                <td>${r.listening.toFixed(1)}</td><td>${r.reading.toFixed(1)}</td><td>${r.cloze.toFixed(1)}</td>
+                <td>${r.listen.toFixed(1)}</td><td>${r.read.toFixed(1)}</td><td>${r.cloze.toFixed(1)}</td>
                 <td contenteditable="true" class="table-info fw-bold" onblur="updateRec(${i},'filling',this)">${r.filling}</td>
                 <td class="fw-bold text-primary total-score">0</td>
-                <td><button class="btn btn-sm btn-link text-danger p-0 shadow-none" onclick="del(${i})">🗑️</button></td>
-            `;
-            tbody.appendChild(tr);
-            calcRow(tr);
+                <td><button class="btn btn-sm btn-link text-danger p-0 shadow-none" onclick="del(${i})">🗑️</button></td>`;
+            tbody.appendChild(tr); calcRow(tr);
         });
     }
 
     function updateRec(i, f, el) {
         appState.records[i][f] = (f==='class'||f==='name') ? el.innerText : parseFloat(el.innerText) || 0;
-        localStorage.setItem('STUDENT_RECORDS', JSON.stringify(appState.records));
+        localStorage.setItem('STUDENT_RECORDS_FINAL', JSON.stringify(appState.records));
         calcRow(el.closest('tr'));
     }
 
@@ -273,11 +228,10 @@
         row.querySelector('.total-score').innerText = sum.toFixed(1);
     }
 
-    function del(i) { if(confirm("删除记录？")) { appState.records.splice(i, 1); localStorage.setItem('STUDENT_RECORDS', JSON.stringify(appState.records)); renderRecords(); } }
-    function fullReset() { if(confirm("彻底清空？")) { localStorage.clear(); location.reload(); } }
+    function del(i) { if(confirm("确定删除？")) { appState.records.splice(i, 1); localStorage.setItem('STUDENT_RECORDS_FINAL', JSON.stringify(appState.records)); renderRecords(); } }
     function exportExcel() {
-        const wb = XLSX.utils.table_to_book(document.getElementById('mainTable'), {sheet: "日语成绩单"});
-        XLSX.writeFile(wb, `日语成绩汇总_${new Date().toLocaleDateString()}.xlsx`);
+        const wb = XLSX.utils.table_to_book(document.getElementById('mainTable'), {sheet: "成绩"});
+        XLSX.writeFile(wb, `日语成绩单_${new Date().toLocaleDateString()}.xlsx`);
     }
 </script>
 </body>
