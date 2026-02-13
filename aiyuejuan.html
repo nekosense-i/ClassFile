@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>日语高考 AI 阅卷终端 V4.5 - 稳定版</title>
+    <title>日语高考 AI 阅卷终端 V4.6 - 防崩溃版</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
     <style>
@@ -13,7 +13,7 @@
         .camera-card { border: none; border-radius: 1.2rem; box-shadow: 0 10px 30px rgba(0,0,0,0.1); background: #fff; overflow: hidden; }
         .video-container { position: relative; background: #000; width: 100%; aspect-ratio: 210 / 297; display: flex; align-items: center; justify-content: center; }
         #video { width: 100%; height: 100%; object-fit: cover; }
-        #answerStatus { font-size: 0.85rem; border-radius: 20px; padding: 6px 16px; cursor: pointer; display: inline-block; }
+        #answerStatus { font-size: 0.85rem; border-radius: 20px; padding: 6px 16px; cursor: pointer; display: inline-block; transition: all 0.3s; }
         .status-none { background: #fff1f0; color: #cf1322; border: 1px solid #ffa39e; }
         .status-ready { background: #f6ffed; color: #389e0d; border: 1px solid #b7eb8f; }
         #loadingLayer { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.9); z-index: 9000; flex-direction: column; justify-content: center; align-items: center; }
@@ -25,28 +25,26 @@
 
 <div id="apiOverlay">
     <div class="modal-box text-center">
-        <h4 class="fw-bold mb-3">🔑 配置 AI 引擎</h4>
-        <p class="text-muted small mb-4">请输入您的 DashScope (通义千问) API 密钥</p>
-        <input type="password" id="apiKeyInput" class="form-control form-control-lg mb-4 text-center" placeholder="sk-...">
-        <button class="btn btn-primary btn-lg w-100 shadow" onclick="saveKey()">保存并开始阅卷</button>
-        <div class="mt-3 small text-muted">提示：Key 将安全保存在浏览器本地</div>
+        <h4 class="fw-bold mb-3">🔑 AI 阅卷引擎初始化</h4>
+        <input type="password" id="apiKeyInput" class="form-control mb-4 text-center" placeholder="请输入您的 API Key (sk-...)">
+        <button class="btn btn-primary btn-lg w-100 shadow" onclick="saveKey()">保存并进入</button>
     </div>
 </div>
 
 <div id="loadingLayer">
-    <div class="spinner-border text-primary mb-3" style="width: 3rem; height: 3rem;"></div>
-    <h5 id="loadingText" class="fw-bold text-primary">AI 正在深度扫描图像...</h5>
+    <div class="spinner-grow text-primary mb-3"></div>
+    <h5 id="loadingText" class="fw-bold text-primary">AI 正在深度解析答题卡内容...</h5>
 </div>
 
 <div class="app-container">
     <div class="d-flex justify-content-between align-items-end mb-4">
         <div>
             <h2 class="fw-bold mb-2">📖 日语高考 AI 阅卷终端</h2>
-            <div id="answerStatus" class="status-none" onclick="resetKey()">⚠️ 尚未录入标准答案 (点此重置)</div>
+            <div id="answerStatus" class="status-none" onclick="resetKey()">⚠️ 尚未录入标准答案 (点击重置)</div>
         </div>
         <div>
-            <button class="btn btn-outline-danger btn-sm" onclick="fullReset()">重置全部数据</button>
-            <button class="btn btn-success fw-bold ms-2" onclick="exportExcel()">📊 导出 Excel</button>
+            <button class="btn btn-outline-danger btn-sm" onclick="fullReset()">重置全部</button>
+            <button class="btn btn-success fw-bold ms-2" onclick="exportExcel()">📊 导出成绩单</button>
         </div>
     </div>
 
@@ -54,10 +52,10 @@
         <div class="col-lg-5">
             <div class="camera-card">
                 <div class="video-container"><video id="video" autoplay playsinline muted></video></div>
-                <div class="p-4 bg-white border-top text-center">
+                <div class="p-4 bg-white border-top">
                     <div class="row g-2">
-                        <div class="col-6"><button class="btn btn-warning btn-lg w-100 py-3 fw-bold" onclick="handleScan('KEY')">🎯 扫标答卡</button></div>
-                        <div class="col-6"><button class="btn btn-primary btn-lg w-100 py-3 fw-bold" onclick="handleScan('STUDENT')">📝 扫学生卡</button></div>
+                        <div class="col-6"><button class="btn btn-warning btn-lg w-100 py-3 fw-bold" onclick="handleScan('KEY')">🎯 录入标答</button></div>
+                        <div class="col-6"><button class="btn btn-primary btn-lg w-100 py-3 fw-bold" onclick="handleScan('STUDENT')">📝 批改学生</button></div>
                     </div>
                 </div>
             </div>
@@ -66,12 +64,12 @@
 
         <div class="col-lg-7">
             <div class="table-card bg-white p-4 rounded-4 shadow-sm h-100">
-                <h5 class="fw-bold mb-4">实时阅卷汇总</h5>
+                <h5 class="fw-bold mb-4">批改结果列表</h5>
                 <div class="table-responsive">
                     <table class="table table-hover text-center align-middle" id="mainTable">
                         <thead class="table-light">
                             <tr>
-                                <th>班级</th><th>姓名</th><th>听力(30)</th><th>阅读(50)</th><th>完形(15)</th><th class="table-info">填空(手)</th><th>总分</th><th>-</th>
+                                <th>班级</th><th>姓名</th><th>听力(30)</th><th>阅读(50)</th><th>完形(15)</th><th class="table-info">填空(手录)</th><th>总分</th><th>-</th>
                             </tr>
                         </thead>
                         <tbody></tbody>
@@ -94,25 +92,16 @@
     };
 
     window.onload = () => {
-        if (!appState.apiKey) {
-            document.getElementById('apiOverlay').style.display = 'flex';
-        } else {
-            initApp();
-            renderRecords();
-        }
+        if (!appState.apiKey) document.getElementById('apiOverlay').style.display = 'flex';
+        else { initApp(); renderRecords(); }
     };
 
-    // 修复：增加反馈的 Key 保存函数
     function saveKey() {
-        const input = document.getElementById('apiKeyInput');
-        const val = input.value.trim();
+        const val = document.getElementById('apiKeyInput').value.trim();
         if (val.startsWith('sk-')) {
             localStorage.setItem('ALI_QWEN_KEY', val);
-            alert("✅ API 密钥保存成功！系统将重新加载。");
             location.reload();
-        } else {
-            alert("❌ 错误：API Key 格式不正确。必须以 'sk-' 开头。");
-        }
+        } else { alert("Key 格式不正确，必须以 sk- 开头"); }
     }
 
     async function initApp() {
@@ -122,13 +111,23 @@
             });
             video.srcObject = stream;
             updateStatus();
-        } catch (e) {
-            alert("无法启动摄像头，请确保：\\n1. 使用 HTTPS 环境\\n2. 已授予相机权限");
-        }
+        } catch (e) { alert("相机启动失败，请检查 HTTPS 权限。"); }
+    }
+
+    // --- JSON 清洗函数：防止 AI 多说话 ---
+    function sanitizeJSON(raw) {
+        try {
+            const firstBrace = raw.indexOf('{');
+            const lastBrace = raw.lastIndexOf('}');
+            if (firstBrace !== -1 && lastBrace !== -1) {
+                return raw.substring(firstBrace, lastBrace + 1);
+            }
+            return raw;
+        } catch (e) { return raw; }
     }
 
     function handleScan(mode) {
-        if (mode === 'STUDENT' && !appState.savedKey) return alert("请先扫描【标准答案卡】！");
+        if (mode === 'STUDENT' && !appState.savedKey) return alert("请先录入标准答案卡！");
         document.getElementById('loadingLayer').style.display = 'flex';
         
         canvas.width = video.videoWidth;
@@ -140,12 +139,11 @@
     }
 
     async function callAI(mode, base64Img) {
-        // 核心提示词：严格对应日语高考分值
         const prompt = mode === 'KEY' 
-            ? "你是一个精准的阅卷系统。请从答题卡识别标准答案。注意：1-20题只有ABC三个选项；21-40题有ABCD四个选项；41-50题有ABCD四个选项。请识别填涂最黑的格子，仅返回 JSON：{'answers': {'1':'A', '2':'C', ...}}"
-            : `你是一个严谨的阅卷老师。已知标答：${JSON.stringify(appState.savedKey)}。任务：识别姓名班级和1-50题填涂。
-               算分规则：1-20题每题1.5分；21-40题每题2.5分；41-50题每题1.5分。
-               仅返回 JSON：{'class':'','name':'','listening':0,'reading':0,'cloze':0}`;
+            ? "你是一个精准的 OCR 系统。任务：识别日语答题卡 1-50 题标准答案。注意：1-20 题选项仅限 ABC；21-50 题为 ABCD。必须仅返回 JSON 格式数据，禁止包含任何 Markdown 符号或多余文字。格式：{'answers': {'1':'A', '2':'C', ...}}"
+            : `你是一个阅卷老师。已知标答：${JSON.stringify(appState.savedKey)}。任务：识别学生姓名班级和1-50题。
+               规则：1-20题每题1.5分；21-40题每题2.5分；41-50题每题1.5分。
+               仅返回 JSON 数据：{'class':'','name':'','listening_score':0,'reading_score':0,'cloze_score':0}`;
 
         try {
             const response = await fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', {
@@ -162,33 +160,31 @@
             });
 
             const data = await response.json();
+            if (!response.ok) throw new Error(data.message || "API 请求失败");
 
-            if (!response.ok) {
-                // 捕获 401 等授权错误
-                throw new Error(data.message || `API 返回错误 (${response.status})`);
-            }
-
-            if (!data.choices || !data.choices[0]) throw new Error("AI 响应格式不完整");
-
-            const result = JSON.parse(data.choices[0].message.content);
+            // 关键：清洗 AI 可能返回的 Markdown 或多余字符
+            const rawContent = data.choices[0].message.content;
+            console.log("AI 原始响应:", rawContent);
+            const cleanJSON = sanitizeJSON(rawContent);
+            const result = JSON.parse(cleanJSON);
 
             if (mode === 'KEY') {
                 appState.savedKey = result.answers;
                 localStorage.setItem('SAVED_KEY', JSON.stringify(result.answers));
                 updateStatus();
-                alert("🎯 标准答案录入成功！");
+                alert("✅ 标答已存入本地！");
             } else {
                 appState.records.push({
                     class: result.class || '-', name: result.name || '-',
-                    listening: result.listening || 0, reading: result.reading || 0, cloze: result.cloze || 0,
-                    filling: 0 // 填空由教师手录
+                    listening: result.listening_score || 0, reading: result.reading_score || 0, cloze: result.cloze_score || 0,
+                    filling: 0
                 });
                 localStorage.setItem('STUDENT_RECORDS', JSON.stringify(appState.records));
                 renderRecords();
             }
         } catch (e) {
-            console.error(e);
-            alert("❌ 识别失败：" + e.message + "\\n请检查 Key 是否有效、余额是否充裕。");
+            console.error("解析错误:", e);
+            alert("❌ 识别出错：" + e.message + "\\n请在控制台(F12)查看原始输出内容。");
         } finally {
             document.getElementById('loadingLayer').style.display = 'none';
         }
@@ -205,7 +201,7 @@
                 <td>${r.listening}</td><td>${r.reading}</td><td>${r.cloze}</td>
                 <td contenteditable="true" class="table-info fw-bold" onblur="updateVal(${i},'filling',this)">${r.filling}</td>
                 <td class="fw-bold text-primary total-score">0</td>
-                <td><button class="btn btn-sm btn-link text-danger p-0" onclick="del(${i})">🗑️</button></td>
+                <td><button class="btn btn-sm" onclick="del(${i})">🗑️</button></td>
             `;
             tbody.appendChild(tr);
             calcTotal(tr);
@@ -226,17 +222,16 @@
 
     function updateStatus() {
         const s = document.getElementById('answerStatus');
-        s.innerText = appState.savedKey ? "✅ 标答已就绪 (可批改学生)" : "⚠️ 请先扫描标答卡";
+        s.innerText = appState.savedKey ? "✅ 标准答案已载入" : "⚠️ 尚未录入标答卡";
         s.className = appState.savedKey ? "status-ready" : "status-none";
     }
 
-    function del(i) { if(confirm("确定删除该记录？")) { appState.records.splice(i, 1); localStorage.setItem('STUDENT_RECORDS', JSON.stringify(appState.records)); renderRecords(); } }
-    function fullReset() { if(confirm("🚨 警告：将清空所有数据（包括 API Key）。确定？")) { localStorage.clear(); location.reload(); } }
-    function resetKey() { if(confirm("是否重新扫描标准答案卡？")) { localStorage.removeItem('SAVED_KEY'); location.reload(); } }
-
+    function del(i) { if(confirm("删除记录？")) { appState.records.splice(i, 1); localStorage.setItem('STUDENT_RECORDS', JSON.stringify(appState.records)); renderRecords(); } }
+    function fullReset() { if(confirm("重置所有？")) { localStorage.clear(); location.reload(); } }
+    function resetKey() { if(confirm("重新扫描标答？")) { localStorage.removeItem('SAVED_KEY'); location.reload(); } }
     function exportExcel() {
         const wb = XLSX.utils.table_to_book(document.getElementById('mainTable'), {sheet: "成绩单"});
-        XLSX.writeFile(wb, `日语阅卷汇总_${new Date().toLocaleDateString()}.xlsx`);
+        XLSX.writeFile(wb, `阅卷汇总_${new Date().toLocaleDateString()}.xlsx`);
     }
 </script>
 </body>
