@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Qwen3-VL 食物热量识别</title>
+    <style>
+        /* 样式保持一致 */
+        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; background: #f4f7f6; margin: 0; padding: 20px; }
+        #video { width: 100%; max-width: 500px; border-radius: 12px; background: #2c3e50; }
+        .controls { margin-top: 20px; }
+        button { padding: 12px 28px; font-size: 16px; border: none; border-radius: 8px; background: #ff5722; color: white; cursor: pointer; font-weight: bold; }
+        #result { margin-top: 20px; padding: 15px; background: white; border-radius: 8px; width: 100%; max-width: 500px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); display: none; line-height: 1.6; }
+        .loading { display: none; color: #ff5722; margin-top: 10px; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <h2>Qwen3-VL 智能营养师</h2>
+    <video id="video" autoplay playsinline></video>
+    <canvas id="canvas" style="display:none;"></canvas>
+
+    <div class="controls">
+        <button id="captureBtn">拍照分析热量</button>
+    </div>
+
+    <div class="loading" id="loader">Qwen 正在解析图像深度信息...</div>
+    <div id="result"></div>
+
+    <script>
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const captureBtn = document.getElementById('captureBtn');
+        const resultDiv = document.getElementById('result');
+        const loader = document.getElementById('loader');
+
+        // 1. 摄像头初始化
+        async function initCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+                video.srcObject = stream;
+            } catch (err) {
+                alert("摄像头权限开启失败，请确保使用 HTTPS 环境");
+            }
+        }
+
+        // 2. 调用 Qwen3-VL API
+        async function identifyFoodQwen(base64Image) {
+            const API_KEY = 'sk-YZFTWTUNfMGCzSXekIIbRjjEAJ3O3gvP3PtZmTrPgZObIwR3'; // 替换为你的灵积 API Key
+            const url = 'https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation';
+
+            const payload = {
+                model: "qwen3-vl-plus",
+                input: {
+                    messages: [
+                        {
+                            role: "user",
+                            content: [
+                                { image: base64Image }, // Qwen 支持直接传入带前缀的 Base64
+                                { text: "你是一个专业的营养师。请识别图片中的食物，估算克重并计算总热量（大卡）。请以简洁的 Markdown 列表形式输出：名称、重量、热量估算、主要成分。" }
+                            ]
+                        }
+                    ]
+                }
+            };
+
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${API_KEY}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            });
+
+            const data = await response.json();
+            
+            // 阿里 API 错误处理逻辑
+            if (data.code) {
+                throw new Error(data.message);
+            }
+            return data.output.choices[0].message.content[0].text;
+        }
+
+        // 3. 拍照触发
+        captureBtn.addEventListener('click', async () => {
+            const context = canvas.getContext('2d');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            context.drawImage(video, 0, 0);
+
+            const base64Image = canvas.toDataURL('image/jpeg', 0.9);
+            
+            loader.style.display = 'block';
+            resultDiv.style.display = 'none';
+            captureBtn.disabled = true;
+
+            try {
+                const analysis = await identifyFoodQwen(base64Image);
+                resultDiv.innerHTML = `<strong>分析报告：</strong><br>${analysis}`;
+                resultDiv.style.display = 'block';
+            } catch (err) {
+                resultDiv.innerHTML = `<span style="color:red;">错误：${err.message}</span>`;
+                resultDiv.style.display = 'block';
+            } finally {
+                loader.style.display = 'none';
+                captureBtn.disabled = false;
+            }
+        });
+
+        initCamera();
+    </script>
+</body>
+</html>
