@@ -196,7 +196,7 @@
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer \${appState.apiKey}` },
                 body: JSON.stringify({
-                    model: "qwen-vl-max-latest", // 建议使用 max 或 flash 视觉版
+                    model: "qwen3-vl-flash", // 建议使用 max 或 flash 视觉版
                     messages: [{ role: "user", content: [{ type: "text", text: prompt }, { type: "image_url", image_url: { url: base64Img } }]}],
                     response_format: { type: "json_object" }
                 })
