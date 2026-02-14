@@ -3,20 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI 智能识餐</title>
+    <title>AI 营养师 (Qwen3-VL)</title>
     <style>
-        :root { --primary: #007AFF; --bg: #f5f5f7; }
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); margin: 0; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
-        #video-container { width: 100%; position: relative; background: #000; line-height: 0; }
-        video { width: 100%; height: auto; max-height: 70vh; object-fit: cover; }
-        .ui-layer { padding: 20px; width: 90%; max-width: 500px; text-align: center; }
-        #captureBtn { background: var(--primary); color: white; border: none; padding: 16px 32px; border-radius: 50px; font-size: 18px; font-weight: 600; box-shadow: 0 4px 15px rgba(0,122,255,0.3); cursor: pointer; transition: transform 0.1s; width: 100%; }
-        #captureBtn:active { transform: scale(0.95); }
-        #captureBtn:disabled { background: #ccc; box-shadow: none; }
-        #result { margin-top: 20px; background: white; padding: 20px; border-radius: 16px; text-align: left; display: none; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
-        .loading { display: none; color: #666; margin: 15px 0; font-size: 14px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th, td { padding: 8px; border-bottom: 1px solid #eee; text-align: left; font-size: 14px; }
+        :root { --primary: #27ae60; --bg: #f8f9fa; }
+        body { font-family: -apple-system, system-ui, sans-serif; background: var(--bg); margin: 0; display: flex; flex-direction: column; align-items: center; }
+        
+        /* 视频预览区 */
+        #video-container { width: 100%; max-height: 60vh; background: #000; overflow: hidden; position: relative; line-height: 0; }
+        video { width: 100%; height: 100%; object-fit: cover; }
+        
+        /* UI 交互区 */
+        .controls { padding: 25px; width: 100%; max-width: 500px; box-sizing: border-box; }
+        #captureBtn { 
+            background: var(--primary); color: white; border: none; padding: 18px; 
+            border-radius: 12px; font-size: 18px; font-weight: bold; width: 100%;
+            box-shadow: 0 4px 12px rgba(39,174,96,0.3); cursor: pointer;
+        }
+        #captureBtn:active { transform: scale(0.98); opacity: 0.9; }
+        #captureBtn:disabled { background: #bdc3c7; box-shadow: none; }
+
+        /* 结果展示区 */
+        #result-card { 
+            margin-top: 20px; background: white; padding: 20px; border-radius: 16px; 
+            display: none; box-shadow: 0 4px 20px rgba(0,0,0,0.08); width: 100%;
+        }
+        .loading-text { display: none; color: var(--primary); font-weight: bold; margin: 15px 0; }
+        
+        table { width: 100%; border-collapse: collapse; margin: 15px 0; }
+        th, td { text-align: left; padding: 10px; border-bottom: 1px solid #eee; font-size: 14px; }
+        .total-box { background: #eef9f1; padding: 10px; border-radius: 8px; font-weight: bold; color: #1e8449; }
     </style>
 </head>
 <body>
@@ -25,13 +40,13 @@
     <video id="video" autoplay playsinline></video>
 </div>
 
-<div class="ui-layer">
-    <button id="captureBtn">点击拍照识别</button>
-    <div class="loading" id="loader">✨ AI 正在计算卡路里...</div>
-    
-    <div id="result">
-        <h3 style="margin-top:0">分析结果</h3>
-        <div id="jsonContent"></div>
+<div class="controls">
+    <button id="captureBtn">📷 拍照识别热量</button>
+    <div id="loader" class="loading-text">🚀 Qwen3-VL 正在深度分析图片...</div>
+
+    <div id="result-card">
+        <h3 style="margin-top:0; color:#333;">识别报告</h3>
+        <div id="content-area"></div>
     </div>
 </div>
 
@@ -41,35 +56,39 @@
     const video = document.getElementById('video');
     const canvas = document.getElementById('canvas');
     const captureBtn = document.getElementById('captureBtn');
-    const resultDiv = document.getElementById('result');
+    const resultCard = document.getElementById('result-card');
     const loader = document.getElementById('loader');
-    const jsonContent = document.getElementById('jsonContent');
+    const contentArea = document.getElementById('content-area');
 
-    // 1. 启动摄像头
-    async function startCamera() {
+    // 1. 初始化摄像头 (环境摄像头)
+    async function init() {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ 
-                video: { facingMode: "environment", width: { ideal: 1280 } }, 
+                video: { facingMode: "environment" }, 
                 audio: false 
             });
             video.srcObject = stream;
         } catch (err) {
-            alert("请确保在 HTTPS 环境下运行并授予摄像头权限");
+            alert("无法打开摄像头，请确保使用 HTTPS 访问并允许权限");
         }
     }
 
-    // 2. 核心逻辑：拍照并调用 Cloudflare Worker
+    // 2. 核心功能：压缩并发送请求
     captureBtn.addEventListener('click', async () => {
         const ctx = canvas.getContext('2d');
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        ctx.drawImage(video, 0, 0);
-
-        const base64Image = canvas.toDataURL('image/jpeg', 0.8);
         
-        // UI 状态切换
+        // 自动压缩：限制最大宽度为 1000px，防止请求体过大
+        const MAX_WIDTH = 1000;
+        const scale = Math.min(1, MAX_WIDTH / video.videoWidth);
+        canvas.width = video.videoWidth * scale;
+        canvas.height = video.videoHeight * scale;
+        
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const base64Image = canvas.toDataURL('image/jpeg', 0.7); // 质量设为 0.7
+
+        // 更新 UI 状态
         loader.style.display = 'block';
-        resultDiv.style.display = 'none';
+        resultCard.style.display = 'none';
         captureBtn.disabled = true;
 
         try {
@@ -78,11 +97,12 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     provider: "qwen",
+                    model: "qwen3-vl-plus", // 明确指定模型
                     messages: [
                         {
                             role: "user",
                             content: [
-                                { type: "text", text: "请分析这张图片中的食物。请只输出 JSON 格式的结果，不要包含 Markdown 代码块或任何解释说明文字。格式必须为：{\"items\": [{\"name\": \"食物名称\", \"kcal\": \"热量\", \"weight\": \"估算重量\"}], \"total_kcal\": \"总热量\", \"advice\": \"一句话建议\"}" },
+                                { type: "text", text: "请识别图片中的食物。只输出 JSON 对象，严禁包含 ``` 标签。格式：{\"items\":[{\"name\":\"名称\",\"kcal\":100,\"weight\":\"100g\"}],\"total_kcal\":100,\"advice\":\"建议\"}" },
                                 { type: "image_url", image_url: { url: base64Image } }
                             ]
                         }
@@ -90,43 +110,49 @@
                 })
             });
 
-            const data = await response.json();
-            // 假设你的 Worker 返回的数据结构符合 OpenAI 规范：data.choices[0].message.content
-            const content = data.choices ? data.choices[0].message.content : data.output.choices[0].message.content[0].text;
+            const rawText = await response.text();
+            console.log("Raw Response:", rawText);
+
+            // 清洗并解析 JSON
+            const cleanJson = rawText.replace(/```json|```/g, '').trim();
+            const data = JSON.parse(cleanJson);
             
-            renderResult(content);
+            // 处理不同 Worker 的返回结构
+            const aiRawContent = data.choices ? data.choices[0].message.content : (data.output?.choices[0].message.content[0].text || JSON.stringify(data));
+            
+            renderUI(aiRawContent);
         } catch (err) {
-            alert("分析失败: " + err.message);
+            console.error(err);
+            alert("分析失败，请检查网络或控制台日志。内容：" + err.message);
         } finally {
             loader.style.display = 'none';
             captureBtn.disabled = false;
         }
     });
 
-    // 3. 解析并渲染 JSON 结果
-    function renderResult(rawJson) {
+    // 3. 渲染结果到页面
+    function renderUI(content) {
         try {
-            // 清理可能存在的 Markdown 标签（万一 AI 没听话）
-            const cleanJson = rawJson.replace(/```json|```/g, '').trim();
-            const res = JSON.parse(cleanJson);
+            // 如果 content 还是字符串，再解析一次
+            const res = typeof content === 'string' ? JSON.parse(content.replace(/```json|```/g, '').trim()) : content;
             
-            let html = `<table><tr><th>名称</th><th>重量</th><th>热量</th></tr>`;
-            res.items.forEach(item => {
-                html += `<tr><td>${item.name}</td><td>${item.weight}</td><td>${item.kcal}</td></tr>`;
+            let tableHtml = `<table><tr><th>食物</th><th>估重</th><th>热量</th></tr>`;
+            res.items.forEach(i => {
+                tableHtml += `<tr><td>${i.name}</td><td>${i.weight}</td><td>${i.kcal} kcal</td></tr>`;
             });
-            html += `</table><p><strong>总计：${res.total_kcal}</strong></p>`;
-            html += `<p style="color:#666; font-size:12px;">💡建议：${res.advice}</p>`;
+            tableHtml += `</table>`;
+            tableHtml += `<div class="total-box">总计热量：${res.total_kcal} kcal</div>`;
+            tableHtml += `<p style="font-size:13px; color:#666; line-height:1.5;">💡 ${res.advice}</p>`;
             
-            jsonContent.innerHTML = html;
-            resultDiv.style.display = 'block';
+            contentArea.innerHTML = tableHtml;
+            resultCard.style.display = 'block';
         } catch (e) {
-            jsonContent.innerHTML = `<pre style="white-space:pre-wrap;">${rawJson}</pre>`;
-            resultDiv.style.display = 'block';
+            contentArea.innerHTML = `<p>解析失败，AI 返回原文：</p><pre style="font-size:10px; background:#f0f0f0; padding:10px; overflow:auto;">${content}</pre>`;
+            resultCard.style.display = 'block';
         }
     }
 
-    startCamera();
+    init();
 </script>
-
 </body>
 </html>
