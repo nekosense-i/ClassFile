@@ -1,22 +1,77 @@
 <!DOCTYPE html>
-<html lang="zh-CN"><head>
+<html lang="zh-CN">
+<head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>智能班级座位表</title>
+<title>智能座位表</title>
 
-<script id="app-state" type="application/json">{"lastModified":1772375072350,"avatars":{},"seats":[{"row":"1","col":"1","type":"student","name":"杨恒","absent":false},{"row":"1","col":"2","type":"student","name":"刘睿举","absent":false},{"row":"1","col":"3","type":"student","name":"都沐篱","absent":false},{"row":"1","col":"4","type":"student","name":"徐嘉璐","absent":false},{"row":"2","col":"1","type":"student","name":"赵楷","absent":false},{"row":"2","col":"2","type":"student","name":"黄浩宇","absent":false},{"row":"2","col":"3","type":"student","name":"张良泽","absent":false},{"row":"2","col":"4","type":"student","name":"龙思羽","absent":false},{"row":"3","col":"1","type":"student","name":"王子珂","absent":false},{"row":"3","col":"2","type":"student","name":"李烨文","absent":false},{"row":"3","col":"3","type":"student","name":"刘澄橙","absent":false},{"row":"3","col":"4","type":"student","name":"钟菲儿","absent":false},{"row":"4","col":"1","type":"student","name":"李妮蔓","absent":false},{"row":"4","col":"2","type":"student","name":"肖襄阳","absent":false},{"row":"4","col":"3","type":"empty","name":"空位","absent":false},{"row":"4","col":"4","type":"empty","name":"空位","absent":false}]}</script>
+<script id="app-state" type="application/json">null</script>
 
 <style>
-    body { font-family: 'Microsoft YaHei', sans-serif; background-color: #f4f7f6; margin: 0; padding: 2vh 2vw; touch-action: none; user-select: none; }
-    .classroom { max-width: 1100px; margin: 0 auto; background: white; padding: 20px; border-radius: 16px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); }
+    /* ================= 核心自适应重构 ================= */
+    body { 
+        font-family: 'Microsoft YaHei', sans-serif; 
+        background-color: #f4f7f6; 
+        margin: 0; 
+        padding: 0; 
+        /* 强制满屏并居中，消除滚动条 */
+        width: 100vw; 
+        height: 100vh; 
+        display: flex; 
+        justify-content: center; 
+        align-items: center; 
+        overflow: hidden; 
+        touch-action: none; 
+        user-select: none; 
+    }
     
-    .front-board-container { position: relative; margin-bottom: 30px; display: flex; justify-content: center; align-items: center; width: 100%; }
-    .front-board { text-align: center; background: #34495e; color: white; padding: 15px 0; width: 100%; font-size: 28px; border-radius: 8px; font-weight: bold; letter-spacing: 10px; box-sizing: border-box; box-shadow: 0 4px 12px rgba(52,73,94,0.2); }
+    .classroom { 
+        /* 根据屏幕宽高动态占满 96% 面积 */
+        width: 96vw; 
+        height: 94vh; 
+        background: white; 
+        padding: 2vmin; 
+        border-radius: 16px; 
+        box-shadow: 0 8px 24px rgba(0,0,0,0.08); 
+        display: flex; 
+        flex-direction: column; 
+        box-sizing: border-box;
+    }
     
-    .btn-group-left { position: absolute; left: 15px; display: flex; gap: 10px; z-index: 10; }
-    .btn-group-right { position: absolute; right: 15px; display: flex; gap: 10px; z-index: 10; }
+    .front-board-container { 
+        position: relative; 
+        margin-bottom: 2vmin; 
+        display: flex; 
+        justify-content: center; 
+        align-items: center; 
+        width: 100%; 
+        flex-shrink: 0; /* 防止讲台被压缩 */
+    }
+    
+    .front-board { 
+        text-align: center; 
+        background: #34495e; 
+        color: white; 
+        padding: 1.5vmin 0; 
+        width: 100%; 
+        font-size: clamp(18px, 3vmin, 32px); 
+        border-radius: 8px; 
+        font-weight: bold; 
+        letter-spacing: 1vw; 
+        box-sizing: border-box; 
+        box-shadow: 0 4px 12px rgba(52,73,94,0.2); 
+    }
+    
+    .btn-group-left { position: absolute; left: 1.5vmin; display: flex; gap: 1vmin; z-index: 10; }
+    .btn-group-right { position: absolute; right: 1.5vmin; display: flex; gap: 1vmin; z-index: 10; }
 
-    .action-btn { color: white; border: none; padding: 8px 12px; border-radius: 6px; font-size: 14px; font-weight: bold; cursor: pointer; transition: all 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+    .action-btn { 
+        color: white; border: none; 
+        padding: 1vmin 1.5vmin; 
+        border-radius: 6px; 
+        font-size: clamp(12px, 1.5vmin, 18px); 
+        font-weight: bold; cursor: pointer; transition: all 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.2); 
+    }
     .action-btn:active:not(:disabled) { transform: scale(0.95); }
     .action-btn:disabled { background-color: #95a5a6; cursor: not-allowed; }
     
@@ -25,50 +80,87 @@
     .btn-save { background-color: #27ae60; } .btn-save:hover { background-color: #2ecc71; }
     .btn-clear-cache { background-color: #f39c12; } .btn-clear-cache:hover { background-color: #e67e22; }
 
-    .middle-section { display: flex; justify-content: space-between; align-items: stretch; }
-    .side-wall { writing-mode: vertical-lr; padding: 20px 15px; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; border-radius: 8px; letter-spacing: 15px; }
-    .side-window { background: #e1f5fe; color: #0277bd; border-left: 6px solid #29b6f6; }
-    .side-door { background: #fff3e0; color: #ef6c00; border-right: 6px solid #ffa726; }
-    .seating-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; flex-grow: 1; margin: 0 30px; }
+    .middle-section { 
+        display: flex; 
+        justify-content: space-between; 
+        align-items: stretch; 
+        flex-grow: 1; 
+        min-height: 0; /* 允许 Flex 子元素收缩的关键 */
+    }
     
-    .seat { border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 130px; padding-bottom: 10px; box-sizing: border-box; font-size: 22px; font-weight: bold; cursor: grab; transition: all 0.2s ease; box-shadow: 0 4px 6px rgba(0,0,0,0.05); position: relative; }
+    .side-wall { 
+        writing-mode: vertical-lr; 
+        padding: 1vmin; 
+        display: flex; 
+        align-items: center; 
+        justify-content: center; 
+        font-size: clamp(16px, 2.5vmin, 28px); 
+        font-weight: bold; 
+        border-radius: 8px; 
+        letter-spacing: 1.5vh; 
+    }
+    .side-window { background: #e1f5fe; color: #0277bd; border-left: 0.5vmin solid #29b6f6; }
+    .side-door { background: #fff3e0; color: #ef6c00; border-right: 0.5vmin solid #ffa726; }
+    
+    .seating-grid { 
+        display: grid; 
+        grid-template-columns: repeat(4, 1fr); 
+        grid-template-rows: repeat(4, 1fr); /* 增加对垂直方向的自适应切分 */
+        gap: 1.5vmin; 
+        flex-grow: 1; 
+        margin: 0 2vmin; 
+        height: 100%; 
+    }
+    
+    .seat { 
+        border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; 
+        height: 100%; /* 不再写死 130px，交由 Grid 管理 */
+        padding-bottom: 1.5vmin; box-sizing: border-box; 
+        font-size: clamp(14px, 2.5vmin, 26px); 
+        font-weight: bold; cursor: grab; transition: all 0.2s ease; box-shadow: 0 4px 6px rgba(0,0,0,0.05); position: relative; 
+    }
     .seat:active { cursor: grabbing; }
     .seat.student { background: #e8f5e9; border: 2px solid #81c784; color: #2e7d32; }
     .seat.empty { background: #f5f5f5; border: 2px dashed #bdbdbd; color: #9e9e9e; cursor: pointer; justify-content: center; padding-bottom: 0;}
     .seat.selected { border-color: #f44336; box-shadow: 0 0 15px rgba(244,67,54,0.4); transform: scale(1.05); z-index: 10; }
     
-    .absent-toggle { position: absolute; top: 8px; right: 8px; background: #a5d6a7; color: #1b5e20; border: none; border-radius: 4px; font-size: 12px; font-weight: bold; padding: 4px 8px; cursor: pointer; z-index: 6; transition: all 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .absent-toggle { position: absolute; top: 0.8vmin; right: 0.8vmin; background: #a5d6a7; color: #1b5e20; border: none; border-radius: 4px; font-size: clamp(10px, 1.2vmin, 14px); font-weight: bold; padding: 0.5vmin 1vmin; cursor: pointer; z-index: 6; transition: all 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
     .seat.absent { opacity: 0.6; filter: grayscale(90%); background: #e0e0e0; border-color: #9e9e9e; }
     .seat.absent .absent-toggle { background: #e74c3c; color: white; }
 
-    .seat.lucky-student { animation: pulse-glow 0.8s infinite; border: 3px solid #f1c40f !important; background-color: #fff9c4 !important; color: #d35400 !important; transform: scale(1.1); z-index: 20; filter: none !important; opacity: 1 !important;}
+    .seat.lucky-student { animation: pulse-glow 0.8s infinite; border: 3px solid #f1c40f !important; background-color: #fff9c4 !important; color: #d35400 !important; transform: scale(1.08); z-index: 20; filter: none !important; opacity: 1 !important;}
     @keyframes pulse-glow { 0% { box-shadow: 0 0 10px rgba(241, 196, 15, 0.5); } 50% { box-shadow: 0 0 35px rgba(241, 196, 15, 1); } 100% { box-shadow: 0 0 10px rgba(241, 196, 15, 0.5); } }
 
-    .avatar-wrapper { width: 70px; height: 70px; border-radius: 50%; background-color: #fff; border: 2px solid #a5d6a7; position: absolute; top: 10px; display: flex; align-items: center; justify-content: center; overflow: hidden; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1); z-index: 5; }
+    .avatar-wrapper { 
+        width: clamp(40px, 8vmin, 85px); 
+        height: clamp(40px, 8vmin, 85px); 
+        border-radius: 50%; background-color: #fff; border: 2px solid #a5d6a7; position: absolute; 
+        top: 1vmin; display: flex; align-items: center; justify-content: center; overflow: hidden; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1); z-index: 5; 
+    }
     .avatar-wrapper img { width: 100%; height: 100%; object-fit: cover; }
-    .avatar-placeholder { font-size: 14px; color: #81c784; text-align: center; line-height: 1.2; }
+    .avatar-placeholder { font-size: clamp(10px, 1.5vmin, 16px); color: #81c784; text-align: center; line-height: 1.2; }
 
     .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); display: none; justify-content: center; align-items: center; z-index: 1000; opacity: 0; transition: opacity 0.3s; }
     .modal-overlay.active { display: flex; opacity: 1; }
-    .modal-content { background: white; padding: 30px; border-radius: 16px; width: 80%; max-width: 800px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
-    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid #eee; padding-bottom: 10px; }
-    .modal-header h2 { margin: 0; color: #333; }
-    .close-btn { background: #f44336; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 16px; font-weight: bold; }
+    .modal-content { background: white; padding: 3vmin; border-radius: 16px; width: 85%; max-width: 900px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2vmin; border-bottom: 2px solid #eee; padding-bottom: 1vmin; }
+    .modal-header h2 { margin: 0; color: #333; font-size: clamp(18px, 2.5vmin, 28px); }
+    .close-btn { background: #f44336; color: white; border: none; padding: 1vmin 2vmin; border-radius: 6px; cursor: pointer; font-size: clamp(14px, 1.8vmin, 20px); font-weight: bold; }
     
-    .gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 15px; max-height: 55vh; overflow-y: auto; padding: 5px; }
+    .gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 1.5vmin; max-height: 65vh; overflow-y: auto; padding: 1vmin; }
     .gallery-item { border-radius: 12px; overflow: hidden; border: 3px solid transparent; cursor: pointer; aspect-ratio: 1; position: relative; }
     .gallery-item img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); }
     .gallery-item:hover img { transform: scale(1.15); }
     .gallery-item.taken { cursor: not-allowed; filter: grayscale(100%); opacity: 0.5; }
-    .gallery-item.taken::after { content: "已被选"; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.7); color: white; padding: 4px 8px; border-radius: 4px; font-size: 14px; font-weight: bold; pointer-events: none; }
+    .gallery-item.taken::after { content: "已被选"; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.7); color: white; padding: 0.5vmin 1vmin; border-radius: 4px; font-size: clamp(12px, 1.5vmin, 16px); font-weight: bold; pointer-events: none; }
 
-    #toast { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: rgba(0, 0, 0, 0.8); color: #fff; padding: 12px 24px; border-radius: 8px; font-size: 20px; opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 9999; }
-    #toast.toast-lucky { background: #f39c12; font-size: 28px; padding: 20px 40px; box-shadow: 0 10px 20px rgba(243, 156, 18, 0.4); }
+    #toast { position: fixed; top: 3vh; left: 50%; transform: translateX(-50%); background: rgba(0, 0, 0, 0.8); color: #fff; padding: 1.5vmin 3vmin; border-radius: 8px; font-size: clamp(16px, 2vmin, 24px); opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 9999; }
+    #toast.toast-lucky { background: #f39c12; font-size: clamp(20px, 3vmin, 32px); padding: 2.5vmin 5vmin; box-shadow: 0 10px 20px rgba(243, 156, 18, 0.4); }
 </style>
 </head>
 <body>
 
-<div id="toast" class="toast-lucky" style="opacity: 0;">🎉 有请 张良泽 同学！</div>
+<div id="toast"></div>
 
 <div class="modal-overlay" id="avatarModal">
     <div class="modal-content">
@@ -271,7 +363,6 @@
         document.querySelectorAll('.seat.student').forEach(node => node.classList.remove('lucky-student'));
         clearTimeout(luckyTimeout); 
 
-        // 核心优化：将抽选控制在极速范围内 (16次跳动 × 65ms = 1040ms ≈ 1秒出头)
         let jumps = 0; const totalJumps = 16; const jumpSpeed = 65; let lastNode = null;
         
         const drawInterval = setInterval(() => {
@@ -291,7 +382,6 @@
                 btn.disabled = false; btn.innerText = '🎲';
                 showToast(`🎉 有请 ${finalNode.dataset.name} 同学！`, true);
                 
-                // 核心优化：光环框停留时间缩短为 1.5 秒，迅速恢复清爽界面
                 luckyTimeout = setTimeout(() => { finalNode.classList.remove('lucky-student'); }, 1500);
             }
         }, jumpSpeed);
@@ -345,6 +435,9 @@
             if (Math.abs(e.pageX - startX) > 10 || Math.abs(e.pageY - startY) > 10) {
                 isDragging = true;
                 clone = draggedItem.cloneNode(true);
+                // 核心修复：给弹性布局的拖拽克隆体锁定绝对宽高，防止塌陷
+                clone.style.width = draggedItem.offsetWidth + 'px';
+                clone.style.height = draggedItem.offsetHeight + 'px';
                 clone.style.position = 'absolute'; clone.style.zIndex = '1000'; clone.style.pointerEvents = 'none'; clone.style.opacity = '0.85'; clone.style.margin = '0'; clone.style.boxShadow = '0 10px 20px rgba(0,0,0,0.2)';
                 document.body.appendChild(clone); draggedItem.style.opacity = '0.3';
             }
@@ -404,12 +497,10 @@
         const toast = document.getElementById('toast'); toast.innerText = msg;
         if (isLucky) toast.classList.add('toast-lucky'); else toast.classList.remove('toast-lucky');
         toast.style.opacity = '1'; 
-        
-        // 核心优化：常规提示1.5秒，抽奖大提示2秒 (迅速收场不耽误讲课)
         setTimeout(() => toast.style.opacity = '0', isLucky ? 2000 : 1500);
     }
 
     initSystem();
 </script>
-
-</body></html>
+</body>
+</html>
