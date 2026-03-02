@@ -1,410 +1,493 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <title>日语积分系统</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
-    <style>
-        :root {
-            --bg: #f0f2f5; --border: #d9d9d9;
-            --hw-A: #237804; --hw-B: #73d13d; --hw-C: #fffb8f; --hw-D: #ffadd2; --hw-none: #f5222d;
-            --dt-full: #237804; --dt-pass: #73d13d; --dt-re: #fadb14; --dt-fail: #f5222d;
-            --att-1: #52c41a; --att-miss: #f5222d; --att-absent: #000000;
-            --rank-low: #000000; --rank-mid: #1890ff; --rank-high: #722ed1; --rank-top: #fa8c16;
-        }
-        * { box-sizing: border-box; font-family: -apple-system, system-ui, sans-serif; }
-        body { margin: 0; padding: 10px; background: var(--bg); font-size: 11px; height: 100vh; display: flex; flex-direction: column; }
-        
-        #toolbar { display: flex; align-items: center; gap: 8px; padding: 10px; background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 8px; flex-wrap: wrap; }
-        .table-container { flex: 1; overflow: auto; background: white; border: 1px solid var(--border); border-radius: 4px; }
-        table { border-collapse: collapse; min-width: 1600px; width: 100%; table-layout: fixed; }
-        th, td { border: 1px solid var(--border); text-align: center; height: 38px; padding: 0 2px; }
-        th { background: #444; color: white; position: sticky; top: 0; z-index: 20; }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>4x5 交互式班级座位表 (25A班-原生音效版)</title>
 
-        .date-container { font-size: 10px; font-weight: normal; margin-top: 2px; color: #ffeb3b; }
-        .date-input { font-size: 10px; border: none; border-radius: 2px; padding: 1px; width: 95%; cursor: pointer; }
+<script id="app-state" type="application/json">null</script>
 
-        .sticky-class { position: sticky; left: 0; background: #f9f9f9 !important; z-index: 10; width: 50px; min-width: 50px; }
-        .sticky-name { position: sticky; left: 50px; background: #f9f9f9 !important; z-index: 10; width: 80px; min-width: 80px; border-right: 2px solid #888 !important; text-decoration: underline; cursor: pointer; white-space: nowrap; font-weight: bold; }
+<style>
+    body { font-family: 'Microsoft YaHei', sans-serif; background-color: #f4f7f6; margin: 0; padding: 0; width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center; overflow: hidden; touch-action: none; user-select: none; }
+    .classroom { width: 96vw; height: 94vh; background: white; padding: 1.5vmin; border-radius: 16px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); display: flex; flex-direction: column; box-sizing: border-box; }
+    .front-board-container { position: relative; margin-bottom: 1.5vmin; display: flex; justify-content: center; align-items: center; width: 100%; flex-shrink: 0; }
+    .front-board { text-align: center; background: #34495e; color: white; padding: 1.2vmin 0; width: 100%; font-size: clamp(16px, 2.8vmin, 30px); border-radius: 8px; font-weight: bold; letter-spacing: 1vw; box-sizing: border-box; box-shadow: 0 4px 12px rgba(52,73,94,0.2); }
+    
+    .btn-group-left { position: absolute; left: 1.5vmin; display: flex; gap: 1vmin; z-index: 10; }
+    .btn-group-right { position: absolute; right: 1.5vmin; display: flex; gap: 1vmin; z-index: 10; }
+    .action-btn { color: white; border: none; padding: 0.8vmin 1.2vmin; border-radius: 6px; font-size: clamp(12px, 1.4vmin, 16px); font-weight: bold; cursor: pointer; transition: all 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+    .action-btn:active:not(:disabled) { transform: scale(0.95); }
+    .action-btn:disabled { background-color: #95a5a6; cursor: not-allowed; }
+    
+    .btn-random { background-color: #3498db; } .btn-random:hover:not(:disabled) { background-color: #2980b9; }
+    .btn-reset { background-color: #e74c3c; } .btn-reset:hover { background-color: #c0392b; }
+    .btn-save { background-color: #27ae60; } .btn-save:hover { background-color: #2ecc71; }
+    .btn-clear-cache { background-color: #f39c12; } .btn-clear-cache:hover { background-color: #e67e22; }
 
-        .btn-group { display: flex; justify-content: center; gap: 1px; width: 100%; }
-        .opt { padding: 2px 0; border: 1px solid #ccc; cursor: pointer; background: #eee; border-radius: 2px; font-size: 9px; flex: 1; user-select: none; transition: 0.1s; }
-        [data-type="att"] .opt { font-size: 8px; max-width: 18px; }
+    .middle-section { display: flex; justify-content: space-between; align-items: stretch; flex-grow: 1; min-height: 0; }
+    .side-wall { writing-mode: vertical-lr; padding: 1vmin; display: flex; align-items: center; justify-content: center; font-size: clamp(14px, 2.2vmin, 26px); font-weight: bold; border-radius: 8px; letter-spacing: 1.5vh; }
+    .side-window { background: #e1f5fe; color: #0277bd; border-left: 0.5vmin solid #29b6f6; }
+    .side-door { background: #fff3e0; color: #ef6c00; border-right: 0.5vmin solid #ffa726; }
+    
+    .seating-grid { display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(5, 1fr); gap: 1.2vmin; flex-grow: 1; margin: 0 1.5vmin; height: 100%; }
+    
+    .seat { border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; padding-bottom: 1vmin; box-sizing: border-box; font-size: clamp(12px, 2vmin, 22px); font-weight: bold; cursor: grab; transition: all 0.2s ease; box-shadow: 0 4px 6px rgba(0,0,0,0.05); position: relative; }
+    .seat:active { cursor: grabbing; }
+    .seat.student { background: #e8f5e9; border: 2px solid #81c784; color: #2e7d32; }
+    .seat.empty { background: #f5f5f5; border: 2px dashed #bdbdbd; color: #9e9e9e; cursor: pointer; justify-content: center; padding-bottom: 0;}
+    .seat.selected { border-color: #f44336; box-shadow: 0 0 15px rgba(244,67,54,0.4); transform: scale(1.05); z-index: 10; }
+    
+    .absent-toggle { position: absolute; top: 0.6vmin; right: 0.6vmin; background: #a5d6a7; color: #1b5e20; border: none; border-radius: 4px; font-size: clamp(9px, 1vmin, 12px); font-weight: bold; padding: 0.4vmin 0.8vmin; cursor: pointer; z-index: 6; transition: all 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .seat.absent { opacity: 0.6; filter: grayscale(90%); background: #e0e0e0; border-color: #9e9e9e; }
+    .seat.absent .absent-toggle { background: #e74c3c; color: white; }
 
-        .act-hw-A { background: var(--hw-A) !important; color: white; }
-        .act-hw-B { background: var(--hw-B) !important; color: #000; }
-        .act-hw-C { background: var(--hw-C) !important; color: #856404; }
-        .act-hw-D { background: var(--hw-D) !important; color: white; }
-        .act-hw-未 { background: var(--hw-none) !important; color: white; }
-        .act-dt-满 { background: var(--dt-full) !important; color: white; }
-        .act-dt-过 { background: var(--dt-pass) !important; color: #000; }
-        .act-dt-重 { background: var(--dt-re) !important; color: #856404; }
-        .act-dt-未 { background: var(--dt-fail) !important; color: white; }
-        .act-att-1 { background: var(--att-1) !important; color: white; }
-        .act-att--1 { background: var(--att-miss) !important; color: white; }
-        .act-att-缺 { background: var(--att-absent) !important; color: white; }
+    .seat.lucky-student { animation: pulse-glow 0.8s infinite; border: 3px solid #f1c40f !important; background-color: #fff9c4 !important; color: #d35400 !important; transform: scale(1.08); z-index: 20; filter: none !important; opacity: 1 !important;}
+    @keyframes pulse-glow { 0% { box-shadow: 0 0 10px rgba(241, 196, 15, 0.5); } 50% { box-shadow: 0 0 35px rgba(241, 196, 15, 1); } 100% { box-shadow: 0 0 10px rgba(241, 196, 15, 0.5); } }
 
-        .week-sum { background: #f0f5ff !important; color: #ff4d4f !important; font-weight: 800; cursor: pointer; }
-        .class-box { display: flex; align-items: center; justify-content: center; gap: 1px; width: 100%; }
-        .class-box button { width: 18px; height: 18px; padding: 0; border: 1px solid #ccc; background: #fff; border-radius: 3px; flex-shrink: 0; -webkit-appearance: none; appearance: none; }
-        .score-val { font-weight: bold; width: 16px; color: #1890ff; font-size: 11px; text-align: center; }
-        .day-sum { background: #fffdf0; font-weight: bold; }
+    .avatar-wrapper { width: clamp(35px, 6vmin, 75px); height: clamp(35px, 6vmin, 75px); border-radius: 50%; background-color: #fff; border: 2px solid #a5d6a7; position: absolute; top: 0.8vmin; display: flex; align-items: center; justify-content: center; overflow: hidden; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1); z-index: 5; }
+    .avatar-wrapper img { width: 100%; height: 100%; object-fit: cover; }
+    .avatar-placeholder { font-size: clamp(9px, 1.2vmin, 14px); color: #81c784; text-align: center; line-height: 1.2; }
 
-        .modal { display:none; position:fixed; top:5%; left:5%; width:90%; height:90%; background:white; z-index:1000; padding:20px; border-radius:12px; box-shadow:0 10px 40px rgba(0,0,0,0.3); flex-direction:column; }
-        .overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:900; }
-        
-        #compareScrollWrapper { width: 100%; flex: 1; overflow-x: auto; overflow-y: hidden; border: 1px solid #eee; background: #fafafa; border-radius: 8px; padding: 10px; }
+    .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); display: none; justify-content: center; align-items: center; z-index: 1000; opacity: 0; transition: opacity 0.3s; }
+    .modal-overlay.active { display: flex; opacity: 1; }
+    .modal-content { background: white; padding: 3vmin; border-radius: 16px; width: 85%; max-width: 900px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2vmin; border-bottom: 2px solid #eee; padding-bottom: 1vmin; }
+    .modal-header h2 { margin: 0; color: #333; font-size: clamp(18px, 2.5vmin, 28px); }
+    .close-btn { background: #f44336; color: white; border: none; padding: 1vmin 2vmin; border-radius: 6px; cursor: pointer; font-size: clamp(14px, 1.8vmin, 20px); font-weight: bold; }
+    
+    .gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 1.5vmin; max-height: 65vh; overflow-y: auto; padding: 1vmin; }
+    .gallery-item { border-radius: 12px; overflow: hidden; border: 3px solid transparent; cursor: pointer; aspect-ratio: 1; position: relative; }
+    .gallery-item img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); }
+    .gallery-item:hover img { transform: scale(1.15); }
+    .gallery-item.taken { cursor: not-allowed; filter: grayscale(100%); opacity: 0.5; }
+    .gallery-item.taken::after { content: "已被选"; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.7); color: white; padding: 0.5vmin 1vmin; border-radius: 4px; font-size: clamp(12px, 1.5vmin, 16px); font-weight: bold; pointer-events: none; }
 
-        button.primary { background: #1890ff; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 11px; }
-        button.danger { background: #f5222d; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; }
-    </style>
+    #toast { position: fixed; top: 3vh; left: 50%; transform: translateX(-50%); background: rgba(0, 0, 0, 0.8); color: #fff; padding: 1.5vmin 3vmin; border-radius: 8px; font-size: clamp(16px, 2vmin, 24px); opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 9999; }
+    #toast.toast-lucky { background: #f39c12; font-size: clamp(20px, 3vmin, 32px); padding: 2.5vmin 5vmin; box-shadow: 0 10px 20px rgba(243, 156, 18, 0.4); }
+</style>
 </head>
 <body>
 
-<div id="toolbar">
-    <button class="primary" onclick="loadFromOSS()">☁️ 同步云母版</button>
-    <button class="primary" onclick="exportWeek()" style="background:#52c41a">📤 导出彩色周报</button>
-    <button class="primary" onclick="openMonth()" style="background:#722ed1">📅 月度分析</button>
-    <button class="primary" onclick="syncManual()" style="background:#faad14">🔄 手动同步</button>
-    <button class="primary" onclick="setAIKey()" style="background:#8c8c8c">🔑 设置 AI Key</button>
-    <div style="flex:1"></div>
-    <button class="danger" onclick="clearAllRecords()">🗑️ 清空记录</button>
-</div>
+<div id="toast"></div>
 
-<div class="table-container">
-    <table id="mainTable">
-        <thead id="tHead"></thead>
-        <tbody id="tBody"></tbody>
-    </table>
-</div>
-
-<div class="overlay" id="ovl" onclick="closeAll()"></div>
-
-<div id="commentModal" class="modal" style="width:450px; height:auto; min-height:300px; left:50%; top:50%; transform:translate(-50%,-50%)">
-    <h3 id="aiTitle" style="margin:0; color:#1890ff">AI 助教评语</h3>
-    <div id="aiContent" style="background:#f9f9f9; padding:15px; border-radius:8px; border:1px dashed #ccc; margin:15px 0; min-height:80px; font-size:13px; line-height:1.6; text-align:left;">正在分析数据...</div>
-    <div style="display:flex; gap:10px; justify-content: center;">
-        <button class="primary" onclick="copyText()" id="copyBtn" style="display:none">复制评语</button>
-        <button class="primary" onclick="closeAll()" style="background:#ff4d4f">关闭窗口</button>
+<div class="modal-overlay" id="avatarModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 id="modalTitle">请为 <span id="currentStudentName" style="color:#4CAF50;"></span> 选择头像</h2>
+            <button class="close-btn" onclick="closeModal()">关闭</button>
+        </div>
+        <div class="gallery-grid" id="galleryGrid"></div>
     </div>
 </div>
 
-<div id="monthModal" class="modal">
-    <div style="display:flex; justify-content:space-between; margin-bottom:15px; align-items:center">
-        <h2>月度成长趋势分析</h2>
-        <div>
-            <button onclick="document.getElementById('multiIn').click()" class="primary" style="background:#13c2c2">+ 批量导入周报</button>
-            <input type="file" id="multiIn" multiple accept=".xlsx" style="display:none" onchange="calcMonth(this.files)"/>
-            <button onclick="exportMonth()" class="primary" style="background:#faad14">导出汇总</button>
-            <button onclick="closeAll()" class="primary" style="background:#ff4d4f">关闭</button>
+<div class="classroom">
+    <div class="front-board-container">
+        <div class="btn-group-left">
+            <button class="action-btn btn-random" id="randomBtn" onclick="startRandomDraw()">🎲 随机抽查</button>
+            <button class="action-btn btn-clear-cache" onclick="clearBrowserCache()">🗑️ 清除缓存</button>
+        </div>
+        
+        <div class="front-board">讲台 (黑板)</div>
+        
+        <div class="btn-group-right">
+            <button class="action-btn btn-reset" onclick="resetAllAvatars()">🔄 重置头像</button>
+            <button class="action-btn btn-save" onclick="exportHTMLToFile()">💾 导出保存状态</button>
         </div>
     </div>
-    <div style="height:320px; width:100%; border-bottom:1px solid #eee; margin-bottom:10px;"><canvas id="monthChart"></canvas></div>
-    <div id="monthList" style="flex:1; overflow:auto"></div>
-</div>
-
-<div id="compareModal" class="modal">
-    <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-        <h2 style="margin:0">全班周积分排名</h2>
-        <div style="display:flex; gap:10px;">
-            <button class="primary" id="sortBtn" onclick="toggleCompareSort()" style="background:#faad14">切换排序</button>
-            <button class="primary" onclick="closeAll()" style="background:#ff4d4f">关闭</button>
-        </div>
+    
+    <div class="middle-section">
+        <div class="side-wall side-window">窗户</div>
+        <div class="seating-grid" id="seatingGrid"></div>
+        <div class="side-wall side-door">教室门</div>
     </div>
-    <div id="compareScrollWrapper">
-        <div id="compareInner" style="height: 100%; position: relative;"><canvas id="compareChart"></canvas></div>
-    </div>
-</div>
-
-<div id="radarModal" class="modal" style="width:500px; height:550px; left:50%; top:50%; transform:translate(-50%,-50%)">
-    <h3 id="rTitle" style="text-align:center; margin-bottom: 5px;">个人能力分布</h3>
-    <div style="width:400px; height:400px; margin: 0 auto;"><canvas id="radarChart"></canvas></div>
-    <button class="primary" onclick="closeAll()" style="margin-top:10px; width:100%; background:#ff4d4f">关闭窗口</button>
 </div>
 
 <script>
-// --- 全局变量与配置 ---
-const OSS_URL = "https://jp-game-assets-2026.oss-cn-chengdu.aliyuncs.com/学生名单模板/ss-gakupo-25A.xlsx";
-const STORAGE_KEY = "JAPANESE_SYSTEM_DATA";
-const AI_KEY_STORAGE = "DEEPSEEK_API_KEY";
-const SCORE_MAP = { hw: { 'A':3, 'B':2, 'C':1, 'D':-1, '未':-1 }, dt: { '满':3, '过':2, '重':1, '未':-1 }, att: { '1':1, '-1':-1, '缺':0 } };
-const CLS_MAP = { hw: { 'A':'act-hw-A','B':'act-hw-B','C':'act-hw-C','D':'act-hw-D','未':'act-hw-未' }, dt: { '满':'act-dt-满','过':'act-dt-过','重':'act-dt-重','未':'act-dt-未' } };
-
-let currentStudentList = [], isCompareSorted = false, monthData = {};
-let radarChart = null, compareChart = null, monthChart = null;
-let savedApiKey = localStorage.getItem(AI_KEY_STORAGE) || "";
-
-window.onload = async () => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-        const parsed = JSON.parse(saved);
-        currentStudentList = parsed.students;
-        initTable(currentStudentList, parsed.records, parsed.monday);
-    } else { loadFromOSS(); }
-};
-
-// --- 表格初始化 ---
-function initTable(students, records = {}, monday = "") {
-    const head = document.getElementById('tHead'), body = document.getElementById('tBody');
-    body.innerHTML = "";
-    let dayHeaders = "";
-    ['周一','周二','周三','周四','周五'].forEach((day, idx) => {
-        let dateHtml = idx === 0 ? `<div class="date-container"><input type="date" class="date-input" id="mondayDate" value="${monday}" onchange="updateWeekDates(this.value)"></div>` : `<div class="date-container" id="date-label-${idx}">-- / --</div>`;
-        dayHeaders += `<th colspan="5" style="border-left:2px solid #fff; height: 50px;">${day}${dateHtml}</th>`;
-    });
-    head.innerHTML = `<tr><th rowspan="2" class="sticky-class">班级</th><th rowspan="2" class="sticky-name">姓名</th>${dayHeaders}<th rowspan="2" class="week-sum" onclick="showWeeklyComparison()">周合计</th></tr><tr>${Array(5).fill('<th>出</th><th>作</th><th>听</th><th>课</th><th class="day-sum">∑</th>').join('')}</tr>`;
-    
-    students.forEach((stu, sIdx) => {
-        const tr = document.createElement('tr'); 
-        tr.dataset.sidx = sIdx; tr.dataset.name = stu.name; tr.dataset.class = stu.class;
-        let cells = `<td class="sticky-class">${stu.class||''}</td><td class="sticky-name" onclick="showRadar(${sIdx})">${stu.name}</td>`;
-        for(let d=0; d<5; d++) {
-            const rec = records[stu.name]?.[d] || { att:'', hw:'', dt:'', cls:0 };
-            cells += `<td><div class="btn-group" data-type="att" data-day="${d}">
-                        <span class="opt ${rec.att=='1'?'act-att-1':''}" data-val="1">1</span><span class="opt ${rec.att=='-1'?'act-att--1':''}" data-val="-1">-1</span><span class="opt ${rec.att=='缺'?'act-att-缺':''}" data-val="缺">缺</span>
-                      </div></td>
-                      <td><div class="btn-group" data-type="hw" data-day="${d}">${['A','B','C','D','未'].map(v => `<span class="opt ${rec.hw==v?CLS_MAP.hw[v]:''}" data-val="${v}">${v==='未'?'×':v}</span>`).join('')}</div></td>
-                      <td><div class="btn-group" data-type="dt" data-day="${d}">${['满','过','重','未'].map(v => `<span class="opt ${rec.dt==v?CLS_MAP.dt[v]:''}" data-val="${v}">${v}</span>`).join('')}</div></td>
-                      <td><div class="class-box" data-day="${d}"><button onclick="updCls(this,-1)">-</button><span class="score-val">${rec.cls}</span><button onclick="updCls(this,1)">+</button></div></td><td class="day-sum" id="sum-${sIdx}-${d}">0</td>`;
-        }
-        cells += `<td class="week-sum" id="total-${sIdx}" onclick="generateAIComment(${sIdx})">0</td>`;
-        tr.innerHTML = cells; body.appendChild(tr); calcScore(tr, sIdx);
-    });
-    if(monday) updateWeekDates(monday);
-}
-
-// --- 计算与变色 ---
-document.body.addEventListener('click', e => {
-    if(!e.target.classList.contains('opt')) return;
-    const opt = e.target, p = opt.parentElement, type = p.dataset.type, val = opt.dataset.val, tr = opt.closest('tr');
-    let tCls = type === 'att' ? `act-att-${val}` : CLS_MAP[type][val];
-    const alreadyAct = opt.classList.contains(tCls);
-    Array.from(p.children).forEach(o => { const c = Array.from(o.classList).find(x => x.startsWith('act-')); if(c) o.classList.remove(c); });
-    if(!alreadyAct) opt.classList.add(tCls);
-    calcScore(tr, tr.dataset.sidx); autoSave();
-});
-
-function calcScore(tr, sIdx) {
-    let weekSum = 0;
-    for(let d=0; d<5; d++) {
-        let dSum = 0;
-        ['att','hw','dt'].forEach(t => {
-            const act = tr.querySelector(`[data-type="${t}"][data-day="${d}"] .opt[class*="act-"]`);
-            if(act) dSum += (t === 'att' ? SCORE_MAP.att[act.dataset.val] : SCORE_MAP[t][act.dataset.val]);
-        });
-        dSum += parseInt(tr.querySelector(`.class-box[data-day="${d}"] .score-val`).innerText);
-        const dsEl = document.getElementById(`sum-${sIdx}-${d}`); if(dsEl) dsEl.innerText = dSum;
-        weekSum += dSum;
-    }
-    const tsEl = document.getElementById(`total-${sIdx}`); if(tsEl) tsEl.innerText = weekSum;
-    const nameEl = tr.querySelector('.sticky-name');
-    if(nameEl) {
-        if (weekSum >= 40) nameEl.style.color = 'var(--rank-top)';
-        else if (weekSum >= 30) nameEl.style.color = 'var(--rank-high)';
-        else if (weekSum >= 20) nameEl.style.color = 'var(--rank-mid)';
-        else nameEl.style.color = 'var(--rank-low)';
-    }
-}
-
-// --- 绘图功能补全 ---
-
-// 1. 雷达图
-function showRadar(sIdx) {
-    const tr = document.querySelector(`tr[data-sidx="${sIdx}"]`), name = tr.dataset.name;
-    let s = { att:0, hw:0, dt:0, cls:0 };
-    for(let d=0; d<5; d++) {
-        const a = tr.querySelector(`[data-type="att"][data-day="${d}"] .opt[class*="act-"]`); if(a) s.att += SCORE_MAP.att[a.dataset.val];
-        const h = tr.querySelector(`[data-type="hw"][data-day="${d}"] .opt[class*="act-"]`); if(h) s.hw += SCORE_MAP.hw[h.dataset.val];
-        const dt = tr.querySelector(`[data-type="dt"][data-day="${d}"] .opt[class*="act-"]`); if(dt) s.dt += SCORE_MAP.dt[dt.dataset.val];
-        s.cls += parseInt(tr.querySelector(`.class-box[data-day="${d}"] .score-val`).innerText);
-    }
-    const norm = (v, t) => {
-        if (t === 'att') return (v/5)*100; if (t === 'hw' || t === 'dt') return (v/15)*100;
-        if (t === 'cls') { if(v<=0) return (v/10)*100; if(v<=5) return (v/5)*66.6; return 66.6+((v-5)/5)*33.4; }
-        return v;
-    };
-    document.getElementById('ovl').style.display = 'block'; document.getElementById('radarModal').style.display = 'block';
-    document.getElementById('rTitle').innerText = `${name} 周能力雷达 (${s.att+s.hw+s.dt+s.cls})`;
-    if(radarChart) radarChart.destroy();
-    radarChart = new Chart(document.getElementById('radarChart'), {
-        type: 'radar',
-        data: {
-            labels: [`出勤(${s.att})`,`作业(${s.hw})`,`听写(${s.dt})`,`课堂(${s.cls})`],
-            datasets: [{ label:'能力分布', data:[norm(s.att,'att'),norm(s.hw,'hw'),norm(s.dt,'dt'),norm(s.cls,'cls')], backgroundColor:'rgba(24,144,255,0.2)', borderColor:'#1890ff' }]
-        },
-        options: { scales: { r: { min:-20, max:100, ticks:{display:false} } } }
-    });
-}
-
-// 2. 全班对比柱状图
-function showWeeklyComparison() {
-    let ds = []; document.querySelectorAll('#tBody tr').forEach(tr => { ds.push({ name: tr.dataset.name, total: parseInt(tr.querySelector('.week-sum').innerText) }); });
-    if(isCompareSorted) ds.sort((a, b) => b.total - a.total);
-    const ns = ds.map(d => d.name), ts = ds.map(d => d.total);
-    document.getElementById('ovl').style.display = 'block'; document.getElementById('compareModal').style.display = 'flex';
-    const dw = Math.max(document.getElementById('compareScrollWrapper').clientWidth - 20, ns.length * 45);
-    document.getElementById('compareInner').style.width = dw + 'px';
-    const ctx = document.getElementById('compareChart').getContext('2d');
-    if(compareChart) compareChart.destroy();
-    compareChart = new Chart(ctx, {
-        type: 'bar', data: { labels: ns, datasets: [{ label: '积分', data: ts, backgroundColor: ts.map(v => { if (v >= 40) return '#fa8c16'; if (v >= 30) return '#722ed1'; if (v >= 20) return '#1890ff'; return '#8c8c8c'; }), borderRadius: 4 }] },
-        options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } }, plugins: { legend: { display: false } } }
-    });
-}
-
-function toggleCompareSort() { isCompareSorted = !isCompareSorted; document.getElementById('sortBtn').innerText = isCompareSorted ? "排序：按分数" : "排序：按名单"; showWeeklyComparison(); }
-
-// --- AI 评语逻辑 ---
-async function generateAIComment(sIdx) {
-    if(!savedApiKey) { savedApiKey = prompt("请输入 DeepSeek API Key:"); if(!savedApiKey) return; localStorage.setItem(AI_KEY_STORAGE, savedApiKey); }
-    const tr = document.querySelector(`tr[data-sidx="${sIdx}"]`), name = tr.dataset.name, total = tr.querySelector('.week-sum').innerText;
-    document.getElementById('ovl').style.display = 'block'; document.getElementById('commentModal').style.display = 'flex';
-    document.getElementById('aiContent').innerText = "AI 正在分析表现...";
-    
-    let perf = { att:0, hw:[], dt:[], cls:0 };
-    for(let d=0; d<5; d++) {
-        const a = tr.querySelector(`[data-type="att"][data-day="${d}"] .opt[class*="act-"]`); if(a) perf.att += SCORE_MAP.att[a.dataset.val];
-        const h = tr.querySelector(`[data-type="hw"][data-day="${d}"] .opt[class*="act-"]`); if(h) perf.hw.push(h.dataset.val);
-        const dt = tr.querySelector(`[data-type="dt"][data-day="${d}"] .opt[class*="act-"]`); if(dt) perf.dt.push(dt.dataset.val);
-        perf.cls += parseInt(tr.querySelector(`.class-box[data-day="${d}"] .score-val`).innerText);
-    }
-    const prompt = `高中日语老师用来发给家长的学生评语(30-50字)：${name}，周分${total}。出勤${perf.att}/5；作业${perf.hw.join(',')}；听写${perf.dt.join(',')}；课堂${perf.cls}。语气亲切多鼓励。`;
-
-    try {
-        const res = await fetch("https://api.deepseek.com/v1/chat/completions", {
-            method: 'POST', headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${savedApiKey}`},
-            body: JSON.stringify({ model: "deepseek-chat", messages: [{role:"user", content: prompt}] })
-        });
-        const data = await res.json();
-        document.getElementById('aiContent').innerText = data.choices[0].message.content;
-        document.getElementById('copyBtn').style.display='inline-block';
-    } catch(e) { document.getElementById('aiContent').innerText = "生成失败，请检查 API Key。"; }
-}
-
-// --- 基础同步与存储 ---
-async function loadFromOSS() {
-    try {
-        const res = await fetch(OSS_URL);
-        const buf = await res.arrayBuffer();
-        const raw = XLSX.utils.sheet_to_json(XLSX.read(new Uint8Array(buf), {type:'array'}).Sheets[XLSX.read(new Uint8Array(buf), {type:'array'}).SheetNames[0]], {header:1});
-        currentStudentList = raw.slice(3).filter(r => r[1]).map(r => ({ class: r[0], name: r[1] }));
-        initTable(currentStudentList);
-    } catch(e) { alert("云端拉取失败"); }
-}
-
-function syncManual() {
-    const act = prompt("EXPORT - 复制代码 / IMPORT - 粘贴代码");
-    if(act === 'EXPORT') alert(localStorage.getItem(STORAGE_KEY));
-    else if(act === 'IMPORT') { const c = prompt("粘贴同步代码"); if(c){localStorage.setItem(STORAGE_KEY, c); location.reload();} }
-}
-
-function autoSave() {
-    const recs = {};
-    document.querySelectorAll('#tBody tr').forEach(tr => {
-        const n = tr.dataset.name; recs[n] = {};
-        for(let d=0; d<5; d++) recs[n][d] = {
-            att: tr.querySelector(`[data-type="att"][data-day="${d}"] .opt[class*="act-"]`)?.dataset.val || '',
-            hw: tr.querySelector(`[data-type="hw"][data-day="${d}"] .opt[class*="act-"]`)?.dataset.val || '',
-            dt: tr.querySelector(`[data-type="dt"][data-day="${d}"] .opt[class*="act-"]`)?.dataset.val || '',
-            cls: parseInt(tr.querySelector(`.class-box[data-day="${d}"] .score-val`).innerText)
-        };
-    });
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ students:currentStudentList, records:recs, monday:document.getElementById('mondayDate')?.value||'' }));
-}
-
-// --- 导出逻辑 (带样式) ---
-function exportWeek() {
-    const monday = document.getElementById('mondayDate').value;
-    const s_header = { fill: { fgColor: { rgb: "444444" } }, font: { color: { rgb: "FFFFFF" }, bold: true }, alignment: { horizontal: "center" } };
-    const h1 = ["班级", "姓名", "周一", "", "", "", "", "周二", "", "", "", "", "周三", "", "", "", "", "周四", "", "", "", "", "周五", "", "", "", "", "总计"];
-    const h2 = ["", "", "出勤", "作业", "听写", "课堂", "当日∑", "出勤", "作业", "听写", "课堂", "当日∑", "出勤", "作业", "听写", "课堂", "当日∑", "出勤", "作业", "听写", "课堂", "当日∑", "出勤", "作业", "听写", "课堂", "当日∑", ""];
-    const rows = [];
-    document.querySelectorAll('#tBody tr').forEach(tr => {
-        const r = [ {v: tr.dataset.class}, {v: tr.dataset.name} ];
-        for(let d=0; d<5; d++) {
-            r.push(
-                {v: tr.querySelector(`[data-type="att"][data-day="${d}"] .opt[class*="act-"]`)?.dataset.val || ""},
-                {v: tr.querySelector(`[data-type="hw"][data-day="${d}"] .opt[class*="act-"]`)?.dataset.val || ""},
-                {v: tr.querySelector(`[data-type="dt"][data-day="${d}"] .opt[class*="act-"]`)?.dataset.val || ""},
-                {v: parseInt(tr.querySelector(`.class-box[data-day="${d}"] .score-val`).innerText)},
-                {v: parseInt(tr.querySelector(`#sum-${tr.dataset.sidx}-${d}`).innerText)}
-            );
-        }
-        r.push({ v: parseInt(tr.querySelector('.week-sum').innerText), s: { font: { bold: true, color:{rgb:"FF0000"} } } });
-        rows.push(r);
-    });
-    const ws = XLSX.utils.aoa_to_sheet([[{ v: `周报(${monday})`, s:{font:{bold:true}} }], h1.map(h=>({v:h,s:s_header})), h2.map(h=>({v:h,s:s_header})), ...rows]);
-    ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 27 } }, ...[0, 1, 2, 3, 4].map(i => ({ s: { r: 1, c: 2 + i * 5 }, e: { r: 1, c: 6 + i * 5 } })) ];
-    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "周数据");
-    XLSX.writeFile(wb, `彩色周报_${monday}.xlsx`);
-}
-
-// 辅助函数
-function setAIKey() { const k = prompt("输入 DeepSeek API Key:", savedApiKey); if(k){savedApiKey=k; localStorage.setItem(AI_KEY_STORAGE,k);} }
-function copyText() { navigator.clipboard.writeText(document.getElementById('aiContent').innerText).then(()=>alert("已复制")); }
-function updCls(btn, dlt) { const s = btn.parentElement.querySelector('.score-val'); s.innerText = parseInt(s.innerText) + dlt; calcScore(btn.closest('tr'), btn.closest('tr').dataset.sidx); autoSave(); }
-function updateWeekDates(v) { if(!v) return; const m = new Date(v); for(let i=1; i<5; i++) { const t = new Date(m); t.setDate(m.getDate()+i); const l = document.getElementById(`date-label-${i}`); if(l) l.innerText = `${(t.getMonth()+1).toString().padStart(2,'0')} / ${t.getDate().toString().padStart(2,'0')}`; } autoSave(); }
-function closeAll() { document.querySelectorAll('.modal, .overlay').forEach(el => el.style.display='none'); }
-function clearAllRecords() { if(confirm("清除所有本地记录吗？")) { localStorage.removeItem(STORAGE_KEY); location.reload(); } }
-function openMonth() { document.getElementById('ovl').style.display='block'; document.getElementById('monthModal').style.display='flex'; }
-
-// 月度分析 (补齐完整解析逻辑)
-async function calcMonth(files) {
-    monthData = {}; let weeks = [];
-    const sortedFiles = Array.from(files).sort((a,b) => a.name.localeCompare(b.name));
-    for(let i=0; i<sortedFiles.length; i++){
-        const wKey = `W${i+1}`; weeks.push(wKey);
-        const workbook = XLSX.read(await sortedFiles[i].arrayBuffer(), {type:'array'});
-        const data = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], {header:1});
-        data.slice(3).forEach(row => {
-            if(!row[1]) return;
-            const key = `${row[0]}-${row[1]}`;
-            if(!monthData[key]) monthData[key] = { c:row[0], n:row[1], ws:[] };
-            let att=0, hw=0, dt=0, cls=0;
-            for(let d=0; d<5; d++) {
-                const base = 2 + d * 5;
-                att += (row[base] == '1' ? 1 : (row[base] == '-1' ? -1 : 0));
-                hw += (SCORE_MAP.hw[row[base+1]] || 0);
-                dt += (SCORE_MAP.dt[row[base+2]] || 0);
-                cls += (parseInt(row[base+3]) || 0);
+    // ================= 独立模块：无依赖合成音效引擎 (JS) 开始 =================
+    // 原理：利用 Web Audio API 由浏览器通过代码直接合成声波，彻底摆脱音频文件依赖
+    const synAudioEngine = {
+        ctx: null,
+        init: function() {
+            // 必须在用户点击事件中初始化，以绕过浏览器自动播放限制
+            if (!this.ctx) {
+                this.ctx = new (window.AudioContext || window.webkitAudioContext)();
             }
-            monthData[key].ws.push({ att, hw, dt, cls, t: att+hw+dt+cls });
-        });
-    }
-    renderMonthChart(Object.keys(monthData)[0], weeks);
-}
-
-function renderMonthChart(key, weeks) {
-    const s = monthData[key], ctx = document.getElementById('monthChart').getContext('2d');
-    if(monthChart) monthChart.destroy();
-    monthChart = new Chart(ctx, {
-        data: {
-            labels: weeks,
-            datasets: [
-                { type:'line', label:'趋势', data: s.ws.map(x=>x.t), borderColor:'#ff4d4f', fill:false },
-                { type:'bar', label:'出勤', data: s.ws.map(x=>x.att), backgroundColor:'#52c41a' },
-                { type:'bar', label:'作业', data: s.ws.map(x=>x.hw), backgroundColor:'#1890ff' },
-                { type:'bar', label:'听写', data: s.ws.map(x=>x.dt), backgroundColor:'#722ed1' },
-                { type:'bar', label:'课堂', data: s.ws.map(x=>x.cls), backgroundColor:'#faad14' }
-            ]
+            if (this.ctx.state === 'suspended') {
+                this.ctx.resume();
+            }
         },
-        options: { responsive:true, maintainAspectRatio:false, scales: { x:{stacked:true}, y:{stacked:true} } }
-    });
-    let h = `<table border="1" style="width:100%; border-collapse:collapse"><thead><tr><th>班级</th><th>姓名</th><th>月度累计</th><th>操作</th></tr></thead><tbody>`;
-    Object.keys(monthData).forEach(x => h += `<tr><td>${monthData[x].c}</td><td>${monthData[x].n}</td><td>${monthData[x].ws.reduce((a,b)=>a+b.t,0)}</td><td><button class="primary" onclick="renderMonthChart('${x}', ${JSON.stringify(weeks)})">查看</button></td></tr>`);
-    document.getElementById('monthList').innerHTML = h + `</tbody></table>`;
-}
+        // 模拟老虎机跳动的短促“滴答”声
+        playTick: function() {
+            if (!this.ctx) return;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            
+            osc.type = 'triangle'; // 三角波，声音偏向电子机械感
+            osc.frequency.setValueAtTime(800 + Math.random() * 200, this.ctx.currentTime); // 增加随机频率提升律动感
+            
+            // 音量包络：极快响起，极快衰减
+            gain.gain.setValueAtTime(0, this.ctx.currentTime);
+            gain.gain.linearRampToValueAtTime(0.3, this.ctx.currentTime + 0.01);
+            gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.05);
+            
+            osc.start(this.ctx.currentTime);
+            osc.stop(this.ctx.currentTime + 0.05);
+        },
+        // 模拟中奖的“噔噔噔噔”电子撒花和弦 (C大调琶音)
+        playTada: function() {
+            if (!this.ctx) return;
+            const playNote = (freq, startTime, duration, vol) => {
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                
+                osc.type = 'sine'; // 正弦波，声音清脆悦耳
+                osc.frequency.value = freq;
+                
+                gain.gain.setValueAtTime(0, startTime);
+                gain.gain.linearRampToValueAtTime(vol, startTime + 0.05);
+                gain.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
+                
+                osc.start(startTime);
+                osc.stop(startTime + duration);
+            };
 
-function exportMonth() {
-    const data = Object.values(monthData).map(s => {
-        const r = { '班级':s.c, '姓名':s.n };
-        s.ws.forEach((w,i) => r[`W${i+1}`] = w.t);
-        r['总计'] = s.ws.reduce((a,b)=>a+b.t,0);
-        return r;
-    });
-    XLSX.writeFile(XLSX.utils.book_append_sheet(XLSX.utils.book_new(), XLSX.utils.json_to_sheet(data), "月汇总"), "月度汇总.xlsx");
-}
+            const now = this.ctx.currentTime;
+            playNote(523.25, now, 0.2, 0.4);       // C5
+            playNote(659.25, now + 0.1, 0.2, 0.4); // E5
+            playNote(783.99, now + 0.2, 0.2, 0.4); // G5
+            playNote(1046.50, now + 0.3, 0.8, 0.6); // C6 (高音延长爆发)
+        }
+    };
+    // ================= 独立模块：无依赖合成音效引擎 (JS) 结束 =================
+
+
+    // 25A班 4x5 绝对位置阵列
+    const defaultLayout = [
+        '罗小雅', '陈亦涵', '罗子津', '曾丹',
+        '张尔卓', '朱析睿', '陈博睿', '冯嘉仪',
+        '刘湘婷', '冯裕阳', '任亦航', '胡溪嫒',
+        '李佩息', '王晰玉', '廖若涵', '蒙玙璠',
+        '符恺宸', null,     '赵天宇', null
+    ];
+    
+    const specialStudents = [];
+    const avatarFiles = Array.from({length: 20}, (_, i) => `头像${i + 1}.gif`);
+    const CLOUD_OSS_BASE_URL = "https://jp-game-assets-2026.oss-cn-chengdu.aliyuncs.com/头像库/25A/";
+
+    let studentAvatars = {};
+    let seatLayoutData = [];
+    let currentSelectingStudent = null;
+
+    function initSystem() {
+        const grid = document.getElementById('seatingGrid');
+        if (!grid) return;
+        grid.innerHTML = ''; 
+
+        let fileState = null;
+        try { fileState = JSON.parse(document.getElementById('app-state').textContent); } catch(e) {}
+        
+        let cacheState = null;
+        try { cacheState = JSON.parse(localStorage.getItem('classSeatingCache_25A')); } catch(e) {}
+
+        let finalState = null;
+        let loadSourceMsg = "初始默认排座";
+
+        if (fileState && cacheState) {
+            if ((cacheState.lastModified || 0) > (fileState.lastModified || 0)) {
+                finalState = cacheState; loadSourceMsg = "🌐 已自动从 [浏览器缓存] 恢复防丢记录";
+            } else {
+                finalState = fileState; loadSourceMsg = "📄 已加载 [本地文件] 中保存的记录";
+            }
+        } else if (cacheState) { finalState = cacheState; loadSourceMsg = "🌐 已自动从 [浏览器缓存] 恢复防丢记录"; } 
+        else if (fileState) { finalState = fileState; loadSourceMsg = "📄 已加载 [本地文件] 中保存的记录"; }
+
+        if (finalState && finalState.seats && finalState.seats.length > 0) {
+            studentAvatars = finalState.avatars || {}; 
+            seatLayoutData = finalState.seats;
+        } else {
+            studentAvatars = {}; 
+            seatLayoutData = []; 
+            let index = 0;
+            for (let row = 1; row <= 5; row++) {
+                for (let col = 1; col <= 4; col++) {
+                    const studentName = defaultLayout[index];
+                    if (studentName) {
+                        seatLayoutData.push({ row, col, type: 'student', name: studentName, absent: false });
+                    } else {
+                        seatLayoutData.push({ row, col, type: 'empty', name: '空位', absent: false });
+                    }
+                    index++;
+                }
+            }
+        }
+
+        seatLayoutData.forEach(seatData => {
+            const seat = document.createElement('div');
+            seat.className = 'seat ' + seatData.type;
+            if (seatData.absent) seat.classList.add('absent');
+            seat.dataset.row = seatData.row; seat.dataset.col = seatData.col;
+            seat.dataset.type = seatData.type; seat.dataset.name = seatData.name;
+            
+            if (seatData.type === 'student') renderStudentSeatInfo(seat, seatData.name);
+            else seat.innerText = '空位';
+            
+            seat.addEventListener('pointerdown', handlePointerDown);
+            grid.appendChild(seat);
+        });
+
+        if (finalState) setTimeout(() => showToast(loadSourceMsg), 500);
+    }
+
+    function autoSaveToCache() {
+        const currentState = { lastModified: Date.now(), avatars: studentAvatars, seats: [] };
+        document.querySelectorAll('.seat').forEach(seat => {
+            currentState.seats.push({
+                row: seat.dataset.row, col: seat.dataset.col,
+                type: seat.dataset.type, name: seat.dataset.name, absent: seat.classList.contains('absent')
+            });
+        });
+        localStorage.setItem('classSeatingCache_25A', JSON.stringify(currentState));
+    }
+
+    function clearBrowserCache() {
+        if (confirm("⚠️ 确定要清除浏览器缓存并刷新吗？")) {
+            localStorage.removeItem('classSeatingCache_25A'); location.reload(); 
+        }
+    }
+
+    function exportHTMLToFile() {
+        autoSaveToCache();
+        const currentState = JSON.parse(localStorage.getItem('classSeatingCache_25A'));
+        const clonedDoc = document.documentElement.cloneNode(true);
+        clonedDoc.querySelectorAll('.lucky-student').forEach(el => el.classList.remove('lucky-student'));
+        clonedDoc.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+        clonedDoc.querySelector('#avatarModal').classList.remove('active');
+        
+        clonedDoc.querySelector('#seatingGrid').innerHTML = ''; 
+        clonedDoc.querySelector('#galleryGrid').innerHTML = ''; 
+        
+        clonedDoc.querySelector('#app-state').textContent = JSON.stringify(currentState);
+
+        const htmlContent = "<!DOCTYPE html>\n" + clonedDoc.outerHTML;
+        const blob = new Blob([htmlContent], { type: "text/html;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        
+        const a = document.createElement('a'); a.href = url;
+        const dateStr = new Date().toISOString().split('T')[0];
+        a.download = `25A班_座位表_${dateStr}.html`; 
+        
+        document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+        alert("✅ 座位表状态已成功导出！\n您可以将下载的新文件拷贝到 U 盘带走。");
+    }
+
+    function renderStudentSeatInfo(seatElement, name) {
+        seatElement.innerHTML = ''; 
+        const absentBtn = document.createElement('button');
+        absentBtn.className = 'absent-toggle';
+        absentBtn.innerText = seatElement.classList.contains('absent') ? '缺勤' : '在位';
+        
+        absentBtn.addEventListener('pointerdown', (e) => {
+            e.stopPropagation(); seatElement.classList.toggle('absent');
+            const isAbsent = seatElement.classList.contains('absent');
+            absentBtn.innerText = isAbsent ? '缺勤' : '在位';
+            showToast(isAbsent ? `🚫 已将 ${name} 标记为缺勤` : `✅ ${name} 已恢复在位`);
+            autoSaveToCache(); 
+        });
+
+        const avatarDiv = document.createElement('div'); avatarDiv.className = 'avatar-wrapper';
+        const avatarFile = studentAvatars[name];
+        if (avatarFile) {
+            avatarDiv.innerHTML = `<img src="./头像库/25A/${avatarFile}" data-filename="${avatarFile}" alt="头像" draggable="false" onerror="this.onerror=null; this.src='${CLOUD_OSS_BASE_URL}' + this.dataset.filename;">`;
+        } else {
+            avatarDiv.innerHTML = `<div class="avatar-placeholder">点击<br>选头像</div>`;
+        }
+
+        avatarDiv.addEventListener('pointerdown', (e) => { e.stopPropagation(); openAvatarModal(name); });
+        const nameSpan = document.createElement('span'); nameSpan.innerText = name;
+
+        seatElement.appendChild(absentBtn); seatElement.appendChild(avatarDiv); seatElement.appendChild(nameSpan);
+    }
+
+    function getWeightedRandomStudent(studentNodes) {
+        let totalWeight = 0;
+        const nodeWeights = studentNodes.map(node => {
+            const name = node.dataset.name;
+            const weight = specialStudents.includes(name) ? 1 : 2; 
+            totalWeight += weight; return weight;
+        });
+
+        const randomVal = Math.random() * totalWeight;
+        let cumulativeWeight = 0;
+        for (let i = 0; i < studentNodes.length; i++) {
+            cumulativeWeight += nodeWeights[i];
+            if (randomVal < cumulativeWeight) return studentNodes[i];
+        }
+        return studentNodes[studentNodes.length - 1]; 
+    }
+
+    let luckyTimeout; 
+    function startRandomDraw() {
+        const studentNodes = Array.from(document.querySelectorAll('.seat.student:not(.absent)'));
+        if (studentNodes.length === 0) { showToast("⚠️ 当前没有可供抽选的学生！", false); return; }
+
+        // ================= 触发：初始化音频环境 =================
+        synAudioEngine.init();
+        // ========================================================
+
+        const btn = document.getElementById('randomBtn');
+        btn.disabled = true; btn.innerText = '🔄 抽取中...';
+        document.querySelectorAll('.seat.student').forEach(node => node.classList.remove('lucky-student'));
+        clearTimeout(luckyTimeout); 
+
+        let jumps = 0; const totalJumps = 16; const jumpSpeed = 65; let lastNode = null;
+        
+        const drawInterval = setInterval(() => {
+            if (lastNode) lastNode.classList.remove('lucky-student');
+            
+            // ================= 触发：老虎机滴答声 =================
+            synAudioEngine.playTick();
+            // ========================================================
+
+            const currentNode = getWeightedRandomStudent(studentNodes);
+            currentNode.classList.add('lucky-student');
+            lastNode = currentNode;
+            jumps++;
+            
+            if (jumps >= totalJumps) {
+                clearInterval(drawInterval);
+                const finalNode = getWeightedRandomStudent(studentNodes);
+                if (lastNode) lastNode.classList.remove('lucky-student');
+                finalNode.classList.add('lucky-student');
+                
+                // ================= 触发：抽中撒花声 =================
+                synAudioEngine.playTada();
+                // ========================================================
+
+                btn.disabled = false; btn.innerText = '🎲 随机抽查';
+                showToast(`🎉 有请 ${finalNode.dataset.name} 同学！`, true);
+                
+                luckyTimeout = setTimeout(() => { finalNode.classList.remove('lucky-student'); }, 2000);
+            }
+        }, jumpSpeed);
+    }
+
+    function resetAllAvatars() {
+        if (confirm("⚠️ 警告：确定要清空全班头像吗？")) {
+            studentAvatars = {};
+            document.querySelectorAll('.seat.student').forEach(seat => { renderStudentSeatInfo(seat, seat.dataset.name); });
+            showToast("🔄 全班头像已重置！");
+            autoSaveToCache();
+        }
+    }
+
+    function openAvatarModal(studentName) {
+        currentSelectingStudent = studentName; document.getElementById('currentStudentName').innerText = studentName;
+        const gallery = document.getElementById('galleryGrid'); gallery.innerHTML = ''; 
+
+        const takenAvatars = Object.entries(studentAvatars).filter(([n]) => n !== studentName).map(([n, f]) => f);
+        avatarFiles.forEach(file => {
+            const item = document.createElement('div'); item.className = 'gallery-item'; 
+            item.innerHTML = `<img src="./头像库/25A/${file}" data-filename="${file}" alt="GIF" onerror="this.onerror=null; this.src='${CLOUD_OSS_BASE_URL}' + this.dataset.filename;">`;
+            
+            if (takenAvatars.includes(file)) { item.classList.add('taken'); item.onclick = () => showToast("⚠️ 该头像已被选走！"); } 
+            else { if (studentAvatars[studentName] === file) item.style.borderColor = '#4CAF50'; item.onclick = () => selectAvatar(file); }
+            gallery.appendChild(item);
+        });
+        document.getElementById('avatarModal').classList.add('active');
+    }
+
+    function closeModal() { document.getElementById('avatarModal').classList.remove('active'); currentSelectingStudent = null; }
+
+    function selectAvatar(fileName) {
+        studentAvatars[currentSelectingStudent] = fileName;
+        document.querySelectorAll('.seat.student').forEach(seat => { renderStudentSeatInfo(seat, seat.dataset.name); });
+        showToast("✅ 头像设置成功！");
+        closeModal();
+        autoSaveToCache();
+    }
+
+    let draggedItem = null, isDragging = false, clone = null, startX, startY;
+    function handlePointerDown(e) {
+        if (e.button !== 0 && e.pointerType === 'mouse') return; 
+        draggedItem = e.currentTarget; isDragging = false; startX = e.pageX; startY = e.pageY;
+        document.addEventListener('pointermove', handlePointerMove, {passive: false});
+        document.addEventListener('pointerup', handlePointerUp);
+    }
+
+    function handlePointerMove(e) {
+        if (!isDragging) {
+            if (Math.abs(e.pageX - startX) > 10 || Math.abs(e.pageY - startY) > 10) {
+                isDragging = true;
+                clone = draggedItem.cloneNode(true);
+                clone.style.width = draggedItem.offsetWidth + 'px';
+                clone.style.height = draggedItem.offsetHeight + 'px';
+                clone.style.position = 'absolute'; clone.style.zIndex = '1000'; clone.style.pointerEvents = 'none'; clone.style.opacity = '0.85'; clone.style.margin = '0'; clone.style.boxShadow = '0 10px 20px rgba(0,0,0,0.2)';
+                document.body.appendChild(clone); draggedItem.style.opacity = '0.3';
+            }
+        }
+        if (isDragging) {
+            e.preventDefault(); 
+            clone.style.left = e.pageX - clone.offsetWidth / 2 + 'px'; clone.style.top = e.pageY - clone.offsetHeight / 2 + 'px';
+        }
+    }
+
+    function handlePointerUp(e) {
+        document.removeEventListener('pointermove', handlePointerMove); document.removeEventListener('pointerup', handlePointerUp);
+        if (isDragging) {
+            if (clone) clone.remove();
+            draggedItem.style.opacity = '1'; draggedItem.style.visibility = 'hidden';
+            let target = document.elementFromPoint(e.clientX, e.clientY);
+            draggedItem.style.visibility = 'visible';
+            let targetSeat = target ? target.closest('.seat') : null;
+            if (targetSeat && targetSeat !== draggedItem) attemptSwap(draggedItem, targetSeat);
+        } else {
+            if (!window.selectedItem) {
+                window.selectedItem = draggedItem; draggedItem.classList.add('selected');
+            } else {
+                if (window.selectedItem !== draggedItem) attemptSwap(window.selectedItem, draggedItem);
+                window.selectedItem.classList.remove('selected'); window.selectedItem = null;
+            }
+        }
+        draggedItem = null;
+    }
+
+    function attemptSwap(seatA, seatB) {
+        const isAEmpty = seatA.dataset.type === 'empty'; const isBEmpty = seatB.dataset.type === 'empty';
+        const rowA = parseInt(seatA.dataset.row); const rowB = parseInt(seatB.dataset.row);
+
+        if ((isAEmpty && rowB !== 5) || (isBEmpty && rowA !== 5)) {
+            showToast("⚠️ 操作失败：空位只能留在最后一排！"); return;
+        }
+
+        const isAAbsent = seatA.classList.contains('absent'); const isBAbsent = seatB.classList.contains('absent');
+        const nameA = seatA.dataset.name; const nameB = seatB.dataset.name;
+        seatA.dataset.name = nameB; seatB.dataset.name = nameA;
+        const typeA = seatA.dataset.type; seatA.dataset.type = seatB.dataset.type; seatB.dataset.type = typeA;
+        
+        if (isBAbsent) seatA.classList.add('absent'); else seatA.classList.remove('absent');
+        if (isAAbsent) seatB.classList.add('absent'); else seatB.classList.remove('absent');
+        
+        seatA.className = 'seat ' + seatA.dataset.type + (seatA.classList.contains('absent') ? ' absent' : '');
+        if (seatA.dataset.type === 'student') renderStudentSeatInfo(seatA, seatA.dataset.name); else seatA.innerHTML = '空位';
+        
+        seatB.className = 'seat ' + seatB.dataset.type + (seatB.classList.contains('absent') ? ' absent' : '');
+        if (seatB.dataset.type === 'student') renderStudentSeatInfo(seatB, seatB.dataset.name); else seatB.innerHTML = '空位';
+
+        autoSaveToCache();
+    }
+
+    function showToast(msg, isLucky = false) {
+        const toast = document.getElementById('toast'); toast.innerText = msg;
+        if (isLucky) toast.classList.add('toast-lucky'); else toast.classList.remove('toast-lucky');
+        toast.style.opacity = '1'; 
+        setTimeout(() => toast.style.opacity = '0', isLucky ? 2000 : 1500);
+    }
+
+    initSystem();
 </script>
 </body>
 </html>
