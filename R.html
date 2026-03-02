@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>互动抽奖中心 - 逻辑修正版</title>
+    <title>R奖池</title>
     <style>
         :root { 
             --main-blue: #3498db; 
@@ -15,7 +15,7 @@
         #wheel-section { flex: 1.6; position: relative; display: flex; align-items: center; justify-content: center; background: #fff; border-right: 1px solid #eee; }
         #control-section { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--bg-color); padding: 40px; }
         .wheel-wrapper { position: relative; width: 620px; height: 620px; }
-        canvas#wheel { width: 100%; height: 100%; transition: transform 4s cubic-bezier(0.1, 0, 0.1, 1); filter: drop-shadow(0 15px 35px rgba(0,0,0,0.1)); }
+        canvas#wheel { width: 100%; height: 100%; transition: transform 1.5s cubic-bezier(0.1, 0, 0.1, 1); filter: drop-shadow(0 15px 35px rgba(0,0,0,0.1)); }
         canvas#confetti { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 100; }
         .center-avatar { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 200px; height: 200px; z-index: 20; background: white; border-radius: 50%; border: 10px solid #fff; box-shadow: 0 4px 20px rgba(0,0,0,0.15); object-fit: cover; }
         .pointer { position: absolute; top: -20px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 25px solid transparent; border-right: 25px solid transparent; border-bottom: 50px solid var(--main-blue); z-index: 30; }
@@ -59,7 +59,7 @@
     const bubble = document.getElementById('result-bubble');
     const winnerDisplay = document.getElementById('winner-name');
     
-    let prizes = ["免作业卡", "精美礼品", "加学分", "谢谢参与", "再抽一次", "神秘大礼", "咖啡券", "笔记本"];
+    let prizes = ["月考+1", "R零食", "回答问题+3", "扣分减半", "R零食", "自定义头像", "R零食", "听写合格线-1"];
     const colors = ['#3498db', '#add8e6', '#3498db', '#add8e6', '#3498db', '#add8e6', '#3498db', '#add8e6'];
 
     const inputContainer = document.getElementById('prize-inputs');
@@ -124,7 +124,7 @@
             winnerDisplay.innerText = prizes[index];
             bubble.classList.add('show');
             shootConfetti(); 
-        }, 4000);
+        }, 1500);
     };
 
     window.onclick = () => { if (!isSpinning) bubble.classList.remove('show'); };
