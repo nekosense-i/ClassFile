@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>4x5 交互式班级座位表 (25A班专属版)</title>
+
+<script id="app-state" type="application/json">null</script>
+
+<style>
+    body { 
+        font-family: 'Microsoft YaHei', sans-serif; 
+        background-color: #f4f7f6; 
+        margin: 0; 
+        padding: 0; 
+        width: 100vw; 
+        height: 100vh; 
+        display: flex; 
+        justify-content: center; 
+        align-items: center; 
+        overflow: hidden; 
+        touch-action: none; 
+        user-select: none; 
+    }
+    
+    .classroom { 
+        width: 96vw; 
+        height: 94vh; 
+        background: white; 
+        padding: 1.5vmin; 
+        border-radius: 16px; 
+        box-shadow: 0 8px 24px rgba(0,0,0,0.08); 
+        display: flex; 
+        flex-direction: column; 
+        box-sizing: border-box;
+    }
+    
+    .front-board-container { 
+        position: relative; 
+        margin-bottom: 1.5vmin; 
+        display: flex; 
+        justify-content: center; 
+        align-items: center; 
+        width: 100%; 
+        flex-shrink: 0; 
+    }
+    
+    .front-board { 
+        text-align: center; 
+        background: #34495e; 
+        color: white; 
+        padding: 1.2vmin 0; 
+        width: 100%; 
+        font-size: clamp(16px, 2.8vmin, 30px); 
+        border-radius: 8px; 
+        font-weight: bold; 
+        letter-spacing: 1vw; 
+        box-sizing: border-box; 
+        box-shadow: 0 4px 12px rgba(52,73,94,0.2); 
+    }
+    
+    .btn-group-left { position: absolute; left: 1.5vmin; display: flex; gap: 1vmin; z-index: 10; }
+    .btn-group-right { position: absolute; right: 1.5vmin; display: flex; gap: 1vmin; z-index: 10; }
+
+    .action-btn { 
+        color: white; border: none; 
+        padding: 0.8vmin 1.2vmin; 
+        border-radius: 6px; 
+        font-size: clamp(12px, 1.4vmin, 16px); 
+        font-weight: bold; cursor: pointer; transition: all 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.2); 
+    }
+    .action-btn:active:not(:disabled) { transform: scale(0.95); }
+    .action-btn:disabled { background-color: #95a5a6; cursor: not-allowed; }
+    
+    .btn-random { background-color: #3498db; } .btn-random:hover:not(:disabled) { background-color: #2980b9; }
+    .btn-reset { background-color: #e74c3c; } .btn-reset:hover { background-color: #c0392b; }
+    .btn-save { background-color: #27ae60; } .btn-save:hover { background-color: #2ecc71; }
+    .btn-clear-cache { background-color: #f39c12; } .btn-clear-cache:hover { background-color: #e67e22; }
+
+    .middle-section { 
+        display: flex; 
+        justify-content: space-between; 
+        align-items: stretch; 
+        flex-grow: 1; 
+        min-height: 0; 
+    }
+    
+    .side-wall { 
+        writing-mode: vertical-lr; 
+        padding: 1vmin; 
+        display: flex; 
+        align-items: center; 
+        justify-content: center; 
+        font-size: clamp(14px, 2.2vmin, 26px); 
+        font-weight: bold; 
+        border-radius: 8px; 
+        letter-spacing: 1.5vh; 
+    }
+    .side-window { background: #e1f5fe; color: #0277bd; border-left: 0.5vmin solid #29b6f6; }
+    .side-door { background: #fff3e0; color: #ef6c00; border-right: 0.5vmin solid #ffa726; }
+    
+    .seating-grid { 
+        display: grid; 
+        grid-template-columns: repeat(4, 1fr); 
+        /* ==== 核心修改：扩容为 5 行 ==== */
+        grid-template-rows: repeat(5, 1fr); 
+        gap: 1.2vmin; 
+        flex-grow: 1; 
+        margin: 0 1.5vmin; 
+        height: 100%; 
+    }
+    
+    .seat { 
+        border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; 
+        height: 100%; 
+        padding-bottom: 1vmin; box-sizing: border-box; 
+        font-size: clamp(12px, 2vmin, 22px); 
+        font-weight: bold; cursor: grab; transition: all 0.2s ease; box-shadow: 0 4px 6px rgba(0,0,0,0.05); position: relative; 
+    }
+    .seat:active { cursor: grabbing; }
+    .seat.student { background: #e8f5e9; border: 2px solid #81c784; color: #2e7d32; }
+    .seat.empty { background: #f5f5f5; border: 2px dashed #bdbdbd; color: #9e9e9e; cursor: pointer; justify-content: center; padding-bottom: 0;}
+    .seat.selected { border-color: #f44336; box-shadow: 0 0 15px rgba(244,67,54,0.4); transform: scale(1.05); z-index: 10; }
+    
+    .absent-toggle { position: absolute; top: 0.6vmin; right: 0.6vmin; background: #a5d6a7; color: #1b5e20; border: none; border-radius: 4px; font-size: clamp(9px, 1vmin, 12px); font-weight: bold; padding: 0.4vmin 0.8vmin; cursor: pointer; z-index: 6; transition: all 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .seat.absent { opacity: 0.6; filter: grayscale(90%); background: #e0e0e0; border-color: #9e9e9e; }
+    .seat.absent .absent-toggle { background: #e74c3c; color: white; }
+
+    .seat.lucky-student { animation: pulse-glow 0.8s infinite; border: 3px solid #f1c40f !important; background-color: #fff9c4 !important; color: #d35400 !important; transform: scale(1.08); z-index: 20; filter: none !important; opacity: 1 !important;}
+    @keyframes pulse-glow { 0% { box-shadow: 0 0 10px rgba(241, 196, 15, 0.5); } 50% { box-shadow: 0 0 35px rgba(241, 196, 15, 1); } 100% { box-shadow: 0 0 10px rgba(241, 196, 15, 0.5); } }
+
+    .avatar-wrapper { 
+        width: clamp(35px, 6vmin, 75px); 
+        height: clamp(35px, 6vmin, 75px); 
+        border-radius: 50%; background-color: #fff; border: 2px solid #a5d6a7; position: absolute; 
+        top: 0.8vmin; display: flex; align-items: center; justify-content: center; overflow: hidden; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1); z-index: 5; 
+    }
+    .avatar-wrapper img { width: 100%; height: 100%; object-fit: cover; }
+    .avatar-placeholder { font-size: clamp(9px, 1.2vmin, 14px); color: #81c784; text-align: center; line-height: 1.2; }
+
+    .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); display: none; justify-content: center; align-items: center; z-index: 1000; opacity: 0; transition: opacity 0.3s; }
+    .modal-overlay.active { display: flex; opacity: 1; }
+    .modal-content { background: white; padding: 3vmin; border-radius: 16px; width: 85%; max-width: 900px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2vmin; border-bottom: 2px solid #eee; padding-bottom: 1vmin; }
+    .modal-header h2 { margin: 0; color: #333; font-size: clamp(18px, 2.5vmin, 28px); }
+    .close-btn { background: #f44336; color: white; border: none; padding: 1vmin 2vmin; border-radius: 6px; cursor: pointer; font-size: clamp(14px, 1.8vmin, 20px); font-weight: bold; }
+    
+    .gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 1.5vmin; max-height: 65vh; overflow-y: auto; padding: 1vmin; }
+    .gallery-item { border-radius: 12px; overflow: hidden; border: 3px solid transparent; cursor: pointer; aspect-ratio: 1; position: relative; }
+    .gallery-item img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); }
+    .gallery-item:hover img { transform: scale(1.15); }
+    .gallery-item.taken { cursor: not-allowed; filter: grayscale(100%); opacity: 0.5; }
+    .gallery-item.taken::after { content: "已被选"; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.7); color: white; padding: 0.5vmin 1vmin; border-radius: 4px; font-size: clamp(12px, 1.5vmin, 16px); font-weight: bold; pointer-events: none; }
+
+    #toast { position: fixed; top: 3vh; left: 50%; transform: translateX(-50%); background: rgba(0, 0, 0, 0.8); color: #fff; padding: 1.5vmin 3vmin; border-radius: 8px; font-size: clamp(16px, 2vmin, 24px); opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 9999; }
+    #toast.toast-lucky { background: #f39c12; font-size: clamp(20px, 3vmin, 32px); padding: 2.5vmin 5vmin; box-shadow: 0 10px 20px rgba(243, 156, 18, 0.4); }
+</style>
+</head>
+<body>
+
+<div id="toast"></div>
+
+<div class="modal-overlay" id="avatarModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 id="modalTitle">请为 <span id="currentStudentName" style="color:#4CAF50;"></span> 选择头像</h2>
+            <button class="close-btn" onclick="closeModal()">关闭</button>
+        </div>
+        <div class="gallery-grid" id="galleryGrid"></div>
+    </div>
+</div>
+
+<div class="classroom">
+    <div class="front-board-container">
+        <div class="btn-group-left">
+            <button class="action-btn btn-random" id="randomBtn" onclick="startRandomDraw()">🎲 随机抽查</button>
+            <button class="action-btn btn-clear-cache" onclick="clearBrowserCache()">🗑️ 清除缓存</button>
+        </div>
+        
+        <div class="front-board">讲台 (黑板)</div>
+        
+        <div class="btn-group-right">
+            <button class="action-btn btn-reset" onclick="resetAllAvatars()">🔄 重置头像</button>
+            <button class="action-btn btn-save" onclick="exportHTMLToFile()">💾 导出保存状态</button>
+        </div>
+    </div>
+    
+    <div class="middle-section">
+        <div class="side-wall side-window">窗户</div>
+        <div class="seating-grid" id="seatingGrid"></div>
+        <div class="side-wall side-door">教室门</div>
+    </div>
+</div>
+
+<script>
+    // ==== 核心修改：精确映射 25A班 4x5 绝对位置阵列 (null 代表空位) ====
+    const defaultLayout = [
+        '罗小雅', '陈亦涵', '罗子津', '曾丹',
+        '张尔卓', '朱析睿', '陈博睿', '冯嘉仪',
+        '刘湘婷', '冯裕阳', '任亦航', '胡溪嫒',
+        '李佩息', '王晰玉', '廖若涵', '蒙玙璠',
+        '符恺宸', null,     '赵天宇', null
+    ];
+    
+    // 清空特殊名单权重，大家抽到的概率均等
+    const specialStudents = [];
+
+    // ==== 核心修改：扩容至 20 个动态头像 ====
+    const avatarFiles = Array.from({length: 20}, (_, i) => `头像${i + 1}.gif`);
+    
+    // ==== 核心修改：云端与本地路径均切换至 25A ====
+    const CLOUD_OSS_BASE_URL = "https://jp-game-assets-2026.oss-cn-chengdu.aliyuncs.com/头像库/25A/";
+
+    let studentAvatars = {};
+    let seatLayoutData = [];
+    let currentSelectingStudent = null;
+
+    function initSystem() {
+        const grid = document.getElementById('seatingGrid');
+        if (!grid) return;
+        grid.innerHTML = ''; 
+
+        let fileState = null;
+        try { fileState = JSON.parse(document.getElementById('app-state').textContent); } catch(e) {}
+        
+        // ==== 核心修改：将缓存Key更改为 25A 专属隔离区 ====
+        let cacheState = null;
+        try { cacheState = JSON.parse(localStorage.getItem('classSeatingCache_25A')); } catch(e) {}
+
+        let finalState = null;
+        let loadSourceMsg = "初始默认排座";
+
+        if (fileState && cacheState) {
+            if ((cacheState.lastModified || 0) > (fileState.lastModified || 0)) {
+                finalState = cacheState; loadSourceMsg = "🌐 已自动从 [浏览器缓存] 恢复防丢记录";
+            } else {
+                finalState = fileState; loadSourceMsg = "📄 已加载 [本地文件] 中保存的记录";
+            }
+        } else if (cacheState) { finalState = cacheState; loadSourceMsg = "🌐 已自动从 [浏览器缓存] 恢复防丢记录"; } 
+        else if (fileState) { finalState = fileState; loadSourceMsg = "📄 已加载 [本地文件] 中保存的记录"; }
+
+        if (finalState && finalState.seats && finalState.seats.length > 0) {
+            studentAvatars = finalState.avatars || {}; 
+            seatLayoutData = finalState.seats;
+        } else {
+            studentAvatars = {}; 
+            seatLayoutData = []; 
+            let index = 0;
+            // 按照 5行 x 4列 遍历精准灌入名单
+            for (let row = 1; row <= 5; row++) {
+                for (let col = 1; col <= 4; col++) {
+                    const studentName = defaultLayout[index];
+                    if (studentName) {
+                        seatLayoutData.push({ row, col, type: 'student', name: studentName, absent: false });
+                    } else {
+                        seatLayoutData.push({ row, col, type: 'empty', name: '空位', absent: false });
+                    }
+                    index++;
+                }
+            }
+        }
+
+        seatLayoutData.forEach(seatData => {
+            const seat = document.createElement('div');
+            seat.className = 'seat ' + seatData.type;
+            if (seatData.absent) seat.classList.add('absent');
+            seat.dataset.row = seatData.row; seat.dataset.col = seatData.col;
+            seat.dataset.type = seatData.type; seat.dataset.name = seatData.name;
+            
+            if (seatData.type === 'student') renderStudentSeatInfo(seat, seatData.name);
+            else seat.innerText = '空位';
+            
+            seat.addEventListener('pointerdown', handlePointerDown);
+            grid.appendChild(seat);
+        });
+
+        if (finalState) setTimeout(() => showToast(loadSourceMsg), 500);
+    }
+
+    function autoSaveToCache() {
+        const currentState = { lastModified: Date.now(), avatars: studentAvatars, seats: [] };
+        document.querySelectorAll('.seat').forEach(seat => {
+            currentState.seats.push({
+                row: seat.dataset.row, col: seat.dataset.col,
+                type: seat.dataset.type, name: seat.dataset.name, absent: seat.classList.contains('absent')
+            });
+        });
+        localStorage.setItem('classSeatingCache_25A', JSON.stringify(currentState));
+    }
+
+    function clearBrowserCache() {
+        if (confirm("⚠️ 确定要清除浏览器缓存并刷新吗？")) {
+            localStorage.removeItem('classSeatingCache_25A'); location.reload(); 
+        }
+    }
+
+    function exportHTMLToFile() {
+        autoSaveToCache();
+        const currentState = JSON.parse(localStorage.getItem('classSeatingCache_25A'));
+        const clonedDoc = document.documentElement.cloneNode(true);
+        clonedDoc.querySelectorAll('.lucky-student').forEach(el => el.classList.remove('lucky-student'));
+        clonedDoc.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+        clonedDoc.querySelector('#avatarModal').classList.remove('active');
+        
+        clonedDoc.querySelector('#seatingGrid').innerHTML = ''; 
+        clonedDoc.querySelector('#galleryGrid').innerHTML = ''; 
+        
+        clonedDoc.querySelector('#app-state').textContent = JSON.stringify(currentState);
+
+        const htmlContent = "<!DOCTYPE html>\n" + clonedDoc.outerHTML;
+        const blob = new Blob([htmlContent], { type: "text/html;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        
+        const a = document.createElement('a'); a.href = url;
+        const dateStr = new Date().toISOString().split('T')[0];
+        a.download = `25A班_座位表_${dateStr}.html`; 
+        
+        document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+        alert("✅ 座位表状态已成功导出！\n您可以将下载的新文件拷贝到 U 盘带走。");
+    }
+
+    function renderStudentSeatInfo(seatElement, name) {
+        seatElement.innerHTML = ''; 
+        const absentBtn = document.createElement('button');
+        absentBtn.className = 'absent-toggle';
+        absentBtn.innerText = seatElement.classList.contains('absent') ? '缺勤' : '在位';
+        
+        absentBtn.addEventListener('pointerdown', (e) => {
+            e.stopPropagation(); seatElement.classList.toggle('absent');
+            const isAbsent = seatElement.classList.contains('absent');
+            absentBtn.innerText = isAbsent ? '缺勤' : '在位';
+            showToast(isAbsent ? `🚫 已将 ${name} 标记为缺勤` : `✅ ${name} 已恢复在位`);
+            autoSaveToCache(); 
+        });
+
+        const avatarDiv = document.createElement('div'); avatarDiv.className = 'avatar-wrapper';
+        const avatarFile = studentAvatars[name];
+        if (avatarFile) {
+            avatarDiv.innerHTML = `<img src="./头像库/25A/${avatarFile}" data-filename="${avatarFile}" alt="头像" draggable="false" onerror="this.onerror=null; this.src='${CLOUD_OSS_BASE_URL}' + this.dataset.filename;">`;
+        } else {
+            avatarDiv.innerHTML = `<div class="avatar-placeholder">点击<br>选头像</div>`;
+        }
+
+        avatarDiv.addEventListener('pointerdown', (e) => { e.stopPropagation(); openAvatarModal(name); });
+        const nameSpan = document.createElement('span'); nameSpan.innerText = name;
+
+        seatElement.appendChild(absentBtn); seatElement.appendChild(avatarDiv); seatElement.appendChild(nameSpan);
+    }
+
+    function getWeightedRandomStudent(studentNodes) {
+        let totalWeight = 0;
+        const nodeWeights = studentNodes.map(node => {
+            const name = node.dataset.name;
+            const weight = specialStudents.includes(name) ? 1 : 2; 
+            totalWeight += weight; return weight;
+        });
+
+        const randomVal = Math.random() * totalWeight;
+        let cumulativeWeight = 0;
+        for (let i = 0; i < studentNodes.length; i++) {
+            cumulativeWeight += nodeWeights[i];
+            if (randomVal < cumulativeWeight) return studentNodes[i];
+        }
+        return studentNodes[studentNodes.length - 1]; 
+    }
+
+    let luckyTimeout; 
+    function startRandomDraw() {
+        const studentNodes = Array.from(document.querySelectorAll('.seat.student:not(.absent)'));
+        if (studentNodes.length === 0) { showToast("⚠️ 当前没有可供抽选的学生！", false); return; }
+
+        const btn = document.getElementById('randomBtn');
+        btn.disabled = true; btn.innerText = '🔄 抽取中...';
+        document.querySelectorAll('.seat.student').forEach(node => node.classList.remove('lucky-student'));
+        clearTimeout(luckyTimeout); 
+
+        let jumps = 0; const totalJumps = 16; const jumpSpeed = 65; let lastNode = null;
+        
+        const drawInterval = setInterval(() => {
+            if (lastNode) lastNode.classList.remove('lucky-student');
+            
+            const currentNode = getWeightedRandomStudent(studentNodes);
+            currentNode.classList.add('lucky-student');
+            lastNode = currentNode;
+            jumps++;
+            
+            if (jumps >= totalJumps) {
+                clearInterval(drawInterval);
+                const finalNode = getWeightedRandomStudent(studentNodes);
+                if (lastNode) lastNode.classList.remove('lucky-student');
+                finalNode.classList.add('lucky-student');
+                
+                btn.disabled = false; btn.innerText = '🎲 随机抽查';
+                showToast(`🎉 有请 ${finalNode.dataset.name} 同学！`, true);
+                
+                luckyTimeout = setTimeout(() => { finalNode.classList.remove('lucky-student'); }, 2000);
+            }
+        }, jumpSpeed);
+    }
+
+    function resetAllAvatars() {
+        if (confirm("⚠️ 警告：确定要清空全班头像吗？")) {
+            studentAvatars = {};
+            document.querySelectorAll('.seat.student').forEach(seat => { renderStudentSeatInfo(seat, seat.dataset.name); });
+            showToast("🔄 全班头像已重置！");
+            autoSaveToCache();
+        }
+    }
+
+    function openAvatarModal(studentName) {
+        currentSelectingStudent = studentName; document.getElementById('currentStudentName').innerText = studentName;
+        const gallery = document.getElementById('galleryGrid'); gallery.innerHTML = ''; 
+
+        const takenAvatars = Object.entries(studentAvatars).filter(([n]) => n !== studentName).map(([n, f]) => f);
+        avatarFiles.forEach(file => {
+            const item = document.createElement('div'); item.className = 'gallery-item'; 
+            item.innerHTML = `<img src="./头像库/25A/${file}" data-filename="${file}" alt="GIF" onerror="this.onerror=null; this.src='${CLOUD_OSS_BASE_URL}' + this.dataset.filename;">`;
+            
+            if (takenAvatars.includes(file)) { item.classList.add('taken'); item.onclick = () => showToast("⚠️ 该头像已被选走！"); } 
+            else { if (studentAvatars[studentName] === file) item.style.borderColor = '#4CAF50'; item.onclick = () => selectAvatar(file); }
+            gallery.appendChild(item);
+        });
+        document.getElementById('avatarModal').classList.add('active');
+    }
+
+    function closeModal() { document.getElementById('avatarModal').classList.remove('active'); currentSelectingStudent = null; }
+
+    function selectAvatar(fileName) {
+        studentAvatars[currentSelectingStudent] = fileName;
+        document.querySelectorAll('.seat.student').forEach(seat => { renderStudentSeatInfo(seat, seat.dataset.name); });
+        showToast("✅ 头像设置成功！");
+        closeModal();
+        autoSaveToCache();
+    }
+
+    let draggedItem = null, isDragging = false, clone = null, startX, startY;
+    function handlePointerDown(e) {
+        if (e.button !== 0 && e.pointerType === 'mouse') return; 
+        draggedItem = e.currentTarget; isDragging = false; startX = e.pageX; startY = e.pageY;
+        document.addEventListener('pointermove', handlePointerMove, {passive: false});
+        document.addEventListener('pointerup', handlePointerUp);
+    }
+
+    function handlePointerMove(e) {
+        if (!isDragging) {
+            if (Math.abs(e.pageX - startX) > 10 || Math.abs(e.pageY - startY) > 10) {
+                isDragging = true;
+                clone = draggedItem.cloneNode(true);
+                clone.style.width = draggedItem.offsetWidth + 'px';
+                clone.style.height = draggedItem.offsetHeight + 'px';
+                clone.style.position = 'absolute'; clone.style.zIndex = '1000'; clone.style.pointerEvents = 'none'; clone.style.opacity = '0.85'; clone.style.margin = '0'; clone.style.boxShadow = '0 10px 20px rgba(0,0,0,0.2)';
+                document.body.appendChild(clone); draggedItem.style.opacity = '0.3';
+            }
+        }
+        if (isDragging) {
+            e.preventDefault(); 
+            clone.style.left = e.pageX - clone.offsetWidth / 2 + 'px'; clone.style.top = e.pageY - clone.offsetHeight / 2 + 'px';
+        }
+    }
+
+    function handlePointerUp(e) {
+        document.removeEventListener('pointermove', handlePointerMove); document.removeEventListener('pointerup', handlePointerUp);
+        if (isDragging) {
+            if (clone) clone.remove();
+            draggedItem.style.opacity = '1'; draggedItem.style.visibility = 'hidden';
+            let target = document.elementFromPoint(e.clientX, e.clientY);
+            draggedItem.style.visibility = 'visible';
+            let targetSeat = target ? target.closest('.seat') : null;
+            if (targetSeat && targetSeat !== draggedItem) attemptSwap(draggedItem, targetSeat);
+        } else {
+            if (!window.selectedItem) {
+                window.selectedItem = draggedItem; draggedItem.classList.add('selected');
+            } else {
+                if (window.selectedItem !== draggedItem) attemptSwap(window.selectedItem, draggedItem);
+                window.selectedItem.classList.remove('selected'); window.selectedItem = null;
+            }
+        }
+        draggedItem = null;
+    }
+
+    function attemptSwap(seatA, seatB) {
+        const isAEmpty = seatA.dataset.type === 'empty'; const isBEmpty = seatB.dataset.type === 'empty';
+        const rowA = parseInt(seatA.dataset.row); const rowB = parseInt(seatB.dataset.row);
+
+        // ==== 核心修改：保护第 5 排的空位不被挪到前排 ====
+        if ((isAEmpty && rowB !== 5) || (isBEmpty && rowA !== 5)) {
+            showToast("⚠️ 操作失败：空位只能留在最后一排！"); return;
+        }
+
+        const isAAbsent = seatA.classList.contains('absent'); const isBAbsent = seatB.classList.contains('absent');
+        const nameA = seatA.dataset.name; const nameB = seatB.dataset.name;
+        seatA.dataset.name = nameB; seatB.dataset.name = nameA;
+        const typeA = seatA.dataset.type; seatA.dataset.type = seatB.dataset.type; seatB.dataset.type = typeA;
+        
+        if (isBAbsent) seatA.classList.add('absent'); else seatA.classList.remove('absent');
+        if (isAAbsent) seatB.classList.add('absent'); else seatB.classList.remove('absent');
+        
+        seatA.className = 'seat ' + seatA.dataset.type + (seatA.classList.contains('absent') ? ' absent' : '');
+        if (seatA.dataset.type === 'student') renderStudentSeatInfo(seatA, seatA.dataset.name); else seatA.innerHTML = '空位';
+        
+        seatB.className = 'seat ' + seatB.dataset.type + (seatB.classList.contains('absent') ? ' absent' : '');
+        if (seatB.dataset.type === 'student') renderStudentSeatInfo(seatB, seatB.dataset.name); else seatB.innerHTML = '空位';
+
+        autoSaveToCache();
+    }
+
+    function showToast(msg, isLucky = false) {
+        const toast = document.getElementById('toast'); toast.innerText = msg;
+        if (isLucky) toast.classList.add('toast-lucky'); else toast.classList.remove('toast-lucky');
+        toast.style.opacity = '1'; 
+        setTimeout(() => toast.style.opacity = '0', isLucky ? 2000 : 1500);
+    }
+
+    initSystem();
+</script>
+</body>
+</html>
