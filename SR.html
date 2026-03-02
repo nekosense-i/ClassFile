@@ -23,7 +23,7 @@
 
         /* 转盘容器 */
         .wheel-wrapper { position: relative; width: 620px; height: 620px; }
-        canvas#wheel { width: 100%; height: 100%; transition: transform 4s cubic-bezier(0.1, 0, 0.1, 1); filter: drop-shadow(0 15px 35px rgba(0,0,0,0.1)); }
+        canvas#wheel { width: 100%; height: 100%; transition: transform 1.5s cubic-bezier(0.1, 0, 0.1, 1); filter: drop-shadow(0 15px 35px rgba(0,0,0,0.1)); }
         
         /* 特效画布 */
         canvas#confetti { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 100; }
@@ -92,7 +92,7 @@
     const bubble = document.getElementById('result-bubble');
     const winnerDisplay = document.getElementById('winner-name');
     
-    let prizes = ["免作业卡", "精美礼品", "加学分", "谢谢参与", "再抽一次", "神秘大礼", "咖啡券", "笔记本"];
+    let prizes = ["月考+2", "奶茶0.5杯", "SR零食", "奶茶0.5杯", "SR零食", "头像自定义+素材库补充2", "免扣分1次", "听写合格线-2"];
     
     // 【核心修改】转盘颜色改为紫色和粉色相间
     const colors = ['#9b59b6', '#ffb6c1', '#9b59b6', '#ffb6c1', '#9b59b6', '#ffb6c1', '#9b59b6', '#ffb6c1'];
@@ -155,7 +155,7 @@
             winnerDisplay.innerText = prizes[index];
             bubble.classList.add('show');
             shootConfetti(); 
-        }, 4000);
+        }, 1500);
     };
 
     window.onclick = () => { if (!isSpinning) bubble.classList.remove('show'); };
