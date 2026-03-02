@@ -204,7 +204,7 @@
         "头像9.gif", "头像10.gif", "头像11.gif", "头像12.gif", "头像13.gif", "头像14.gif"
     ];
     
-    const CLOUD_OSS_BASE_URL = "https://jp-game-assets-2026.oss-cn-chengdu.aliyuncs.com/头像库/";
+    const CLOUD_OSS_BASE_URL = "https://jp-game-assets-2026.oss-cn-chengdu.aliyuncs.com/头像库/24B/";
 
     let studentAvatars = {};
     let seatLayoutData = [];
@@ -325,7 +325,7 @@
         const avatarDiv = document.createElement('div'); avatarDiv.className = 'avatar-wrapper';
         const avatarFile = studentAvatars[name];
         if (avatarFile) {
-            avatarDiv.innerHTML = `<img src="./头像库/${avatarFile}" data-filename="${avatarFile}" alt="头像" draggable="false" onerror="this.onerror=null; this.src='${CLOUD_OSS_BASE_URL}' + this.dataset.filename;">`;
+            avatarDiv.innerHTML = `<img src="./头像库/24B/${avatarFile}" data-filename="${avatarFile}" alt="头像" draggable="false" onerror="this.onerror=null; this.src='${CLOUD_OSS_BASE_URL}' + this.dataset.filename;">`;
         } else {
             avatarDiv.innerHTML = `<div class="avatar-placeholder">点击<br>选头像</div>`;
         }
@@ -403,7 +403,7 @@
         const takenAvatars = Object.entries(studentAvatars).filter(([n]) => n !== studentName).map(([n, f]) => f);
         avatarFiles.forEach(file => {
             const item = document.createElement('div'); item.className = 'gallery-item'; 
-            item.innerHTML = `<img src="./头像库/${file}" data-filename="${file}" alt="GIF" onerror="this.onerror=null; this.src='${CLOUD_OSS_BASE_URL}' + this.dataset.filename;">`;
+            item.innerHTML = `<img src="./头像库/24B/${file}" data-filename="${file}" alt="GIF" onerror="this.onerror=null; this.src='${CLOUD_OSS_BASE_URL}' + this.dataset.filename;">`;
             
             if (takenAvatars.includes(file)) { item.classList.add('taken'); item.onclick = () => showToast("⚠️ 该头像已被选走！"); } 
             else { if (studentAvatars[studentName] === file) item.style.borderColor = '#4CAF50'; item.onclick = () => selectAvatar(file); }
