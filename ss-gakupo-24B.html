@@ -2,409 +2,566 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>日语班积分系统</title>
+    <title>学生积分智能卡片工作台</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
     <style>
         :root {
-            --bg: #f0f2f5; --border: #d9d9d9;
-            --hw-A: #237804; --hw-B: #73d13d; --hw-C: #fffb8f; --hw-D: #ffadd2; --hw-none: #f5222d;
-            --dt-full: #237804; --dt-pass: #73d13d; --dt-re: #fadb14; --dt-fail: #f5222d;
-            --att-1: #52c41a; --att-miss: #f5222d; --att-absent: #000000;
-            --rank-low: #000000; --rank-mid: #1890ff; --rank-high: #722ed1; --rank-top: #fa8c16;
+            --bg: #e2e8f0; --card-bg: #ffffff;
+            --primary: #3b82f6; --primary-hover: #2563eb;
+            --hw-A: #22c55e; --hw-B: #86efac; --hw-C: #fef08a; --hw-D: #fca5a5; --hw-none: #ef4444;
+            --text-main: #1e293b; --text-muted: #64748b;
         }
-        * { box-sizing: border-box; font-family: -apple-system, system-ui, sans-serif; }
-        body { margin: 0; padding: 10px; background: var(--bg); font-size: 11px; height: 100vh; display: flex; flex-direction: column; }
+        * { box-sizing: border-box; font-family: -apple-system, system-ui, sans-serif; margin: 0; padding: 0; }
+        body { background: var(--bg); height: 100vh; width: 100vw; display: flex; flex-direction: column; overflow: hidden; color: var(--text-main); }
         
-        #toolbar { display: flex; align-items: center; gap: 8px; padding: 10px; background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 8px; flex-wrap: wrap; }
-        .table-container { flex: 1; overflow: auto; background: white; border: 1px solid var(--border); border-radius: 4px; }
-        table { border-collapse: collapse; min-width: 1600px; width: 100%; table-layout: fixed; }
-        th, td { border: 1px solid var(--border); text-align: center; height: 38px; padding: 0 2px; }
-        th { background: #444; color: white; position: sticky; top: 0; z-index: 20; }
-
-        .date-container { font-size: 10px; font-weight: normal; margin-top: 2px; color: #ffeb3b; }
-        .date-input { font-size: 10px; border: none; border-radius: 2px; padding: 1px; width: 95%; cursor: pointer; }
-
-        .sticky-class { position: sticky; left: 0; background: #f9f9f9 !important; z-index: 10; width: 50px; min-width: 50px; }
-        .sticky-name { position: sticky; left: 50px; background: #f9f9f9 !important; z-index: 10; width: 80px; min-width: 80px; border-right: 2px solid #888 !important; text-decoration: underline; cursor: pointer; white-space: nowrap; font-weight: bold; }
-
-        .btn-group { display: flex; justify-content: center; gap: 1px; width: 100%; }
-        .opt { padding: 2px 0; border: 1px solid #ccc; cursor: pointer; background: #eee; border-radius: 2px; font-size: 9px; flex: 1; user-select: none; transition: 0.1s; }
-        [data-type="att"] .opt { font-size: 8px; max-width: 18px; }
-
-        .act-hw-A { background: var(--hw-A) !important; color: white; }
-        .act-hw-B { background: var(--hw-B) !important; color: #000; }
-        .act-hw-C { background: var(--hw-C) !important; color: #856404; }
-        .act-hw-D { background: var(--hw-D) !important; color: white; }
-        .act-hw-未 { background: var(--hw-none) !important; color: white; }
-        .act-dt-满 { background: var(--dt-full) !important; color: white; }
-        .act-dt-过 { background: var(--dt-pass) !important; color: #000; }
-        .act-dt-重 { background: var(--dt-re) !important; color: #856404; }
-        .act-dt-未 { background: var(--dt-fail) !important; color: white; }
-        .act-att-1 { background: var(--att-1) !important; color: white; }
-        .act-att--1 { background: var(--att-miss) !important; color: white; }
-        .act-att-缺 { background: var(--att-absent) !important; color: white; }
-
-        .week-sum { background: #f0f5ff !important; color: #ff4d4f !important; font-weight: 800; cursor: pointer; }
-        .class-box { display: flex; align-items: center; justify-content: center; gap: 1px; width: 100%; }
-        .class-box button { width: 18px; height: 18px; padding: 0; border: 1px solid #ccc; background: #fff; border-radius: 3px; flex-shrink: 0; -webkit-appearance: none; appearance: none; }
-        .score-val { font-weight: bold; width: 16px; color: #1890ff; font-size: 11px; text-align: center; }
-        .day-sum { background: #fffdf0; font-weight: bold; }
-
-        .modal { display:none; position:fixed; top:5%; left:5%; width:90%; height:90%; background:white; z-index:1000; padding:20px; border-radius:12px; box-shadow:0 10px 40px rgba(0,0,0,0.3); flex-direction:column; }
-        .overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:900; }
+        .header { height: 60px; flex-shrink: 0; background: #1e293b; color: white; padding: 0 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 5px rgba(0,0,0,0.1); z-index: 10; }
+        .tabs { display: flex; gap: 6px; background: #334155; padding: 4px; border-radius: 6px; }
+        .tab-btn { background: transparent; color: #cbd5e1; border: none; padding: 6px 16px; border-radius: 4px; font-size: clamp(12px, 1.2vw, 15px); font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .tab-btn.active { background: var(--primary); color: white; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+        .toolbar-actions { display: flex; gap: 8px; align-items: center; }
+        button.tool-btn { background: #475569; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: clamp(11px, 1vw, 13px); transition: 0.15s; display: flex; align-items: center; }
+        button.tool-btn:hover { filter: brightness(1.15); transform: translateY(-1px); }
+        button.tool-btn:active { transform: translateY(1px); }
         
-        #compareScrollWrapper { width: 100%; flex: 1; overflow-x: auto; overflow-y: hidden; border: 1px solid #eee; background: #fafafa; border-radius: 8px; padding: 10px; }
+        .main-content { flex: 1; min-height: 0; padding: clamp(5px, 1vh, 15px); width: 100%; display: flex; justify-content: center; }
+        .grid-container { display: grid; width: 100%; height: 100%; grid-template-columns: repeat(var(--cols, 4), 1fr); grid-template-rows: repeat(var(--rows, 4), 1fr); gap: clamp(4px, 1vh, 12px); }
+        .student-card { background: var(--card-bg); border-radius: 8px; border: 1px solid #cbd5e1; padding: clamp(4px, 1vmin, 12px); display: flex; flex-direction: column; gap: clamp(2px, 0.5vh, 8px); box-shadow: 0 2px 4px rgba(0,0,0,0.05); min-height: 0; transition: 0.2s;}
+        .student-card:hover { border-color: #94a3b8; box-shadow: 0 4px 8px rgba(0,0,0,0.08); }
+        .card-header { display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; border-bottom: 1px dashed #e2e8f0; padding-bottom: 2px; }
+        .name-container { display: flex; align-items: center; gap: 6px; cursor: pointer; transition: 0.2s; }
+        .name-container:hover { transform: scale(1.02); }
+        .class-tag { background: #f1f5f9; color: #64748b; padding: 2px 6px; border-radius: 4px; font-size: clamp(10px, 1vmin, 12px); border: 1px solid #e2e8f0; }
+        .student-name { font-size: clamp(14px, 1.8vmin, 18px); font-weight: 900; color: #0f172a; }
+        .name-container:hover .student-name { color: var(--primary); text-decoration: underline; }
+        .week-total { background: #eff6ff; color: #2563eb; padding: 2px 8px; border-radius: 10px; font-weight: 800; font-size: clamp(12px, 1.5vmin, 15px); }
+        
+        .row-group { display: flex; align-items: center; gap: 6px; flex: 1; min-height: 0; }
+        .row-label { width: clamp(30px, 3vw, 40px); font-size: clamp(11px, 1.2vmin, 14px); font-weight: bold; color: var(--text-muted); text-align: right; flex-shrink: 0; }
+        .btn-group { display: flex; flex: 1; gap: clamp(2px, 0.5vw, 6px); height: 100%; }
+        .opt { flex: 1; height: 100%; min-height: 0; border: 1px solid #e2e8f0; background: #f8fafc; border-radius: 6px; font-size: clamp(11px, 1.5vmin, 14px); font-weight: bold; color: #475569; cursor: pointer; display: flex; align-items: center; justify-content: center; user-select: none; transition: 0.1s;}
+        .opt:hover { background: #f1f5f9; border-color: #cbd5e1; filter: brightness(0.95); }
+        .opt:active { transform: scale(0.95); }
+        
+        .class-action-bar { display: flex; flex: 1; gap: clamp(1px, 0.3vw, 4px); height: 100%; align-items: center; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 2px; }
+        .opt-btn { flex: 1; height: 100%; border: none; border-radius: 4px; font-size: clamp(10px, 1.2vmin, 13px); font-weight: bold; cursor: pointer; transition: 0.1s; display: flex; align-items: center; justify-content: center; background: white; border: 1px solid #e2e8f0; color: #475569; padding: 0; }
+        .opt-btn:hover { filter: brightness(0.92); }
+        .opt-btn:active { transform: scale(0.9); }
+        .danger-btn { color: #ef4444; background: #fef2f2; border-color: #fecaca; }
+        .success-btn { color: #10b981; background: #ecfdf5; border-color: #a7f3d0; }
+        .divider { width: 1px; background: #cbd5e1; margin: 0 2px; height: 80%; }
+        .cls-score-val { font-weight: 900; color: #2563eb; width: clamp(18px, 2vw, 26px); text-align: center; font-size: clamp(13px, 1.6vmin, 16px); }
 
-        button.primary { background: #1890ff; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 11px; }
-        button.danger { background: #f5222d; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .act-hw-A { background: var(--hw-A) !important; color: white !important; border-color: var(--hw-A) !important; }
+        .act-hw-B { background: var(--hw-B) !important; color: #0f172a !important; border-color: #4ade80 !important; }
+        .act-hw-C { background: var(--hw-C) !important; color: #856404 !important; border-color: #facc15 !important; }
+        .act-hw-D { background: var(--hw-D) !important; color: white !important; border-color: var(--hw-D) !important; }
+        .act-hw-未 { background: var(--hw-none) !important; color: white !important; border-color: var(--hw-none) !important; }
+        .act-dt-满 { background: #16a34a !important; color: white !important; border-color: #16a34a !important; }
+        .act-dt-过 { background: #86efac !important; color: #0f172a !important; border-color: #4ade80 !important; }
+        .act-dt-重 { background: #facc15 !important; color: #856404 !important; border-color: #eab308 !important; }
+        .act-dt-未 { background: #ef4444 !important; color: white !important; border-color: #dc2626 !important; }
+        .act-att-1 { background: #10b981 !important; color: white !important; border-color: #059669 !important; }
+        .act-att--1 { background: #ef4444 !important; color: white !important; border-color: #dc2626 !important; }
+        .act-att-缺 { background: #000000 !important; color: white !important; border-color: #000000 !important; }
+
+        .summary-view { display: none; background: white; padding: 20px; border-radius: 8px; width: 100%; max-width: 1400px; height: 100%; overflow-y: auto; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+        .summary-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        table.sum-table { width: 100%; border-collapse: collapse; text-align: center; }
+        .sum-table th, .sum-table td { border: 1px solid #e2e8f0; padding: 10px 6px; }
+        .sum-table th { background: #f8fafc; position: sticky; top: 0; z-index: 5; font-weight: bold; }
+        .action-link { color: #2563eb; cursor: pointer; font-weight: bold; text-decoration: underline; }
+        
+        .overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(15,23,42,0.6); backdrop-filter: blur(2px); z-index: 1500; }
+        .month-dashboard { display:none; position:fixed; top:2.5vh; left:2.5vw; width:95vw; height:95vh; background:#f8fafc; z-index: 1600; border-radius:16px; box-shadow:0 20px 60px rgba(0,0,0,0.4); flex-direction:column; overflow:hidden;}
+        .modal { display:none; position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); width:90%; max-width:600px; background:white; z-index: 2000; padding:25px; border-radius:12px; box-shadow:0 20px 60px rgba(0,0,0,0.4); flex-direction: column;}
+        
+        .dash-header { background: #1e293b; color: white; padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; }
+        .dash-body { display: flex; flex: 1; min-height: 0; }
+        .dash-left { width: 350px; background: white; border-right: 1px solid #e2e8f0; display: flex; flex-direction: column; overflow: hidden; }
+        .dash-right { flex: 1; padding: 20px; display: flex; flex-direction: column; gap: 15px; overflow-y: auto; }
+        .stu-list-container { flex: 1; overflow-y: auto; padding: 10px; border-bottom: 1px solid #e2e8f0;}
+        .stu-list-item { padding: 12px; margin-bottom: 5px; background: #f1f5f9; border-radius: 6px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; border: 1px solid transparent; transition: 0.1s;}
+        .stu-list-item:hover { background: #e2e8f0; }
+        .stu-list-item.active { background: #eff6ff; border-color: #bfdbfe; font-weight: bold; color: #2563eb; }
+        .class-rank-box { height: 250px; padding: 10px; background: #fff; }
+        .chart-row { display: flex; gap: 15px; height: 320px; flex-shrink: 0;}
+        .chart-box { background: white; border-radius: 12px; border: 1px solid #e2e8f0; padding: 15px; flex: 1; display: flex; flex-direction: column;}
+        .chart-box h4 { margin-bottom: 10px; color: #475569; font-size: 15px;}
+        .chart-inner { flex: 1; position: relative; width: 100%; height: 100%; }
+        .ai-month-box { background: white; border-radius: 12px; border: 1px dashed #cbd5e1; padding: 20px; flex: 1; min-height: 150px; display: flex; flex-direction: column;}
     </style>
 </head>
 <body>
 
-<div id="toolbar">
-    <button class="primary" onclick="loadFromOSS()">☁️ 同步云母版</button>
-    <button class="primary" onclick="exportWeek()" style="background:#52c41a">📤 导出彩色周报</button>
-    <button class="primary" onclick="openMonth()" style="background:#722ed1">📅 月度分析</button>
-    <button class="primary" onclick="syncManual()" style="background:#faad14">🔄 手动同步</button>
-    <button class="primary" onclick="setAIKey()" style="background:#8c8c8c">🔑 设置 AI Key</button>
-    <div style="flex:1"></div>
-    <button class="danger" onclick="clearAllRecords()">🗑️ 清空记录</button>
+<div class="header">
+    <div class="tabs" id="dayTabs"></div>
+    <div class="toolbar-actions">
+        <span id="syncStatus" style="font-size: 11px; color: #a7f3d0; margin-right: 5px;">✅ 离线模式已就绪</span>
+        <input type="date" id="mondayDate" style="padding:4px; border-radius:4px; border:none; outline:none; cursor: pointer; font-size: clamp(11px, 1vw, 13px);" title="选择本周一日期">
+        
+        <button class="tool-btn" onclick="batchAttendance()" style="background:#10b981;">✅ 本日全勤</button>
+        <button class="tool-btn" onclick="loadDefaultStudents()" style="background:#64748b;" title="遇到白屏或换班级时，重置为内置名单">🔄 重置初始名单</button>
+        <button class="tool-btn" onclick="openMonthDashboard()" style="background:#eab308; color:#0f172a;">📅 月度分析</button>
+        <input type="file" id="multiExcelUpload" multiple accept=".xlsx" style="display:none" onchange="processMonthlyFiles(this.files)"/>
+
+        <div style="width: 1px; height: 20px; background: #64748b; margin: 0 5px;"></div>
+        <button class="tool-btn" onclick="exportLocalState()" style="background:#f59e0b;">💾 导出备份</button>
+        <button class="tool-btn" onclick="document.getElementById('importStateIn').click()" style="background:#06b6d4;">📂 导入恢复</button>
+        <input type="file" id="importStateIn" accept=".json" style="display:none" onchange="importLocalState(this.files)"/>
+        <button class="tool-btn" onclick="clearAllRecords()" style="background:#ef4444;">🗑️ 清空</button>
+    </div>
 </div>
 
-<div class="table-container">
-    <table id="mainTable">
-        <thead id="tHead"></thead>
-        <tbody id="tBody"></tbody>
-    </table>
+<div class="main-content">
+    <div id="cardGrid" class="grid-container"></div>
+    
+    <div id="summaryView" class="summary-view">
+        <div class="summary-header">
+            <h2 style="color: #1e293b; font-size: 20px;">📊 本周数据汇总看板</h2>
+            <div style="display: flex; gap: 10px;">
+                <button class="tool-btn" onclick="showWeeklyComparison()" style="background:#8b5cf6; padding: 8px 16px;">📈 全班图表排名</button>
+                <button class="tool-btn" onclick="exportDetailedWeek()" style="background:#10b981; padding: 8px 16px;">📤 导出周报(含颗粒细分)</button>
+            </div>
+        </div>
+        <table class="sum-table">
+            <thead>
+                <tr><th>班级</th><th>姓名</th><th>一</th><th>二</th><th>三</th><th>四</th><th>五</th><th>总分</th><th>操作</th></tr>
+            </thead>
+            <tbody id="sumTBody"></tbody>
+        </table>
+    </div>
 </div>
 
 <div class="overlay" id="ovl" onclick="closeAll()"></div>
 
-<div id="commentModal" class="modal" style="width:450px; height:auto; min-height:300px; left:50%; top:50%; transform:translate(-50%,-50%)">
-    <h3 id="aiTitle" style="margin:0; color:#1890ff">AI 助教评语</h3>
-    <div id="aiContent" style="background:#f9f9f9; padding:15px; border-radius:8px; border:1px dashed #ccc; margin:15px 0; min-height:80px; font-size:13px; line-height:1.6; text-align:left;">正在分析数据...</div>
-    <div style="display:flex; gap:10px; justify-content: center;">
-        <button class="primary" onclick="copyText()" id="copyBtn" style="display:none">复制评语</button>
-        <button class="primary" onclick="closeAll()" style="background:#ff4d4f">关闭窗口</button>
+<div id="monthDashboard" class="month-dashboard">
+    <div class="dash-header">
+        <div style="display: flex; align-items: center; gap: 15px;">
+            <h2 style="margin:0; font-size: 20px;">📅 月度综合分析看板</h2>
+            <button class="tool-btn" onclick="document.getElementById('multiExcelUpload').click()" style="background:#3b82f6;">➕ 导入多周 Excel 报表</button>
+            <span id="monthFileStatus" style="font-size: 13px; color: #93c5fd;">请先通过上方【导出周报】生成Excel后在此上传</span>
+        </div>
+        <button class="tool-btn" onclick="closeAll()" style="background:#ef4444; padding: 8px 20px; font-size: 15px;">关闭面板</button>
     </div>
-</div>
-
-<div id="monthModal" class="modal">
-    <div style="display:flex; justify-content:space-between; margin-bottom:15px; align-items:center">
-        <h2>月度成长趋势分析</h2>
-        <div>
-            <button onclick="document.getElementById('multiIn').click()" class="primary" style="background:#13c2c2">+ 批量导入周报</button>
-            <input type="file" id="multiIn" multiple accept=".xlsx" style="display:none" onchange="calcMonth(this.files)"/>
-            <button onclick="exportMonth()" class="primary" style="background:#faad14">导出汇总</button>
-            <button onclick="closeAll()" class="primary" style="background:#ff4d4f">关闭</button>
+    
+    <div class="dash-body">
+        <div class="dash-left">
+            <div class="stu-list-container" id="monthStuList">
+                <div style="text-align:center; margin-top:50px; color:#94a3b8;">请导入Excel文件...</div>
+            </div>
+            <div class="class-rank-box">
+                <h4 style="font-size:14px; text-align:center; color:#475569; margin-bottom:5px;">本月总积分排行</h4>
+                <div style="height: 200px; position: relative;"><canvas id="monthBarChart"></canvas></div>
+            </div>
+        </div>
+        
+        <div class="dash-right" id="monthRightPane" style="display:none;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px;">
+                <div>
+                    <span id="mStuClass" class="class-tag" style="font-size:16px;">-</span>
+                    <span id="mStuName" style="font-size:28px; font-weight:900; margin-left:10px; color:#0f172a;">-</span>
+                </div>
+                <div style="font-size: 20px; font-weight: 800; color: #2563eb;">本月累计：<span id="mStuTotal">0</span>分</div>
+            </div>
+            
+            <div class="chart-row">
+                <div class="chart-box" style="flex: 2;">
+                    <h4>📈 各项指标月度成长曲线</h4>
+                    <div class="chart-inner"><canvas id="monthLineChart"></canvas></div>
+                </div>
+                <div class="chart-box" style="flex: 1;">
+                    <h4>🎯 综合能力分布雷达</h4>
+                    <div class="chart-inner"><canvas id="monthRadarChart"></canvas></div>
+                </div>
+            </div>
+            
+            <div class="ai-month-box">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h4 style="margin:0; font-size:16px; color:#1e293b;">🤖 AI 学情趋势诊断</h4>
+                    <button class="tool-btn" onclick="generateMonthlyAI()" style="background:#8b5cf6;">✨ 生成深度分析报告</button>
+                </div>
+                <div id="aiMonthContent" style="flex: 1; background: #f8fafc; border-radius: 8px; padding: 15px; font-size: 14px; line-height: 1.8; color: #334155; overflow-y:auto;">
+                    点击右上方按钮，AI 将根据该生本月的折线起伏与雷达分布，自动生成诊断报告。
+                </div>
+            </div>
         </div>
     </div>
-    <div style="height:320px; width:100%; border-bottom:1px solid #eee; margin-bottom:10px;"><canvas id="monthChart"></canvas></div>
-    <div id="monthList" style="flex:1; overflow:auto"></div>
 </div>
 
-<div id="compareModal" class="modal">
-    <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-        <h2 style="margin:0">全班周积分排名</h2>
-        <div style="display:flex; gap:10px;">
-            <button class="primary" id="sortBtn" onclick="toggleCompareSort()" style="background:#faad14">切换排序</button>
-            <button class="primary" onclick="closeAll()" style="background:#ff4d4f">关闭</button>
-        </div>
-    </div>
-    <div id="compareScrollWrapper">
-        <div id="compareInner" style="height: 100%; position: relative;"><canvas id="compareChart"></canvas></div>
+<div id="commentModal" class="modal">
+    <h3 id="aiTitle" style="margin-bottom: 15px;">AI 评语</h3>
+    <div id="aiContent" style="background:#f8fafc; padding:15px; border:1px solid #e2e8f0; border-radius:6px; min-height:80px; line-height:1.6;"></div>
+    <div style="margin-top:15px; display:flex; gap:10px; justify-content:flex-end;">
+        <button class="tool-btn" onclick="copyText()" style="background:#3b82f6;">复制</button>
+        <button class="tool-btn" onclick="closeSubModal('commentModal')" style="background:#94a3b8;">关闭</button>
     </div>
 </div>
 
-<div id="radarModal" class="modal" style="width:500px; height:550px; left:50%; top:50%; transform:translate(-50%,-50%)">
-    <h3 id="rTitle" style="text-align:center; margin-bottom: 5px;">个人能力分布</h3>
-    <div style="width:400px; height:400px; margin: 0 auto;"><canvas id="radarChart"></canvas></div>
-    <button class="primary" onclick="closeAll()" style="margin-top:10px; width:100%; background:#ff4d4f">关闭窗口</button>
+<div id="radarModal" class="modal" style="width: 450px;">
+    <h3 id="rTitle" style="text-align:center; margin-bottom: 15px;">个人能力分布</h3>
+    <div style="width:350px; height:350px; margin: 0 auto;"><canvas id="radarChart"></canvas></div>
+    <div style="text-align:right; margin-top:10px;">
+        <button class="tool-btn" onclick="closeSubModal('radarModal')" style="background:#ef4444; display:inline-block;">关闭</button>
+    </div>
+</div>
+
+<div id="compareModal" class="modal" style="max-width: 800px; width: 90%;">
+    <h3 style="margin-bottom: 15px;">全班周积分排名</h3>
+    <div style="height: 350px; position: relative; width: 100%;"><canvas id="compareChart"></canvas></div>
+    <div style="text-align:right; margin-top:10px;">
+        <button class="tool-btn" onclick="closeSubModal('compareModal')" style="background:#ef4444; display:inline-block;">关闭</button>
+    </div>
 </div>
 
 <script>
-// --- 全局变量与配置 ---
-const OSS_URL = "https://jp-game-assets-2026.oss-cn-chengdu.aliyuncs.com/学生名单模板/ss-gakupo-24B.xlsx";
-const STORAGE_KEY = "JAPANESE_SYSTEM_DATA";
-const AI_KEY_STORAGE = "DEEPSEEK_API_KEY";
+// ==========================================
+// 💡 核心内置名单 (硬编码区)
+// ==========================================
+const DEFAULT_STUDENTS = [
+    { class: "9班", name: "杨桓" },
+    { class: "9班", name: "李妮蔓" },
+    { class: "9班", name: "刘睿举" },
+    { class: "9班", name: "都沐篱" },
+    { class: "9班", name: "王子珂" },
+    { class: "9班", name: "黄浩宇" },
+    { class: "9班", name: "肖襄阳" },
+    { class: "9班", name: "赵楷" },
+    { class: "9班", name: "李烨文" },
+    { class: "10班", name: "徐嘉璐" },
+    { class: "10班", name: "钟菲儿" },
+    { class: "10班", name: "刘澄橙" },
+    { class: "10班", name: "龙思羽" },
+    { class: "10班", name: "张良泽" }
+];
+
+const STORAGE_KEY = "JP_CARD_OFFLINE_PURE_V1";
 const SCORE_MAP = { hw: { 'A':3, 'B':2, 'C':1, 'D':-1, '未':-1 }, dt: { '满':3, '过':2, '重':1, '未':-1 }, att: { '1':1, '-1':-1, '缺':0 } };
-const CLS_MAP = { hw: { 'A':'act-hw-A','B':'act-hw-B','C':'act-hw-C','D':'act-hw-D','未':'act-hw-未' }, dt: { '满':'act-dt-满','过':'act-dt-过','重':'act-dt-重','未':'act-dt-未' } };
+const DAYS = ['周一', '周二', '周三', '周四', '周五'];
 
-let currentStudentList = [], isCompareSorted = false, monthData = {};
-let radarChart = null, compareChart = null, monthChart = null;
-let savedApiKey = localStorage.getItem(AI_KEY_STORAGE) || "";
+let appState = { students: [], records: {}, monday: "" };
+let currentViewDay = 0;
+let radarChart = null, compareChart = null;
+let g_monthData = {}, g_monthWeeks = [], currentMonthStudent = null;
+let c_monthLine = null, c_monthRadar = null, c_monthBar = null;
 
+// 弹窗层级管理
+function closeAll() { document.querySelectorAll('.modal, .month-dashboard, .overlay').forEach(el => el.style.display='none'); }
+function closeSubModal(id) { document.getElementById(id).style.display = 'none'; if (document.getElementById('monthDashboard').style.display !== 'flex') document.getElementById('ovl').style.display = 'none'; }
+
+// ==========================================
+// 💡 云端同步配置区
+// ==========================================
+const SYNC_API_URL = "https://sync.nekosensei.cn";
+
+// 1. 初始化入口（优先从云端拉取数据）
 window.onload = async () => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-        const parsed = JSON.parse(saved);
-        currentStudentList = parsed.students;
-        initTable(currentStudentList, parsed.records, parsed.monday);
-    } else { loadFromOSS(); }
+    const syncStatus = document.getElementById('syncStatus');
+    syncStatus.innerText = "🔄 云端拉取中...";
+    syncStatus.style.color = "#fcd34d";
+
+    try {
+        // 尝试从云端拉取最新数据
+        const res = await fetch(SYNC_API_URL, { method: "GET", cache: "no-store" });
+        if (!res.ok) throw new Error("网络响应异常");
+        const cloudData = await res.json();
+        
+        if (Object.keys(cloudData).length > 0 && cloudData.students) {
+            appState = cloudData;
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(appState)); // 更新本地缓存底座作为备份
+            syncStatus.innerText = "☁️ 云端已同步";
+            syncStatus.style.color = "#a7f3d0";
+        } else {
+            loadLocalFallback(); // 云端为空时加载本地
+        }
+    } catch (e) {
+        console.error("云端连接失败，降级为本地模式", e);
+        syncStatus.innerText = "⚠️ 离线模式(网络异常)";
+        syncStatus.style.color = "#fca5a5";
+        loadLocalFallback();
+    }
+    
+    // 初始化空缺值（处理首次使用的情况）
+    if (!appState.students || appState.students.length === 0) appState.students = DEFAULT_STUDENTS;
+    if (!appState.monday) appState.monday = new Date().toISOString().split('T')[0];
+    
+    document.getElementById('mondayDate').value = appState.monday;
+    document.getElementById('mondayDate').addEventListener('change', e => { 
+        appState.monday = e.target.value; 
+        saveState(); 
+    });
+    
+    renderTabs();
+    if(appState.students.length > 0) switchView(0);
 };
 
-// --- 表格初始化 ---
-function initTable(students, records = {}, monday = "") {
-    const head = document.getElementById('tHead'), body = document.getElementById('tBody');
-    body.innerHTML = "";
-    let dayHeaders = "";
-    ['周一','周二','周三','周四','周五'].forEach((day, idx) => {
-        let dateHtml = idx === 0 ? `<div class="date-container"><input type="date" class="date-input" id="mondayDate" value="${monday}" onchange="updateWeekDates(this.value)"></div>` : `<div class="date-container" id="date-label-${idx}">-- / --</div>`;
-        dayHeaders += `<th colspan="5" style="border-left:2px solid #fff; height: 50px;">${day}${dateHtml}</th>`;
-    });
-    head.innerHTML = `<tr><th rowspan="2" class="sticky-class">班级</th><th rowspan="2" class="sticky-name">姓名</th>${dayHeaders}<th rowspan="2" class="week-sum" onclick="showWeeklyComparison()">周合计</th></tr><tr>${Array(5).fill('<th>出</th><th>作</th><th>听</th><th>课</th><th class="day-sum">∑</th>').join('')}</tr>`;
-    
-    students.forEach((stu, sIdx) => {
-        const tr = document.createElement('tr'); 
-        tr.dataset.sidx = sIdx; tr.dataset.name = stu.name; tr.dataset.class = stu.class;
-        let cells = `<td class="sticky-class">${stu.class||''}</td><td class="sticky-name" onclick="showRadar(${sIdx})">${stu.name}</td>`;
-        for(let d=0; d<5; d++) {
-            const rec = records[stu.name]?.[d] || { att:'', hw:'', dt:'', cls:0 };
-            cells += `<td><div class="btn-group" data-type="att" data-day="${d}">
-                        <span class="opt ${rec.att=='1'?'act-att-1':''}" data-val="1">1</span><span class="opt ${rec.att=='-1'?'act-att--1':''}" data-val="-1">-1</span><span class="opt ${rec.att=='缺'?'act-att-缺':''}" data-val="缺">缺</span>
-                      </div></td>
-                      <td><div class="btn-group" data-type="hw" data-day="${d}">${['A','B','C','D','未'].map(v => `<span class="opt ${rec.hw==v?CLS_MAP.hw[v]:''}" data-val="${v}">${v==='未'?'×':v}</span>`).join('')}</div></td>
-                      <td><div class="btn-group" data-type="dt" data-day="${d}">${['满','过','重','未'].map(v => `<span class="opt ${rec.dt==v?CLS_MAP.dt[v]:''}" data-val="${v}">${v}</span>`).join('')}</div></td>
-                      <td><div class="class-box" data-day="${d}"><button onclick="updCls(this,-1)">-</button><span class="score-val">${rec.cls}</span><button onclick="updCls(this,1)">+</button></div></td><td class="day-sum" id="sum-${sIdx}-${d}">0</td>`;
-        }
-        cells += `<td class="week-sum" id="total-${sIdx}" onclick="generateAIComment(${sIdx})">0</td>`;
-        tr.innerHTML = cells; body.appendChild(tr); calcScore(tr, sIdx);
-    });
-    if(monday) updateWeekDates(monday);
+// 提取本地后备逻辑（当断网或被墙时自动触发）
+function loadLocalFallback() {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) { 
+        try { 
+            appState = JSON.parse(saved); 
+        } catch(e) { appState.students = DEFAULT_STUDENTS; } 
+    } else { appState.students = DEFAULT_STUDENTS; }
 }
 
-// --- 计算与变色 ---
-document.body.addEventListener('click', e => {
+// 2. 状态保存函数（本地秒存 + 云端防抖上传）
+let syncTimeout = null;
+async function saveState() {
+    // 步骤A：立即保存本地缓存（保证前端 UI 操作丝滑，不卡顿）
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
+    
+    const syncStatus = document.getElementById('syncStatus');
+    syncStatus.innerText = "🔄 正在同步云端...";
+    syncStatus.style.color = "#fcd34d";
+    
+    // 步骤B：防抖上传云端（避免连续点击加分时，发送几十个并发请求导致 Cloudflare 封停）
+    if (syncTimeout) clearTimeout(syncTimeout);
+    syncTimeout = setTimeout(async () => {
+        try {
+            const res = await fetch(SYNC_API_URL, {
+                method: "POST",
+                body: JSON.stringify(appState)
+            });
+            if (!res.ok) throw new Error("上传失败");
+            syncStatus.innerText = "☁️ 云端已同步";
+            syncStatus.style.color = "#a7f3d0";
+        } catch (e) {
+            console.error("上传失败", e);
+            syncStatus.innerText = "⚠️ 未同步(仅本地保存)";
+            syncStatus.style.color = "#fca5a5";
+        }
+    }, 800); // 设定：停止操作 0.8 秒后，自动打包当前最新状态发给云端
+}
+
+
+// 恢复初始名单
+function loadDefaultStudents() {
+    if(appState.students.length > 0 && !confirm("⚠️ 警告：重置名单将清空当前所有数据并恢复至出厂 14 人。\n\n确认继续吗？")) return;
+    appState.students = DEFAULT_STUDENTS; appState.records = {}; saveState(); switchView(currentViewDay);
+}
+
+
+// 视图路由
+function renderTabs() {
+    let html = DAYS.map((day, idx) => `<button class="tab-btn ${currentViewDay === idx ? 'active' : ''}" onclick="switchView(${idx})">${day}</button>`).join('');
+    html += `<button class="tab-btn ${currentViewDay === 5 ? 'active' : ''}" onclick="switchView(5)" style="margin-left: 10px; color:#fcd34d;">📊 汇总</button>`;
+    document.getElementById('dayTabs').innerHTML = html;
+}
+
+function switchView(idx) {
+    currentViewDay = idx; renderTabs();
+    if (idx === 5) { document.getElementById('cardGrid').style.display = 'none'; document.getElementById('summaryView').style.display = 'block'; renderSummary(); } 
+    else { document.getElementById('summaryView').style.display = 'none'; document.getElementById('cardGrid').style.display = 'grid'; renderCards(idx); }
+}
+
+// 渲染卡片核心逻辑
+function renderCards(dayIndex) {
+    const grid = document.getElementById('cardGrid'); grid.innerHTML = '';
+    let count = appState.students.length, cols = 4, rows = 4;
+    if (count <= 12) { cols = 4; rows = 3; } else if (count <= 16) { cols = 4; rows = 4; } else if (count <= 20) { cols = 5; rows = 4; } else { cols = 6; rows = Math.ceil(count/6); }
+    grid.style.setProperty('--cols', cols); grid.style.setProperty('--rows', rows);
+    
+    appState.students.forEach(stu => {
+        const name = stu.name;
+        if(!appState.records[name]) appState.records[name] = {};
+        if(!appState.records[name][dayIndex]) appState.records[name][dayIndex] = {att:'', hw:'', dt:'', cls:0};
+        const rec = appState.records[name][dayIndex];
+        
+        let weekTotal = 0;
+        for(let d=0; d<5; d++) {
+            const dr = appState.records[name][d] || {};
+            weekTotal += (SCORE_MAP.att[dr.att]||0) + (SCORE_MAP.hw[dr.hw]||0) + (SCORE_MAP.dt[dr.dt]||0) + (dr.cls||0);
+        }
+
+        const card = document.createElement('div'); card.className = 'student-card';
+        card.innerHTML = `
+            <div class="card-header">
+                <div class="name-container" onclick="showRadar('${name}')" title="点击查看雷达图">
+                    <span class="class-tag">${stu.class || ''}</span><span class="student-name">${name}</span>
+                </div>
+                <span class="week-total">${weekTotal}分</span>
+            </div>
+            <div class="row-group"><div class="row-label">出勤</div><div class="btn-group" data-name="${name}" data-day="${dayIndex}" data-type="att">
+                ${['1','-1','缺'].map(v => `<div class="opt ${rec.att==v ? `act-att-${v}` : ''}" data-val="${v}">${v==='1'?'出':v}</div>`).join('')}</div></div>
+            <div class="row-group"><div class="row-label">作业</div><div class="btn-group" data-name="${name}" data-day="${dayIndex}" data-type="hw">
+                ${['A','B','C','D','未'].map(v => `<div class="opt ${rec.hw==v ? `act-hw-${v}` : ''}" data-val="${v}">${v}</div>`).join('')}</div></div>
+            <div class="row-group"><div class="row-label">听写</div><div class="btn-group" data-name="${name}" data-day="${dayIndex}" data-type="dt">
+                ${['满','过','重','未'].map(v => `<div class="opt ${rec.dt==v ? `act-dt-${v}` : ''}" data-val="${v}">${v}</div>`).join('')}</div></div>
+            <div class="row-group"><div class="row-label">课堂</div><div class="class-action-bar">
+                <button class="opt-btn danger-btn" onclick="updCls('${name}', ${dayIndex}, -3)" title="违纪扣3分">违</button>
+                <button class="opt-btn success-btn" onclick="updCls('${name}', ${dayIndex}, 1)" title="加1分">答1</button>
+                <button class="opt-btn success-btn" onclick="updCls('${name}', ${dayIndex}, 2)" title="加2分">答2</button>
+                <button class="opt-btn success-btn" onclick="updCls('${name}', ${dayIndex}, 3)" title="加3分">答3</button>
+                <div class="divider"></div>
+                <button class="opt-btn" onclick="updCls('${name}', ${dayIndex}, -1)">-</button>
+                <div class="cls-score-val">${rec.cls}</div>
+                <button class="opt-btn" onclick="updCls('${name}', ${dayIndex}, 1)">+</button>
+            </div></div>
+        `;
+        grid.appendChild(card);
+    });
+}
+
+document.getElementById('cardGrid').addEventListener('click', e => {
     if(!e.target.classList.contains('opt')) return;
-    const opt = e.target, p = opt.parentElement, type = p.dataset.type, val = opt.dataset.val, tr = opt.closest('tr');
-    let tCls = type === 'att' ? `act-att-${val}` : CLS_MAP[type][val];
-    const alreadyAct = opt.classList.contains(tCls);
-    Array.from(p.children).forEach(o => { const c = Array.from(o.classList).find(x => x.startsWith('act-')); if(c) o.classList.remove(c); });
-    if(!alreadyAct) opt.classList.add(tCls);
-    calcScore(tr, tr.dataset.sidx); autoSave();
+    const p = e.target.parentElement, name = p.dataset.name, day = parseInt(p.dataset.day), type = p.dataset.type, val = e.target.dataset.val;
+    if (appState.records[name][day][type] === val) appState.records[name][day][type] = ''; else appState.records[name][day][type] = val;
+    saveState(); renderCards(currentViewDay);
 });
 
-function calcScore(tr, sIdx) {
-    let weekSum = 0;
-    for(let d=0; d<5; d++) {
-        let dSum = 0;
-        ['att','hw','dt'].forEach(t => {
-            const act = tr.querySelector(`[data-type="${t}"][data-day="${d}"] .opt[class*="act-"]`);
-            if(act) dSum += (t === 'att' ? SCORE_MAP.att[act.dataset.val] : SCORE_MAP[t][act.dataset.val]);
-        });
-        dSum += parseInt(tr.querySelector(`.class-box[data-day="${d}"] .score-val`).innerText);
-        const dsEl = document.getElementById(`sum-${sIdx}-${d}`); if(dsEl) dsEl.innerText = dSum;
-        weekSum += dSum;
-    }
-    const tsEl = document.getElementById(`total-${sIdx}`); if(tsEl) tsEl.innerText = weekSum;
-    const nameEl = tr.querySelector('.sticky-name');
-    if(nameEl) {
-        if (weekSum >= 40) nameEl.style.color = 'var(--rank-top)';
-        else if (weekSum >= 30) nameEl.style.color = 'var(--rank-high)';
-        else if (weekSum >= 20) nameEl.style.color = 'var(--rank-mid)';
-        else nameEl.style.color = 'var(--rank-low)';
-    }
+function updCls(name, day, delta) { appState.records[name][day].cls += delta; saveState(); renderCards(currentViewDay); }
+function batchAttendance() {
+    if (currentViewDay === 5) return alert("请在周视图操作");
+    if(!confirm(`确认将【${DAYS[currentViewDay]}】全班出勤拉满？`)) return;
+    appState.students.forEach(stu => {
+        if(!appState.records[stu.name]) appState.records[stu.name] = {};
+        if(!appState.records[stu.name][currentViewDay]) appState.records[stu.name][currentViewDay] = {att:'', hw:'', dt:'', cls:0};
+        appState.records[stu.name][currentViewDay].att = '1';
+    }); saveState(); renderCards(currentViewDay);
 }
 
-// --- 绘图功能补全 ---
-
-// 1. 雷达图
-function showRadar(sIdx) {
-    const tr = document.querySelector(`tr[data-sidx="${sIdx}"]`), name = tr.dataset.name;
-    let s = { att:0, hw:0, dt:0, cls:0 };
-    for(let d=0; d<5; d++) {
-        const a = tr.querySelector(`[data-type="att"][data-day="${d}"] .opt[class*="act-"]`); if(a) s.att += SCORE_MAP.att[a.dataset.val];
-        const h = tr.querySelector(`[data-type="hw"][data-day="${d}"] .opt[class*="act-"]`); if(h) s.hw += SCORE_MAP.hw[h.dataset.val];
-        const dt = tr.querySelector(`[data-type="dt"][data-day="${d}"] .opt[class*="act-"]`); if(dt) s.dt += SCORE_MAP.dt[dt.dataset.val];
-        s.cls += parseInt(tr.querySelector(`.class-box[data-day="${d}"] .score-val`).innerText);
-    }
-    const norm = (v, t) => {
-        if (t === 'att') return (v/5)*100; if (t === 'hw' || t === 'dt') return (v/15)*100;
-        if (t === 'cls') { if(v<=0) return (v/10)*100; if(v<=5) return (v/5)*66.6; return 66.6+((v-5)/5)*33.4; }
-        return v;
-    };
-    document.getElementById('ovl').style.display = 'block'; document.getElementById('radarModal').style.display = 'block';
-    document.getElementById('rTitle').innerText = `${name} 周能力雷达 (${s.att+s.hw+s.dt+s.cls})`;
-    if(radarChart) radarChart.destroy();
-    radarChart = new Chart(document.getElementById('radarChart'), {
-        type: 'radar',
-        data: {
-            labels: [`出勤(${s.att})`,`作业(${s.hw})`,`听写(${s.dt})`,`课堂(${s.cls})`],
-            datasets: [{ label:'能力分布', data:[norm(s.att,'att'),norm(s.hw,'hw'),norm(s.dt,'dt'),norm(s.cls,'cls')], backgroundColor:'rgba(24,144,255,0.2)', borderColor:'#1890ff' }]
-        },
-        options: { scales: { r: { min:-20, max:100, ticks:{display:false} } } }
-    });
-}
-
-// 2. 全班对比柱状图
-function showWeeklyComparison() {
-    let ds = []; document.querySelectorAll('#tBody tr').forEach(tr => { ds.push({ name: tr.dataset.name, total: parseInt(tr.querySelector('.week-sum').innerText) }); });
-    if(isCompareSorted) ds.sort((a, b) => b.total - a.total);
-    const ns = ds.map(d => d.name), ts = ds.map(d => d.total);
-    document.getElementById('ovl').style.display = 'block'; document.getElementById('compareModal').style.display = 'flex';
-    const dw = Math.max(document.getElementById('compareScrollWrapper').clientWidth - 20, ns.length * 45);
-    document.getElementById('compareInner').style.width = dw + 'px';
-    const ctx = document.getElementById('compareChart').getContext('2d');
-    if(compareChart) compareChart.destroy();
-    compareChart = new Chart(ctx, {
-        type: 'bar', data: { labels: ns, datasets: [{ label: '积分', data: ts, backgroundColor: ts.map(v => { if (v >= 40) return '#fa8c16'; if (v >= 30) return '#722ed1'; if (v >= 20) return '#1890ff'; return '#8c8c8c'; }), borderRadius: 4 }] },
-        options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } }, plugins: { legend: { display: false } } }
-    });
-}
-
-function toggleCompareSort() { isCompareSorted = !isCompareSorted; document.getElementById('sortBtn').innerText = isCompareSorted ? "排序：按分数" : "排序：按名单"; showWeeklyComparison(); }
-
-// --- AI 评语逻辑 ---
-async function generateAIComment(sIdx) {
-    if(!savedApiKey) { savedApiKey = prompt("请输入 DeepSeek API Key:"); if(!savedApiKey) return; localStorage.setItem(AI_KEY_STORAGE, savedApiKey); }
-    const tr = document.querySelector(`tr[data-sidx="${sIdx}"]`), name = tr.dataset.name, total = tr.querySelector('.week-sum').innerText;
-    document.getElementById('ovl').style.display = 'block'; document.getElementById('commentModal').style.display = 'flex';
-    document.getElementById('aiContent').innerText = "AI 正在分析表现...";
-    
-    let perf = { att:0, hw:[], dt:[], cls:0 };
-    for(let d=0; d<5; d++) {
-        const a = tr.querySelector(`[data-type="att"][data-day="${d}"] .opt[class*="act-"]`); if(a) perf.att += SCORE_MAP.att[a.dataset.val];
-        const h = tr.querySelector(`[data-type="hw"][data-day="${d}"] .opt[class*="act-"]`); if(h) perf.hw.push(h.dataset.val);
-        const dt = tr.querySelector(`[data-type="dt"][data-day="${d}"] .opt[class*="act-"]`); if(dt) perf.dt.push(dt.dataset.val);
-        perf.cls += parseInt(tr.querySelector(`.class-box[data-day="${d}"] .score-val`).innerText);
-    }
-    const prompt = `高中日语老师用来发给家长的学生评语(30-50字)：${name}，周分${total}。出勤${perf.att}/5；作业${perf.hw.join(',')}；听写${perf.dt.join(',')}；课堂${perf.cls}。语气亲切多鼓励。`;
-
-    try {
-        const res = await fetch("https://api.deepseek.com/v1/chat/completions", {
-            method: 'POST', headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${savedApiKey}`},
-            body: JSON.stringify({ model: "deepseek-chat", messages: [{role:"user", content: prompt}] })
-        });
-        const data = await res.json();
-        document.getElementById('aiContent').innerText = data.choices[0].message.content;
-        document.getElementById('copyBtn').style.display='inline-block';
-    } catch(e) { document.getElementById('aiContent').innerText = "生成失败，请检查 API Key。"; }
-}
-
-// --- 基础同步与存储 ---
-async function loadFromOSS() {
-    try {
-        const res = await fetch(OSS_URL);
-        const buf = await res.arrayBuffer();
-        const raw = XLSX.utils.sheet_to_json(XLSX.read(new Uint8Array(buf), {type:'array'}).Sheets[XLSX.read(new Uint8Array(buf), {type:'array'}).SheetNames[0]], {header:1});
-        currentStudentList = raw.slice(3).filter(r => r[1]).map(r => ({ class: r[0], name: r[1] }));
-        initTable(currentStudentList);
-    } catch(e) { alert("云端拉取失败"); }
-}
-
-function syncManual() {
-    const act = prompt("EXPORT - 复制代码 / IMPORT - 粘贴代码");
-    if(act === 'EXPORT') alert(localStorage.getItem(STORAGE_KEY));
-    else if(act === 'IMPORT') { const c = prompt("粘贴同步代码"); if(c){localStorage.setItem(STORAGE_KEY, c); location.reload();} }
-}
-
-function autoSave() {
-    const recs = {};
-    document.querySelectorAll('#tBody tr').forEach(tr => {
-        const n = tr.dataset.name; recs[n] = {};
-        for(let d=0; d<5; d++) recs[n][d] = {
-            att: tr.querySelector(`[data-type="att"][data-day="${d}"] .opt[class*="act-"]`)?.dataset.val || '',
-            hw: tr.querySelector(`[data-type="hw"][data-day="${d}"] .opt[class*="act-"]`)?.dataset.val || '',
-            dt: tr.querySelector(`[data-type="dt"][data-day="${d}"] .opt[class*="act-"]`)?.dataset.val || '',
-            cls: parseInt(tr.querySelector(`.class-box[data-day="${d}"] .score-val`).innerText)
-        };
-    });
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ students:currentStudentList, records:recs, monday:document.getElementById('mondayDate')?.value||'' }));
-}
-
-// --- 导出逻辑 (带样式) ---
-function exportWeek() {
-    const monday = document.getElementById('mondayDate').value;
-    const s_header = { fill: { fgColor: { rgb: "444444" } }, font: { color: { rgb: "FFFFFF" }, bold: true }, alignment: { horizontal: "center" } };
-    const h1 = ["班级", "姓名", "周一", "", "", "", "", "周二", "", "", "", "", "周三", "", "", "", "", "周四", "", "", "", "", "周五", "", "", "", "", "总计"];
-    const h2 = ["", "", "出勤", "作业", "听写", "课堂", "当日∑", "出勤", "作业", "听写", "课堂", "当日∑", "出勤", "作业", "听写", "课堂", "当日∑", "出勤", "作业", "听写", "课堂", "当日∑", "出勤", "作业", "听写", "课堂", "当日∑", ""];
-    const rows = [];
-    document.querySelectorAll('#tBody tr').forEach(tr => {
-        const r = [ {v: tr.dataset.class}, {v: tr.dataset.name} ];
+// 汇总视图
+function renderSummary() {
+    const tbody = document.getElementById('sumTBody'); tbody.innerHTML = '';
+    appState.students.forEach(stu => {
+        let wt = 0, html = `<tr><td style="color:#64748b; font-size:12px;">${stu.class||''}</td><td><b>${stu.name}</b></td>`;
         for(let d=0; d<5; d++) {
-            r.push(
-                {v: tr.querySelector(`[data-type="att"][data-day="${d}"] .opt[class*="act-"]`)?.dataset.val || ""},
-                {v: tr.querySelector(`[data-type="hw"][data-day="${d}"] .opt[class*="act-"]`)?.dataset.val || ""},
-                {v: tr.querySelector(`[data-type="dt"][data-day="${d}"] .opt[class*="act-"]`)?.dataset.val || ""},
-                {v: parseInt(tr.querySelector(`.class-box[data-day="${d}"] .score-val`).innerText)},
-                {v: parseInt(tr.querySelector(`#sum-${tr.dataset.sidx}-${d}`).innerText)}
-            );
+            const r = appState.records[stu.name]?.[d] || {};
+            let ds = (SCORE_MAP.att[r.att]||0) + (SCORE_MAP.hw[r.hw]||0) + (SCORE_MAP.dt[r.dt]||0) + (r.cls||0);
+            wt += ds; html += `<td>${ds}</td>`;
         }
-        r.push({ v: parseInt(tr.querySelector('.week-sum').innerText), s: { font: { bold: true, color:{rgb:"FF0000"} } } });
-        rows.push(r);
+        html += `<td style="color:#2563eb; font-weight:900; font-size:16px;">${wt}</td><td><span class="action-link" onclick="generateWeeklyAI('${stu.name}', ${wt})">✨ 周评语</span></td></tr>`;
+        tbody.innerHTML += html;
     });
-    const ws = XLSX.utils.aoa_to_sheet([[{ v: `周报(${monday})`, s:{font:{bold:true}} }], h1.map(h=>({v:h,s:s_header})), h2.map(h=>({v:h,s:s_header})), ...rows]);
-    ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 27 } }, ...[0, 1, 2, 3, 4].map(i => ({ s: { r: 1, c: 2 + i * 5 }, e: { r: 1, c: 6 + i * 5 } })) ];
-    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "周数据");
-    XLSX.writeFile(wb, `彩色周报_${monday}.xlsx`);
 }
 
-// 辅助函数
-function setAIKey() { const k = prompt("输入 DeepSeek API Key:", savedApiKey); if(k){savedApiKey=k; localStorage.setItem(AI_KEY_STORAGE,k);} }
-function copyText() { navigator.clipboard.writeText(document.getElementById('aiContent').innerText).then(()=>alert("已复制")); }
-function updCls(btn, dlt) { const s = btn.parentElement.querySelector('.score-val'); s.innerText = parseInt(s.innerText) + dlt; calcScore(btn.closest('tr'), btn.closest('tr').dataset.sidx); autoSave(); }
-function updateWeekDates(v) { if(!v) return; const m = new Date(v); for(let i=1; i<5; i++) { const t = new Date(m); t.setDate(m.getDate()+i); const l = document.getElementById(`date-label-${i}`); if(l) l.innerText = `${(t.getMonth()+1).toString().padStart(2,'0')} / ${t.getDate().toString().padStart(2,'0')}`; } autoSave(); }
-function closeAll() { document.querySelectorAll('.modal, .overlay').forEach(el => el.style.display='none'); }
-function clearAllRecords() { if(confirm("清除所有本地记录吗？")) { localStorage.removeItem(STORAGE_KEY); location.reload(); } }
-function openMonth() { document.getElementById('ovl').style.display='block'; document.getElementById('monthModal').style.display='flex'; }
+function exportDetailedWeek() {
+    const h1 = ["班级", "姓名"]; DAYS.forEach(d => { h1.push(`${d}出勤`, `${d}作业`, `${d}听写`, `${d}课堂`, `${d}日分`); }); h1.push("周总计");
+    const rows = [h1];
+    appState.students.forEach(stu => {
+        const r = [stu.class || '', stu.name]; let wt = 0;
+        for(let d=0; d<5; d++) {
+            const rec = appState.records[stu.name]?.[d] || {};
+            let ds = (SCORE_MAP.att[rec.att]||0) + (SCORE_MAP.hw[rec.hw]||0) + (SCORE_MAP.dt[rec.dt]||0) + (rec.cls||0);
+            wt += ds; r.push(rec.att||'', rec.hw||'', rec.dt||'', rec.cls||0, ds);
+        }
+        r.push(wt); rows.push(r);
+    });
+    const ws = XLSX.utils.aoa_to_sheet(rows); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "颗粒化数据");
+    XLSX.writeFile(wb, `颗粒化周报_${appState.monday}.xlsx`);
+}
 
-// 月度分析 (补齐完整解析逻辑)
-async function calcMonth(files) {
-    monthData = {}; let weeks = [];
+// 月度分析核心
+function openMonthDashboard() { document.getElementById('ovl').style.display = 'block'; document.getElementById('monthDashboard').style.display = 'flex'; }
+async function processMonthlyFiles(files) {
+    if(!files || files.length === 0) return;
+    document.getElementById('monthFileStatus').innerText = "⏳ 解析中...";
+    g_monthData = {}; g_monthWeeks = [];
     const sortedFiles = Array.from(files).sort((a,b) => a.name.localeCompare(b.name));
     for(let i=0; i<sortedFiles.length; i++){
-        const wKey = `W${i+1}`; weeks.push(wKey);
-        const workbook = XLSX.read(await sortedFiles[i].arrayBuffer(), {type:'array'});
-        const data = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], {header:1});
-        data.slice(3).forEach(row => {
-            if(!row[1]) return;
-            const key = `${row[0]}-${row[1]}`;
-            if(!monthData[key]) monthData[key] = { c:row[0], n:row[1], ws:[] };
-            let att=0, hw=0, dt=0, cls=0;
-            for(let d=0; d<5; d++) {
-                const base = 2 + d * 5;
-                att += (row[base] == '1' ? 1 : (row[base] == '-1' ? -1 : 0));
-                hw += (SCORE_MAP.hw[row[base+1]] || 0);
-                dt += (SCORE_MAP.dt[row[base+2]] || 0);
-                cls += (parseInt(row[base+3]) || 0);
-            }
-            monthData[key].ws.push({ att, hw, dt, cls, t: att+hw+dt+cls });
+        const wKey = `第${i+1}周`; g_monthWeeks.push(wKey);
+        const buf = await sortedFiles[i].arrayBuffer(); const wb = XLSX.read(new Uint8Array(buf), {type:'array'});
+        const raw = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], {header:1});
+        if (raw.length < 2) continue;
+        const headers = raw[0]; const colMap = {};
+        headers.forEach((h, idx) => { if(typeof h === 'string') colMap[h.trim()] = idx; });
+        const classIdx = colMap["班级"] !== undefined ? colMap["班级"] : 0; const nameIdx = colMap["姓名"] !== undefined ? colMap["姓名"] : 1;
+
+        raw.slice(1).forEach(row => {
+            const name = row[nameIdx]; if(!name) return;
+            const cls = row[classIdx] || '';
+            if(!g_monthData[name]) g_monthData[name] = { class: cls, name: name, weeks: [], total: 0 };
+            let wAtt=0, wHw=0, wDt=0, wCls=0;
+            DAYS.forEach(day => {
+                const iA = colMap[`${day}出勤`], iH = colMap[`${day}作业`], iD = colMap[`${day}听写`], iC = colMap[`${day}课堂`];
+                if(iA !== undefined) wAtt += SCORE_MAP.att[row[iA]] || 0; if(iH !== undefined) wHw += SCORE_MAP.hw[row[iH]] || 0;
+                if(iD !== undefined) wDt += SCORE_MAP.dt[row[iD]] || 0; if(iC !== undefined) wCls += parseInt(row[iC]) || 0;
+            });
+            const wTotal = wAtt + wHw + wDt + wCls;
+            g_monthData[name].weeks.push({ att: wAtt, hw: wHw, dt: wDt, cls: wCls, total: wTotal }); g_monthData[name].total += wTotal;
         });
     }
-    renderMonthChart(Object.keys(monthData)[0], weeks);
+    document.getElementById('monthFileStatus').innerText = `✅ 已解析 ${sortedFiles.length} 周数据`;
+    document.getElementById('monthRightPane').style.display = 'flex'; renderMonthDashboard();
 }
 
-function renderMonthChart(key, weeks) {
-    const s = monthData[key], ctx = document.getElementById('monthChart').getContext('2d');
-    if(monthChart) monthChart.destroy();
-    monthChart = new Chart(ctx, {
-        data: {
-            labels: weeks,
-            datasets: [
-                { type:'line', label:'趋势', data: s.ws.map(x=>x.t), borderColor:'#ff4d4f', fill:false },
-                { type:'bar', label:'出勤', data: s.ws.map(x=>x.att), backgroundColor:'#52c41a' },
-                { type:'bar', label:'作业', data: s.ws.map(x=>x.hw), backgroundColor:'#1890ff' },
-                { type:'bar', label:'听写', data: s.ws.map(x=>x.dt), backgroundColor:'#722ed1' },
-                { type:'bar', label:'课堂', data: s.ws.map(x=>x.cls), backgroundColor:'#faad14' }
-            ]
-        },
-        options: { responsive:true, maintainAspectRatio:false, scales: { x:{stacked:true}, y:{stacked:true} } }
-    });
-    let h = `<table border="1" style="width:100%; border-collapse:collapse"><thead><tr><th>班级</th><th>姓名</th><th>月度累计</th><th>操作</th></tr></thead><tbody>`;
-    Object.keys(monthData).forEach(x => h += `<tr><td>${monthData[x].c}</td><td>${monthData[x].n}</td><td>${monthData[x].ws.reduce((a,b)=>a+b.t,0)}</td><td><button class="primary" onclick="renderMonthChart('${x}', ${JSON.stringify(weeks)})">查看</button></td></tr>`);
-    document.getElementById('monthList').innerHTML = h + `</tbody></table>`;
+function renderMonthDashboard() {
+    const stuList = Object.values(g_monthData).sort((a,b) => b.total - a.total);
+    document.getElementById('monthStuList').innerHTML = stuList.map(s => `
+        <div class="stu-list-item" id="mlist_${s.name}" onclick="selectMonthStudent('${s.name}')">
+            <span><span style="color:#64748b; font-size:11px;">[${s.class}]</span> <b>${s.name}</b></span><span style="color:#2563eb; font-weight:bold;">${s.total}</span>
+        </div>`).join('');
+    const ctxBar = document.getElementById('monthBarChart').getContext('2d');
+    if(c_monthBar) c_monthBar.destroy();
+    c_monthBar = new Chart(ctxBar, { type: 'bar', data: { labels: stuList.map(s=>s.name), datasets: [{ label: '月积分', data: stuList.map(s=>s.total), backgroundColor: '#3b82f6', borderRadius: 4 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { x: { display: false } } } });
+    if(stuList.length > 0) selectMonthStudent(stuList[0].name);
 }
 
-function exportMonth() {
-    const data = Object.values(monthData).map(s => {
-        const r = { '班级':s.c, '姓名':s.n };
-        s.ws.forEach((w,i) => r[`W${i+1}`] = w.t);
-        r['总计'] = s.ws.reduce((a,b)=>a+b.t,0);
-        return r;
+function selectMonthStudent(name) {
+    currentMonthStudent = name;
+    document.querySelectorAll('.stu-list-item').forEach(el => el.classList.remove('active')); document.getElementById(`mlist_${name}`).classList.add('active');
+    const data = g_monthData[name];
+    document.getElementById('mStuName').innerText = name; document.getElementById('mStuClass').innerText = data.class; document.getElementById('mStuTotal').innerText = data.total;
+    
+    if(c_monthLine) c_monthLine.destroy();
+    c_monthLine = new Chart(document.getElementById('monthLineChart').getContext('2d'), {
+        type: 'line', data: { labels: g_monthWeeks, datasets: [{ label: '周总分', data: data.weeks.map(w=>w.total), borderColor: '#2563eb', backgroundColor: '#2563eb', borderWidth: 3, tension: 0.2 }, { label: '出勤', data: data.weeks.map(w=>w.att), borderColor: '#10b981', borderDash: [5,5], tension: 0.1 }, { label: '作业', data: data.weeks.map(w=>w.hw), borderColor: '#8b5cf6', borderDash: [5,5], tension: 0.1 }, { label: '听写', data: data.weeks.map(w=>w.dt), borderColor: '#f59e0b', borderDash: [5,5], tension: 0.1 }, { label: '课堂', data: data.weeks.map(w=>w.cls), borderColor: '#ef4444', borderDash: [5,5], tension: 0.1 }] },
+        options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false } }
     });
-    XLSX.writeFile(XLSX.utils.book_append_sheet(XLSX.utils.book_new(), XLSX.utils.json_to_sheet(data), "月汇总"), "月度汇总.xlsx");
+    
+    let mAtt=0, mHw=0, mDt=0, mCls=0; data.weeks.forEach(w => { mAtt+=w.att; mHw+=w.hw; mDt+=w.dt; mCls+=w.cls; });
+    const wCount = data.weeks.length || 1; const norm = (v, t) => { if(t==='att') return (v/(5*wCount))*100; if(t==='hw' || t==='dt') return (v/(15*wCount))*100; return v; };
+    if(c_monthRadar) c_monthRadar.destroy();
+    c_monthRadar = new Chart(document.getElementById('monthRadarChart').getContext('2d'), {
+        type: 'radar', data: { labels: [`出勤(${mAtt})`, `作业(${mHw})`, `听写(${mDt})`, `课堂(${mCls})`], datasets: [{ label:'月能力雷达', data:[norm(mAtt,'att'), norm(mHw,'hw'), norm(mDt,'dt'), mCls*5], backgroundColor:'rgba(139, 92, 246, 0.2)', borderColor:'#8b5cf6', pointBackgroundColor: '#6d28d9' }] },
+        options: { responsive: true, maintainAspectRatio: false, scales: { r: { min: -10, max: 100, ticks:{display:false} } } }
+    });
 }
+
+// AI 诊断功能
+async function generateWeeklyAI(name, total) {
+    let key = localStorage.getItem("DEEPSEEK_KEY") || prompt("请输入 DeepSeek API Key:"); if(!key) return; localStorage.setItem("DEEPSEEK_KEY", key);
+    document.getElementById('ovl').style.display = 'block'; document.getElementById('commentModal').style.display = 'flex'; document.getElementById('aiTitle').innerText = `${name} - 周评语`; document.getElementById('aiContent').innerText = "AI 正在思考中...";
+    let perf = { att:0, hw:[], dt:[], cls:0 }; for(let d=0; d<5; d++) { const r = appState.records[name]?.[d] || {}; if(r.att === '1') perf.att += 1; if(r.hw) perf.hw.push(r.hw); if(r.dt) perf.dt.push(r.dt); perf.cls += (r.cls || 0); }
+    try {
+        const res = await fetch("https://api.deepseek.com/v1/chat/completions", { method: 'POST', headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${key}`}, body: JSON.stringify({ model: "deepseek-chat", messages: [{role:"user", content: `日语老师评语(40字内)：${name}，周分${total}。出勤${perf.att}/5。作业[${perf.hw.join(',')}]。听写[${perf.dt.join(',')}]。课堂+${perf.cls}。语气鼓励。`}], temperature: 0.6 }) });
+        document.getElementById('aiContent').innerText = (await res.json()).choices[0].message.content;
+    } catch(e) { document.getElementById('aiContent').innerText = "请求失败，请检查网络或 Key。"; }
+}
+
+async function generateMonthlyAI() {
+    if(!currentMonthStudent) return; let key = localStorage.getItem("DEEPSEEK_KEY") || prompt("请输入 API Key:"); if(!key) return; localStorage.setItem("DEEPSEEK_KEY", key);
+    const box = document.getElementById('aiMonthContent'); box.innerHTML = "<span style='color:#3b82f6; font-weight:bold;'>连线 AI 深度解析...</span>";
+    const data = g_monthData[currentMonthStudent]; const trendStr = data.weeks.map((w, i) => `第${i+1}周:${w.total}分(作业${w.hw},听写${w.dt})`).join('；');
+    try {
+        const res = await fetch("https://api.deepseek.com/v1/chat/completions", { method: 'POST', headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${key}`}, body: JSON.stringify({ model: "deepseek-chat", messages: [{role:"user", content: `日语教研组长。为“${currentMonthStudent}”写月度学习诊断(发家长,100字)。月分：${data.total}。明细：[${trendStr}]。分析趋势，指短板，给建议。不列数据。`}], temperature: 0.7 }) });
+        box.innerHTML = (await res.json()).choices[0].message.content.replace(/\n/g, '<br>');
+    } catch(e) { box.innerHTML = "<span style='color:red;'>生成失败，请检查网络。</span>"; }
+}
+
+// 雷达与排行
+function showRadar(name) {
+    let s = { att:0, hw:0, dt:0, cls:0 };
+    for(let d=0; d<5; d++) { const rec = appState.records[name]?.[d] || {}; if(rec.att) s.att += SCORE_MAP.att[rec.att] || 0; if(rec.hw) s.hw += SCORE_MAP.hw[rec.hw] || 0; if(rec.dt) s.dt += SCORE_MAP.dt[rec.dt] || 0; s.cls += (rec.cls || 0); }
+    const norm = (v, t) => { if (t === 'att') return (v/5)*100; if (t === 'hw' || t === 'dt') return (v/15)*100; if (t === 'cls') { if(v<=0) return (v/10)*100; if(v<=5) return (v/5)*66.6; return 66.6+((v-5)/5)*33.4; } return v; };
+    document.getElementById('ovl').style.display = 'block'; document.getElementById('radarModal').style.display = 'flex'; document.getElementById('rTitle').innerText = `${name} - 周雷达 (${s.att+s.hw+s.dt+s.cls}分)`;
+    if(radarChart) radarChart.destroy();
+    radarChart = new Chart(document.getElementById('radarChart'), { type: 'radar', data: { labels: [`出勤(${s.att})`,`作业(${s.hw})`,`听写(${s.dt})`,`课堂(${s.cls})`], datasets: [{ label:'能力值', data:[norm(s.att,'att'),norm(s.hw,'hw'),norm(s.dt,'dt'),norm(s.cls,'cls')], backgroundColor:'rgba(59,130,246,0.25)', borderColor:'#3b82f6', pointBackgroundColor: '#1e40af' }] }, options: { scales: { r: { min: -10, max: 100, ticks:{display:false} } } } });
+}
+
+function showWeeklyComparison() {
+    let ds = appState.students.map(stu => { let total = 0; for(let d=0; d<5; d++) { const rec = appState.records[stu.name]?.[d] || {}; total += (SCORE_MAP.att[rec.att]||0) + (SCORE_MAP.hw[rec.hw]||0) + (SCORE_MAP.dt[rec.dt]||0) + (rec.cls||0); } return { name: stu.name, total }; }).sort((a, b) => b.total - a.total);
+    document.getElementById('ovl').style.display = 'block'; document.getElementById('compareModal').style.display = 'flex';
+    if(compareChart) compareChart.destroy();
+    compareChart = new Chart(document.getElementById('compareChart').getContext('2d'), { type: 'bar', data: { labels: ds.map(d=>d.name), datasets: [{ label: '周积分', data: ds.map(d=>d.total), backgroundColor: ds.map(d => d.total >= 40 ? '#f59e0b' : d.total >= 30 ? '#8b5cf6' : d.total >= 20 ? '#3b82f6' : '#94a3b8'), borderRadius: 6 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } } });
+}
+
+// 本地离线导入/导出
+function exportLocalState() { const b=new Blob([JSON.stringify(appState)],{type:"application/json"}), a=document.createElement("a"); a.href=URL.createObjectURL(b); a.download=`离线备份_${appState.monday}.json`; a.click(); }
+function importLocalState(files) { if(!files||files.length===0)return; const r=new FileReader(); r.onload=(e)=>{try{appState=JSON.parse(e.target.result); saveState(); location.reload();}catch(err){alert("解析失败");}}; r.readAsText(files[0]); }
+function clearAllRecords() { if(confirm("警告：清除缓存会导致未导出数据永久丢失！确认？")) { localStorage.removeItem(STORAGE_KEY); location.reload(); } }
+function copyText() { navigator.clipboard.writeText(document.getElementById('aiContent').innerText||document.getElementById('aiMonthContent').innerText).then(()=>alert("已复制！")); }
 </script>
 </body>
 </html>
