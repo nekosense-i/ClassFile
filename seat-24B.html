@@ -2,18 +2,17 @@
 <html lang="zh-CN"><head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>智能座位表</title>
+<title>智能座位表 - 满血云端版</title>
 
 <script id="app-state" type="application/json">{"lastModified":1772377167916,"avatars":{},"seats":[{"row":"1","col":"1","type":"student","name":"杨桓","absent":false},{"row":"1","col":"2","type":"student","name":"刘睿举","absent":false},{"row":"1","col":"3","type":"student","name":"都沐篱","absent":false},{"row":"1","col":"4","type":"student","name":"徐嘉璐","absent":false},{"row":"2","col":"1","type":"student","name":"赵楷","absent":false},{"row":"2","col":"2","type":"student","name":"黄浩宇","absent":false},{"row":"2","col":"3","type":"student","name":"张良泽","absent":false},{"row":"2","col":"4","type":"student","name":"龙思羽","absent":false},{"row":"3","col":"1","type":"student","name":"王子珂","absent":false},{"row":"3","col":"2","type":"student","name":"李烨文","absent":false},{"row":"3","col":"3","type":"student","name":"刘澄橙","absent":false},{"row":"3","col":"4","type":"student","name":"钟菲儿","absent":false},{"row":"4","col":"1","type":"student","name":"李妮蔓","absent":false},{"row":"4","col":"2","type":"student","name":"肖襄阳","absent":false},{"row":"4","col":"3","type":"empty","name":"空位","absent":false},{"row":"4","col":"4","type":"empty","name":"空位","absent":false}]}</script>
 
 <style>
-    /* ================= 核心自适应重构 ================= */
+    /* ================= 核心自适应重构 (降级兼容版) ================= */
     body { 
         font-family: 'Microsoft YaHei', sans-serif; 
         background-color: #f4f7f6; 
         margin: 0; 
         padding: 0; 
-        /* 强制满屏并居中，消除滚动条 */
         width: 100vw; 
         height: 100vh; 
         display: flex; 
@@ -22,10 +21,10 @@
         overflow: hidden; 
         touch-action: none; 
         user-select: none; 
+        -webkit-user-select: none;
     }
     
     .classroom { 
-        /* 根据屏幕宽高动态占满 96% 面积 */
         width: 96vw; 
         height: 94vh; 
         background: white; 
@@ -35,6 +34,7 @@
         display: flex; 
         flex-direction: column; 
         box-sizing: border-box;
+        position: relative;
     }
     
     .front-board-container { 
@@ -44,7 +44,7 @@
         justify-content: center; 
         align-items: center; 
         width: 100%; 
-        flex-shrink: 0; /* 防止讲台被压缩 */
+        flex-shrink: 0; 
     }
     
     .front-board { 
@@ -53,7 +53,7 @@
         color: white; 
         padding: 1.5vmin 0; 
         width: 100%; 
-        font-size: clamp(18px, 3vmin, 32px); 
+        font-size: 26px; 
         border-radius: 8px; 
         font-weight: bold; 
         letter-spacing: 1vw; 
@@ -61,14 +61,16 @@
         box-shadow: 0 4px 12px rgba(52,73,94,0.2); 
     }
     
-    .btn-group-left { position: absolute; left: 1.5vmin; display: flex; gap: 1vmin; z-index: 10; }
-    .btn-group-right { position: absolute; right: 1.5vmin; display: flex; gap: 1vmin; z-index: 10; }
+    .btn-group-left { position: absolute; left: 1.5vmin; display: flex; z-index: 10; }
+    .btn-group-right { position: absolute; right: 1.5vmin; display: flex; z-index: 10; }
+    .btn-group-left .action-btn + .action-btn { margin-left: 1vmin; }
+    .btn-group-right .action-btn + .action-btn { margin-left: 1vmin; }
 
     .action-btn { 
         color: white; border: none; 
         padding: 1vmin 1.5vmin; 
         border-radius: 6px; 
-        font-size: clamp(12px, 1.5vmin, 18px); 
+        font-size: 16px; 
         font-weight: bold; cursor: pointer; transition: all 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.2); 
     }
     .action-btn:active:not(:disabled) { transform: scale(0.95); }
@@ -79,87 +81,74 @@
     .btn-save { background-color: #27ae60; } .btn-save:hover { background-color: #2ecc71; }
     .btn-clear-cache { background-color: #f39c12; } .btn-clear-cache:hover { background-color: #e67e22; }
 
-    .middle-section { 
-        display: flex; 
-        justify-content: space-between; 
-        align-items: stretch; 
-        flex-grow: 1; 
-        min-height: 0; /* 允许 Flex 子元素收缩的关键 */
+    /* 💡 新增：顶部云端状态栏样式 */
+    .sync-status-bar {
+        position: absolute;
+        top: 2vmin;
+        left: 2vmin;
+        display: flex;
+        align-items: center;
+        z-index: 100;
+        background: rgba(255, 255, 255, 0.9);
+        padding: 0.5vmin 1vmin;
+        border-radius: 6px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.1);
     }
-    
-    .side-wall { 
-        writing-mode: vertical-lr; 
-        padding: 1vmin; 
-        display: flex; 
-        align-items: center; 
-        justify-content: center; 
-        font-size: clamp(16px, 2.5vmin, 28px); 
-        font-weight: bold; 
-        border-radius: 8px; 
-        letter-spacing: 1.5vh; 
-    }
+    #syncStatus { font-size: 13px; font-weight: bold; color: #94a3b8; margin-right: 10px; }
+    #reconnectBtn { background: #ef4444; color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; cursor: pointer; display: none; }
+    #reconnectBtn:hover { background: #dc2626; }
+
+    .middle-section { display: flex; justify-content: space-between; align-items: stretch; flex-grow: 1; min-height: 0; }
+    .side-wall { writing-mode: vertical-lr; -webkit-writing-mode: vertical-lr; padding: 1vmin; display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: bold; border-radius: 8px; letter-spacing: 1.5vh; }
     .side-window { background: #e1f5fe; color: #0277bd; border-left: 0.5vmin solid #29b6f6; }
     .side-door { background: #fff3e0; color: #ef6c00; border-right: 0.5vmin solid #ffa726; }
     
-    .seating-grid { 
-        display: grid; 
-        grid-template-columns: repeat(4, 1fr); 
-        grid-template-rows: repeat(4, 1fr); /* 增加对垂直方向的自适应切分 */
-        gap: 1.5vmin; 
-        flex-grow: 1; 
-        margin: 0 2vmin; 
-        height: 100%; 
-    }
+    .seating-grid { display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(4, 1fr); grid-gap: 1.5vmin; gap: 1.5vmin; flex-grow: 1; margin: 0 2vmin; height: 100%; }
     
-    .seat { 
-        border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; 
-        height: 100%; /* 不再写死 130px，交由 Grid 管理 */
-        padding-bottom: 1.5vmin; box-sizing: border-box; 
-        font-size: clamp(14px, 2.5vmin, 26px); 
-        font-weight: bold; cursor: grab; transition: all 0.2s ease; box-shadow: 0 4px 6px rgba(0,0,0,0.05); position: relative; 
-    }
+    .seat { border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; padding-bottom: 1.5vmin; box-sizing: border-box; font-size: 20px; font-weight: bold; cursor: grab; transition: all 0.2s ease; box-shadow: 0 4px 6px rgba(0,0,0,0.05); position: relative; }
     .seat:active { cursor: grabbing; }
     .seat.student { background: #e8f5e9; border: 2px solid #81c784; color: #2e7d32; }
     .seat.empty { background: #f5f5f5; border: 2px dashed #bdbdbd; color: #9e9e9e; cursor: pointer; justify-content: center; padding-bottom: 0;}
     .seat.selected { border-color: #f44336; box-shadow: 0 0 15px rgba(244,67,54,0.4); transform: scale(1.05); z-index: 10; }
     
-    .absent-toggle { position: absolute; top: 0.8vmin; right: 0.8vmin; background: #a5d6a7; color: #1b5e20; border: none; border-radius: 4px; font-size: clamp(10px, 1.2vmin, 14px); font-weight: bold; padding: 0.5vmin 1vmin; cursor: pointer; z-index: 6; transition: all 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .absent-toggle { position: absolute; top: 0.8vmin; right: 0.8vmin; background: #a5d6a7; color: #1b5e20; border: none; border-radius: 4px; font-size: 12px; font-weight: bold; padding: 0.5vmin 1vmin; cursor: pointer; z-index: 6; transition: all 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
     .seat.absent { opacity: 0.6; filter: grayscale(90%); background: #e0e0e0; border-color: #9e9e9e; }
     .seat.absent .absent-toggle { background: #e74c3c; color: white; }
 
     .seat.lucky-student { animation: pulse-glow 0.8s infinite; border: 3px solid #f1c40f !important; background-color: #fff9c4 !important; color: #d35400 !important; transform: scale(1.08); z-index: 20; filter: none !important; opacity: 1 !important;}
+    @-webkit-keyframes pulse-glow { 0% { box-shadow: 0 0 10px rgba(241, 196, 15, 0.5); } 50% { box-shadow: 0 0 35px rgba(241, 196, 15, 1); } 100% { box-shadow: 0 0 10px rgba(241, 196, 15, 0.5); } }
     @keyframes pulse-glow { 0% { box-shadow: 0 0 10px rgba(241, 196, 15, 0.5); } 50% { box-shadow: 0 0 35px rgba(241, 196, 15, 1); } 100% { box-shadow: 0 0 10px rgba(241, 196, 15, 0.5); } }
 
-    .avatar-wrapper { 
-        width: clamp(40px, 8vmin, 85px); 
-        height: clamp(40px, 8vmin, 85px); 
-        border-radius: 50%; background-color: #fff; border: 2px solid #a5d6a7; position: absolute; 
-        top: 1vmin; display: flex; align-items: center; justify-content: center; overflow: hidden; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1); z-index: 5; 
-    }
+    .avatar-wrapper { width: 65px; height: 65px; border-radius: 50%; background-color: #fff; border: 2px solid #a5d6a7; position: absolute; top: 1vmin; display: flex; align-items: center; justify-content: center; overflow: hidden; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1); z-index: 5; }
     .avatar-wrapper img { width: 100%; height: 100%; object-fit: cover; }
-    .avatar-placeholder { font-size: clamp(10px, 1.5vmin, 16px); color: #81c784; text-align: center; line-height: 1.2; }
+    .avatar-placeholder { font-size: 14px; color: #81c784; text-align: center; line-height: 1.2; }
 
     .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); display: none; justify-content: center; align-items: center; z-index: 1000; opacity: 0; transition: opacity 0.3s; }
     .modal-overlay.active { display: flex; opacity: 1; }
     .modal-content { background: white; padding: 3vmin; border-radius: 16px; width: 85%; max-width: 900px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
     .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2vmin; border-bottom: 2px solid #eee; padding-bottom: 1vmin; }
-    .modal-header h2 { margin: 0; color: #333; font-size: clamp(18px, 2.5vmin, 28px); }
-    .close-btn { background: #f44336; color: white; border: none; padding: 1vmin 2vmin; border-radius: 6px; cursor: pointer; font-size: clamp(14px, 1.8vmin, 20px); font-weight: bold; }
+    .modal-header h2 { margin: 0; color: #333; font-size: 24px; }
+    .close-btn { background: #f44336; color: white; border: none; padding: 1vmin 2vmin; border-radius: 6px; cursor: pointer; font-size: 16px; font-weight: bold; }
     
-    .gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 1.5vmin; max-height: 65vh; overflow-y: auto; padding: 1vmin; }
-    .gallery-item { border-radius: 12px; overflow: hidden; border: 3px solid transparent; cursor: pointer; aspect-ratio: 1; position: relative; }
-    .gallery-item img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); }
+    .gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); grid-gap: 1.5vmin; max-height: 65vh; overflow-y: auto; padding: 1vmin; }
+    .gallery-item { border-radius: 12px; overflow: hidden; border: 3px solid transparent; cursor: pointer; height: 110px; position: relative; }
+    .gallery-item img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.3s; }
     .gallery-item:hover img { transform: scale(1.15); }
     .gallery-item.taken { cursor: not-allowed; filter: grayscale(100%); opacity: 0.5; }
-    .gallery-item.taken::after { content: "已被选"; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.7); color: white; padding: 0.5vmin 1vmin; border-radius: 4px; font-size: clamp(12px, 1.5vmin, 16px); font-weight: bold; pointer-events: none; }
+    .gallery-item.taken::after { content: "已被选"; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.7); color: white; padding: 0.5vmin 1vmin; border-radius: 4px; font-size: 14px; font-weight: bold; pointer-events: none; }
 
-    #toast { position: fixed; top: 3vh; left: 50%; transform: translateX(-50%); background: rgba(0, 0, 0, 0.8); color: #fff; padding: 1.5vmin 3vmin; border-radius: 8px; font-size: clamp(16px, 2vmin, 24px); opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 9999; }
-    #toast.toast-lucky { background: #f39c12; font-size: clamp(20px, 3vmin, 32px); padding: 2.5vmin 5vmin; box-shadow: 0 10px 20px rgba(243, 156, 18, 0.4); }
+    #toast { position: fixed; top: 3vh; left: 50%; transform: translateX(-50%); background: rgba(0, 0, 0, 0.8); color: #fff; padding: 1.5vmin 3vmin; border-radius: 8px; font-size: 20px; opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 9999; }
+    #toast.toast-lucky { background: #f39c12; font-size: 28px; padding: 2.5vmin 5vmin; box-shadow: 0 10px 20px rgba(243, 156, 18, 0.4); }
 </style>
 </head>
 <body>
 
 <div id="toast"></div>
+
+<div class="sync-status-bar">
+    <span id="syncStatus">🔄 本地读取中...</span>
+    <button id="reconnectBtn" onclick="triggerManualSync()">🔌 断网解决冲突</button>
+</div>
 
 <div class="modal-overlay" id="avatarModal">
     <div class="modal-content">
@@ -193,108 +182,87 @@
     </div>
 </div>
 
-
-
 <script>
-    // ================= 独立模块：无依赖合成音效引擎 (JS) 开始 =================
-    // 原理：利用 Web Audio API 由浏览器通过代码直接合成声波，彻底摆脱音频文件依赖
-    const synAudioEngine = {
+    // ================= 💡 核心配置区 (动态路由与隔离) =================
+    var STORAGE_KEY = "JP_SEAT_24B_V1"; 
+    var SYNC_API_URL = "https://sync.nekosensei.cn/seat24B"; 
+
+    var isOfflineLocked = false; 
+    var syncTimeout = null;
+    var appState = null; // 全局唯一真实状态源
+
+    // ================= 独立模块：无依赖合成音效引擎 (保持不变) =================
+    var synAudioEngine = {
         ctx: null,
         init: function() {
-            // 必须在用户点击事件中初始化，以绕过浏览器自动播放限制
-            if (!this.ctx) {
-                this.ctx = new (window.AudioContext || window.webkitAudioContext)();
-            }
-            if (this.ctx.state === 'suspended') {
-                this.ctx.resume();
-            }
+            if (!this.ctx) { var AudioContext = window.AudioContext || window.webkitAudioContext; if (AudioContext) { this.ctx = new AudioContext(); } }
+            if (this.ctx && this.ctx.state === 'suspended') { this.ctx.resume(); }
         },
-    
-        // 模拟中奖的“噔噔噔噔”电子撒花和弦 (C大调琶音)
         playTada: function() {
             if (!this.ctx) return;
-            const playNote = (freq, startTime, duration, vol) => {
-                const osc = this.ctx.createOscillator();
-                const gain = this.ctx.createGain();
-                osc.connect(gain);
-                gain.connect(this.ctx.destination);
-                
-                osc.type = 'sine'; // 正弦波，声音清脆悦耳
-                osc.frequency.value = freq;
-                
-                gain.gain.setValueAtTime(0, startTime);
-                gain.gain.linearRampToValueAtTime(vol, startTime + 0.05);
-                gain.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
-                
-                osc.start(startTime);
-                osc.stop(startTime + duration);
-            };
-
-            const now = this.ctx.currentTime;
-            playNote(523.25, now, 0.2, 0.4);       // C5
-            playNote(659.25, now + 0.1, 0.2, 0.4); // E5
-            playNote(783.99, now + 0.2, 0.2, 0.4); // G5
-            playNote(1046.50, now + 0.3, 0.8, 0.6); // C6 (高音延长爆发)
+            var _this = this;
+            function playNote(freq, startTime, duration, vol) {
+                var osc = _this.ctx.createOscillator(); var gain = _this.ctx.createGain();
+                osc.connect(gain); gain.connect(_this.ctx.destination);
+                osc.type = 'sine'; osc.frequency.value = freq;
+                gain.gain.setValueAtTime(0, startTime); gain.gain.linearRampToValueAtTime(vol, startTime + 0.05); gain.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
+                osc.start(startTime); osc.stop(startTime + duration);
+            }
+            var now = this.ctx.currentTime;
+            playNote(523.25, now, 0.2, 0.4); playNote(659.25, now + 0.1, 0.2, 0.4); playNote(783.99, now + 0.2, 0.2, 0.4); playNote(1046.50, now + 0.3, 0.8, 0.6); 
         }
     };
-    // ================= 独立模块：无依赖合成音效引擎 (JS) 结束 =================
+    // ======================================================================
     
-    const defaultStudents = ['杨桓', '刘睿举', '都沐篱', '徐嘉璐', '赵楷', '黄浩宇', '张良泽', '龙思羽', '王子珂', '李烨文', '刘澄橙', '钟菲儿', '李妮蔓', '肖襄阳'];
+    var defaultStudents = ['杨桓', '刘睿举', '都沐篱', '徐嘉璐', '赵楷', '黄浩宇', '张良泽', '龙思羽', '王子珂', '李烨文', '刘澄橙', '钟菲儿', '李妮蔓', '肖襄阳'];
+    var specialStudents = ['钟菲儿', '刘澄橙', '李妮蔓'];
+    var avatarFiles = [ "头像1.gif", "头像2.gif", "头像3.gif", "头像4.gif", "头像5.gif", "头像6.gif", "头像7.gif", "头像8.gif", "头像9.gif", "头像10.gif", "头像11.gif", "头像12.gif", "头像13.gif", "头像14.gif" ];
+    var CLOUD_OSS_BASE_URL = "https://jp-game-assets-2026.oss-cn-chengdu.aliyuncs.com/头像库/24B/";
     
-    const specialStudents = ['钟菲儿', '刘澄橙', '李妮蔓'];
+    var studentAvatars = {};
+    var currentSelectingStudent = null;
 
-    const avatarFiles = [
-        "头像1.gif", "头像2.gif", "头像3.gif", "头像4.gif", "头像5.gif", "头像6.gif", "头像7.gif", "头像8.gif", 
-        "头像9.gif", "头像10.gif", "头像11.gif", "头像12.gif", "头像13.gif", "头像14.gif"
-    ];
-    
-    const CLOUD_OSS_BASE_URL = "https://jp-game-assets-2026.oss-cn-chengdu.aliyuncs.com/头像库/24B/";
+    function getClosestSeat(elem) {
+        while (elem && elem !== document) {
+            if (elem.classList && elem.classList.contains('seat')) return elem;
+            elem = elem.parentNode;
+        }
+        return null;
+    }
 
-    let studentAvatars = {};
-    let seatLayoutData = [];
-    let currentSelectingStudent = null;
+    // 💡 工具：带超时的 Fetch
+    function fetchWithTimeout(url, options, timeout) {
+        timeout = timeout || 2500;
+        return Promise.race([
+            fetch(url, options),
+            new Promise(function(_, reject) { setTimeout(function() { reject(new Error('网络连接超时')); }, timeout); })
+        ]);
+    }
 
-    function initSystem() {
-        const grid = document.getElementById('seatingGrid');
+    // 💡 架构重构1：生命周期起点 - 离线优先加载
+    async function initApp() {
+        console.log("🚀 系统启动中...");
+        
+        // 1. 瞬间剥离网络：从本地提取数据
+        loadLocalFallback();
+
+        // 2. 立即渲染界面，拒绝白屏
+        renderGridFromState(appState);
+
+        // 3. 界面画完后，静默探测云端
+        syncFromCloud();
+    }
+
+    // 💡 架构重构2：分离渲染逻辑，使其纯净无副作用
+    function renderGridFromState(stateObj) {
+        var grid = document.getElementById('seatingGrid');
         if (!grid) return;
         grid.innerHTML = ''; 
-
-        let fileState = null;
-        try { fileState = JSON.parse(document.getElementById('app-state').textContent); } catch(e) {}
         
-        let cacheState = null;
-        try { cacheState = JSON.parse(localStorage.getItem('classSeatingCache')); } catch(e) {}
+        studentAvatars = stateObj.avatars || {}; 
 
-        let finalState = null;
-        let loadSourceMsg = "初始默认排座";
-
-        if (fileState && cacheState) {
-            if ((cacheState.lastModified || 0) > (fileState.lastModified || 0)) {
-                finalState = cacheState; loadSourceMsg = "🌐 已自动从 [浏览器缓存] 恢复防丢记录";
-            } else {
-                finalState = fileState; loadSourceMsg = "📄 已加载 [本地文件] 中保存的记录";
-            }
-        } else if (cacheState) { finalState = cacheState; loadSourceMsg = "🌐 已自动从 [浏览器缓存] 恢复防丢记录"; } 
-        else if (fileState) { finalState = fileState; loadSourceMsg = "📄 已加载 [本地文件] 中保存的记录"; }
-
-        if (finalState && finalState.seats && finalState.seats.length > 0) {
-            studentAvatars = finalState.avatars || {}; 
-            seatLayoutData = finalState.seats;
-        } else {
-            studentAvatars = {}; 
-            seatLayoutData = []; 
-            let index = 0;
-            for (let row = 1; row <= 4; row++) {
-                for (let col = 1; col <= 4; col++) {
-                    if (index < defaultStudents.length) seatLayoutData.push({ row, col, type: 'student', name: defaultStudents[index], absent: false });
-                    else seatLayoutData.push({ row, col, type: 'empty', name: '空位', absent: false });
-                    index++;
-                }
-            }
-        }
-
-        seatLayoutData.forEach(seatData => {
-            const seat = document.createElement('div');
+        stateObj.seats.forEach(function(seatData) {
+            var seat = document.createElement('div');
             seat.className = 'seat ' + seatData.type;
             if (seatData.absent) seat.classList.add('absent');
             seat.dataset.row = seatData.row; seat.dataset.col = seatData.col;
@@ -303,137 +271,260 @@
             if (seatData.type === 'student') renderStudentSeatInfo(seat, seatData.name);
             else seat.innerText = '空位';
             
-            seat.addEventListener('pointerdown', handlePointerDown);
+            seat.addEventListener('mousedown', handlePointerDown);
+            seat.addEventListener('touchstart', handlePointerDown, {passive: false});
             grid.appendChild(seat);
         });
-
-        if (finalState) setTimeout(() => showToast(loadSourceMsg), 500);
     }
 
-    function autoSaveToCache() {
-        const currentState = { lastModified: Date.now(), avatars: studentAvatars, seats: [] };
-        document.querySelectorAll('.seat').forEach(seat => {
-            currentState.seats.push({
-                row: seat.dataset.row, col: seat.dataset.col,
-                type: seat.dataset.type, name: seat.dataset.name, absent: seat.classList.contains('absent')
+    // 💡 架构重构3：本地兜底逻辑
+    function loadLocalFallback() {
+        var saved = localStorage.getItem(STORAGE_KEY);
+        var domFallback = document.getElementById('app-state').textContent;
+
+        if (saved) {
+            try { appState = JSON.parse(saved); } catch(e) {}
+        } 
+        // 若无缓存，取底部的老数据
+        if (!appState && domFallback) {
+            try { appState = JSON.parse(domFallback); } catch(e) {}
+        }
+        // 若彻底全空，造一套基础默认数据
+        if (!appState || !appState.seats || appState.seats.length === 0) {
+            appState = { lastModified: 0, avatars: {}, seats: [] };
+            var index = 0;
+            for (var row = 1; row <= 4; row++) {
+                for (var col = 1; col <= 4; col++) {
+                    if (index < defaultStudents.length) appState.seats.push({ row: row, col: col, type: 'student', name: defaultStudents[index], absent: false });
+                    else appState.seats.push({ row: row, col: col, type: 'empty', name: '空位', absent: false });
+                    index++;
+                }
+            }
+        }
+    }
+
+    // 💡 架构重构4：静默网络抓取
+    async function syncFromCloud() {
+        var syncStatus = document.getElementById('syncStatus');
+        var reconnectBtn = document.getElementById('reconnectBtn');
+        syncStatus.innerText = "🔄 探测云端...";
+        
+        try {
+            var res = await fetchWithTimeout(SYNC_API_URL, { method: "GET", cache: "no-store" }, 2500);
+            if (!res.ok) throw new Error("网络异常");
+            var cloudData = await res.json();
+            
+            if (cloudData && cloudData.seats && cloudData.seats.length > 0) {
+                // 强制采用云端最新数据
+                appState = cloudData;
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
+                syncStatus.innerText = "☁️ 云端已同步";
+                syncStatus.style.color = "#10b981"; // success green
+                isOfflineLocked = false; 
+                reconnectBtn.style.display = "none";
+                
+                // 刷新 UI
+                renderGridFromState(appState);
+            } else {
+                // 如果云端是空的，把本地的推上去
+                saveState();
+            }
+        } catch (e) {
+            isOfflineLocked = true;
+            reconnectBtn.style.display = "inline-block";
+            syncStatus.innerText = "✅ 离线安全模式";
+            syncStatus.style.color = "#f59e0b"; // warning orange
+        }
+    }
+
+    // 💡 架构重构5：带防抖的网络存储中心
+    async function saveState() {
+        // 1. 先从界面的 DOM 结构中反向提取最新状态
+        appState.lastModified = new Date().getTime();
+        appState.avatars = studentAvatars;
+        appState.seats = [];
+        var seatsDOM = document.querySelectorAll('.seat');
+        for (var i = 0; i < seatsDOM.length; i++) {
+            var s = seatsDOM[i];
+            appState.seats.push({
+                row: s.dataset.row, col: s.dataset.col,
+                type: s.dataset.type, name: s.dataset.name, absent: s.classList.contains('absent')
             });
-        });
-        localStorage.setItem('classSeatingCache', JSON.stringify(currentState));
+        }
+
+        // 2. 瞬间落盘本地 (永不丢失)
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
+        
+        var syncStatus = document.getElementById('syncStatus');
+        
+        if (isOfflineLocked) {
+            syncStatus.innerText = "💾 数据仅存本地";
+            syncStatus.style.color = "#64748b";
+            return; 
+        }
+        
+        syncStatus.innerText = "🔄 同步中...";
+        syncStatus.style.color = "#3b82f6"; // primary blue
+        
+        // 3. 防抖上传云端
+        if (syncTimeout) clearTimeout(syncTimeout);
+        syncTimeout = setTimeout(async function() {
+            try {
+                var res = await fetchWithTimeout(SYNC_API_URL, { method: "POST", body: JSON.stringify(appState) }, 2000);
+                if (!res.ok) throw new Error("上传失败");
+                syncStatus.innerText = "☁️ 云端已同步";
+                syncStatus.style.color = "#10b981";
+            } catch (e) {
+                isOfflineLocked = true;
+                document.getElementById('reconnectBtn').style.display = "inline-block";
+                syncStatus.innerText = "⚠️ 离线孤岛模式";
+                syncStatus.style.color = "#ef4444"; // danger red
+            }
+        }, 800);
     }
+
+    // 💡 架构重构6：手动冲突解决器
+    async function triggerManualSync() {
+        var choice = prompt("当前系统处于离线状态，请选择恢复策略：\n【1】丢弃本地：从云端拉取最新数据\n【2】强制上传：将当前界面的数据推送至云端");
+        if (choice === '1') {
+            if(!confirm("⚠️ 警告：确定拉取并覆盖当前屏幕内容吗？")) return;
+            isOfflineLocked = false;
+            document.getElementById('syncStatus').innerText = "🔄 拉取中...";
+            syncFromCloud(); 
+        } else if (choice === '2') {
+            if(!confirm("⚠️ 警告：确定将本地强行覆盖到云端吗？")) return;
+            isOfflineLocked = false;
+            document.getElementById('reconnectBtn').style.display = "none";
+            document.getElementById('syncStatus').innerText = "🚀 强制推送中...";
+            saveState(); 
+            showToast("已解锁并提交推送请求！");
+        }
+    }
+
+    // 触发启动
+    if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', initApp); } else { initApp(); }
+
+    // ====== 下面的交互函数基本保留，只修改将 autoSaveToCache() 替换为 saveState() ======
 
     function clearBrowserCache() {
-        if (confirm("⚠️ 确定要清除浏览器缓存并刷新吗？")) {
-            localStorage.removeItem('classSeatingCache'); location.reload(); 
+        if (confirm("⚠️ 确定要清除浏览器缓存并恢复内置默认排座吗？")) {
+            localStorage.removeItem(STORAGE_KEY); 
+            // 顺便请求一次云端的覆写，以免云端数据又拉回来
+            var wipeState = { lastModified: new Date().getTime(), avatars: {}, seats: [] };
+            fetch(SYNC_API_URL, { method: "POST", body: JSON.stringify(wipeState) }).then(function(){ location.reload(); });
         }
     }
 
     function exportHTMLToFile() {
-        autoSaveToCache();
-        const currentState = JSON.parse(localStorage.getItem('classSeatingCache'));
-        const clonedDoc = document.documentElement.cloneNode(true);
-        clonedDoc.querySelectorAll('.lucky-student').forEach(el => el.classList.remove('lucky-student'));
-        clonedDoc.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
-        clonedDoc.querySelector('#avatarModal').classList.remove('active');
+        saveState();
+        var currentState = JSON.parse(localStorage.getItem(STORAGE_KEY));
+        var clonedDoc = document.documentElement.cloneNode(true);
         
+        var luckySeats = clonedDoc.querySelectorAll('.lucky-student');
+        for(var i=0; i<luckySeats.length; i++) luckySeats[i].classList.remove('lucky-student');
+        var selectedSeats = clonedDoc.querySelectorAll('.selected');
+        for(var j=0; j<selectedSeats.length; j++) selectedSeats[j].classList.remove('selected');
+        
+        clonedDoc.querySelector('#avatarModal').classList.remove('active');
         clonedDoc.querySelector('#seatingGrid').innerHTML = ''; 
         clonedDoc.querySelector('#galleryGrid').innerHTML = ''; 
-        
         clonedDoc.querySelector('#app-state').textContent = JSON.stringify(currentState);
 
-        const htmlContent = "<!DOCTYPE html>\n" + clonedDoc.outerHTML;
-        const blob = new Blob([htmlContent], { type: "text/html;charset=utf-8" });
-        const url = URL.createObjectURL(blob);
+        var htmlContent = "<!DOCTYPE html>\n" + clonedDoc.outerHTML;
+        var blob = new Blob([htmlContent], { type: "text/html;charset=utf-8" });
+        var url = URL.createObjectURL(blob);
         
-        const a = document.createElement('a'); a.href = url;
-        const dateStr = new Date().toISOString().split('T')[0];
-        a.download = `班级座位表_${dateStr}.html`; 
+        var a = document.createElement('a'); a.href = url;
+        var dateStr = new Date().toISOString().split('T')[0];
+        a.download = "班级座位表_" + dateStr + ".html"; 
         
         document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
-        alert("✅ 座位表状态已成功导出！\n您可以将下载的新文件拷贝到 U 盘带走。");
+        showToast("✅ 座位表状态已成功导出！");
     }
 
     function renderStudentSeatInfo(seatElement, name) {
         seatElement.innerHTML = ''; 
-        const absentBtn = document.createElement('button');
+        var absentBtn = document.createElement('button');
         absentBtn.className = 'absent-toggle';
         absentBtn.innerText = seatElement.classList.contains('absent') ? '缺勤' : '在位';
         
-        absentBtn.addEventListener('pointerdown', (e) => {
-            e.stopPropagation(); seatElement.classList.toggle('absent');
-            const isAbsent = seatElement.classList.contains('absent');
+        var handleAbsentClick = function(e) {
+            e.stopPropagation(); e.preventDefault();
+            if (seatElement.classList.contains('absent')) seatElement.classList.remove('absent'); else seatElement.classList.add('absent');
+            var isAbsent = seatElement.classList.contains('absent');
             absentBtn.innerText = isAbsent ? '缺勤' : '在位';
-            showToast(isAbsent ? `🚫 已将 ${name} 标记为缺勤` : `✅ ${name} 已恢复在位`);
-            autoSaveToCache(); 
-        });
+            showToast(isAbsent ? "🚫 已将 " + name + " 标记为缺勤" : "✅ " + name + " 已恢复在位");
+            saveState(); // 💡 替换为新网络触发器
+        };
+        absentBtn.addEventListener('mousedown', handleAbsentClick);
+        absentBtn.addEventListener('touchstart', handleAbsentClick, {passive: false});
 
-        const avatarDiv = document.createElement('div'); avatarDiv.className = 'avatar-wrapper';
-        const avatarFile = studentAvatars[name];
+        var avatarDiv = document.createElement('div'); avatarDiv.className = 'avatar-wrapper';
+        var avatarFile = studentAvatars[name];
         if (avatarFile) {
-            avatarDiv.innerHTML = `<img src="./头像库/24B/${avatarFile}" data-filename="${avatarFile}" alt="头像" draggable="false" onerror="this.onerror=null; this.src='${CLOUD_OSS_BASE_URL}' + this.dataset.filename;">`;
+            avatarDiv.innerHTML = '<img src="./头像库/24B/' + avatarFile + '" data-filename="' + avatarFile + '" alt="头像" draggable="false" onerror="this.onerror=null; this.src=\'' + CLOUD_OSS_BASE_URL + '\' + this.dataset.filename;">';
         } else {
-            avatarDiv.innerHTML = `<div class="avatar-placeholder">点击<br>选头像</div>`;
+            avatarDiv.innerHTML = '<div class="avatar-placeholder">点击<br>选头像</div>';
         }
 
-        avatarDiv.addEventListener('pointerdown', (e) => { e.stopPropagation(); openAvatarModal(name); });
-        const nameSpan = document.createElement('span'); nameSpan.innerText = name;
+        var handleAvatarClick = function(e) { e.stopPropagation(); e.preventDefault(); openAvatarModal(name); };
+        avatarDiv.addEventListener('mousedown', handleAvatarClick);
+        avatarDiv.addEventListener('touchstart', handleAvatarClick, {passive: false});
 
+        var nameSpan = document.createElement('span'); nameSpan.innerText = name;
         seatElement.appendChild(absentBtn); seatElement.appendChild(avatarDiv); seatElement.appendChild(nameSpan);
     }
 
     function getWeightedRandomStudent(studentNodes) {
-        let totalWeight = 0;
-        const nodeWeights = studentNodes.map(node => {
-            const name = node.dataset.name;
-            const weight = specialStudents.includes(name) ? 1 : 2; 
+        var totalWeight = 0;
+        var nodeWeights = studentNodes.map(function(node) {
+            var name = node.dataset.name;
+            var weight = specialStudents.indexOf(name) !== -1 ? 1 : 2; 
             totalWeight += weight; return weight;
         });
 
-        const randomVal = Math.random() * totalWeight;
-        let cumulativeWeight = 0;
-        for (let i = 0; i < studentNodes.length; i++) {
+        var randomVal = Math.random() * totalWeight;
+        var cumulativeWeight = 0;
+        for (var i = 0; i < studentNodes.length; i++) {
             cumulativeWeight += nodeWeights[i];
             if (randomVal < cumulativeWeight) return studentNodes[i];
         }
         return studentNodes[studentNodes.length - 1]; 
     }
 
-    let luckyTimeout; 
+    var luckyTimeout; 
     function startRandomDraw() {
-        const studentNodes = Array.from(document.querySelectorAll('.seat.student:not(.absent)'));
+        var studentNodes = [].slice.call(document.querySelectorAll('.seat.student:not(.absent)'));
         if (studentNodes.length === 0) { showToast("⚠️ 当前没有可供抽选的学生！", false); return; }
 
-       // ================= 触发：初始化音频环境 =================
         synAudioEngine.init();
-        // ========================================================
-
-        const btn = document.getElementById('randomBtn');
+        var btn = document.getElementById('randomBtn');
         btn.disabled = true; btn.innerText = '🔄 抽取中...';
-        document.querySelectorAll('.seat.student').forEach(node => node.classList.remove('lucky-student'));
+        
+        var allStudents = document.querySelectorAll('.seat.student');
+        for(var i=0; i<allStudents.length; i++) allStudents[i].classList.remove('lucky-student');
         clearTimeout(luckyTimeout); 
 
-        let jumps = 0; const totalJumps = 16; const jumpSpeed = 65; let lastNode = null;
+        var jumps = 0; var totalJumps = 16; var jumpSpeed = 65; var lastNode = null;
         
-        const drawInterval = setInterval(() => {
+        var drawInterval = setInterval(function() {
             if (lastNode) lastNode.classList.remove('lucky-student');
-            const currentNode = getWeightedRandomStudent(studentNodes);
+            var currentNode = getWeightedRandomStudent(studentNodes);
             currentNode.classList.add('lucky-student');
             lastNode = currentNode;
             jumps++;
             
             if (jumps >= totalJumps) {
                 clearInterval(drawInterval);
-                const finalNode = getWeightedRandomStudent(studentNodes);
+                var finalNode = getWeightedRandomStudent(studentNodes);
                 if (lastNode) lastNode.classList.remove('lucky-student');
                 finalNode.classList.add('lucky-student');
 
-                // ================= 触发：抽中撒花声 =================
                 synAudioEngine.playTada();
-                // ========================================================
-
                 btn.disabled = false; btn.innerText = '🎲';
-                showToast(`🎉 有请 ${finalNode.dataset.name} 同学！`, true);
+                showToast("🎉 有请 " + finalNode.dataset.name + " 同学！", true);
                 
-                luckyTimeout = setTimeout(() => { finalNode.classList.remove('lucky-student'); }, 1500);
+                luckyTimeout = setTimeout(function() { finalNode.classList.remove('lucky-student'); }, 1500);
             }
         }, jumpSpeed);
     }
@@ -441,23 +532,33 @@
     function resetAllAvatars() {
         if (confirm("⚠️ 警告：确定要清空全班头像吗？")) {
             studentAvatars = {};
-            document.querySelectorAll('.seat.student').forEach(seat => { renderStudentSeatInfo(seat, seat.dataset.name); });
+            var seats = document.querySelectorAll('.seat.student');
+            for(var i=0; i<seats.length; i++) renderStudentSeatInfo(seats[i], seats[i].dataset.name);
             showToast("🔄 全班头像已重置！");
-            autoSaveToCache();
+            saveState(); // 💡 替换为新网络触发器
         }
     }
 
     function openAvatarModal(studentName) {
         currentSelectingStudent = studentName; document.getElementById('currentStudentName').innerText = studentName;
-        const gallery = document.getElementById('galleryGrid'); gallery.innerHTML = ''; 
+        var gallery = document.getElementById('galleryGrid'); gallery.innerHTML = ''; 
 
-        const takenAvatars = Object.entries(studentAvatars).filter(([n]) => n !== studentName).map(([n, f]) => f);
-        avatarFiles.forEach(file => {
-            const item = document.createElement('div'); item.className = 'gallery-item'; 
-            item.innerHTML = `<img src="./头像库/24B/${file}" data-filename="${file}" alt="GIF" onerror="this.onerror=null; this.src='${CLOUD_OSS_BASE_URL}' + this.dataset.filename;">`;
+        var takenAvatars = [];
+        for (var key in studentAvatars) {
+            if (studentAvatars.hasOwnProperty(key) && key !== studentName) takenAvatars.push(studentAvatars[key]);
+        }
+
+        avatarFiles.forEach(function(file) {
+            var item = document.createElement('div'); item.className = 'gallery-item'; 
+            item.innerHTML = '<img src="./头像库/24B/' + file + '" data-filename="' + file + '" alt="GIF" onerror="this.onerror=null; this.src=\'' + CLOUD_OSS_BASE_URL + '\' + this.dataset.filename;">';
             
-            if (takenAvatars.includes(file)) { item.classList.add('taken'); item.onclick = () => showToast("⚠️ 该头像已被选走！"); } 
-            else { if (studentAvatars[studentName] === file) item.style.borderColor = '#4CAF50'; item.onclick = () => selectAvatar(file); }
+            if (takenAvatars.indexOf(file) !== -1) { 
+                item.classList.add('taken'); 
+                item.onclick = function() { showToast("⚠️ 该头像已被选走！"); }; 
+            } else { 
+                if (studentAvatars[studentName] === file) item.style.borderColor = '#4CAF50'; 
+                item.onclick = function() { selectAvatar(file); }; 
+            }
             gallery.appendChild(item);
         });
         document.getElementById('avatarModal').classList.add('active');
@@ -467,46 +568,61 @@
 
     function selectAvatar(fileName) {
         studentAvatars[currentSelectingStudent] = fileName;
-        document.querySelectorAll('.seat.student').forEach(seat => { renderStudentSeatInfo(seat, seat.dataset.name); });
+        var seats = document.querySelectorAll('.seat.student');
+        for(var i=0; i<seats.length; i++) {
+            renderStudentSeatInfo(seats[i], seats[i].dataset.name);
+        }
         showToast("✅ 头像设置成功！");
         closeModal();
-        autoSaveToCache();
+        saveState(); // 💡 替换为新网络触发器
     }
 
-    let draggedItem = null, isDragging = false, clone = null, startX, startY;
+    var draggedItem = null, isDragging = false, clone = null, startX, startY;
+    
     function handlePointerDown(e) {
-        if (e.button !== 0 && e.pointerType === 'mouse') return; 
-        draggedItem = e.currentTarget; isDragging = false; startX = e.pageX; startY = e.pageY;
-        document.addEventListener('pointermove', handlePointerMove, {passive: false});
-        document.addEventListener('pointerup', handlePointerUp);
+        if (e.type === 'mousedown' && e.button !== 0) return; 
+        
+        var clientX = e.type === 'touchstart' ? e.touches[0].pageX : e.pageX;
+        var clientY = e.type === 'touchstart' ? e.touches[0].pageY : e.pageY;
+        
+        draggedItem = e.currentTarget; isDragging = false; startX = clientX; startY = clientY;
+        
+        document.addEventListener('mousemove', handlePointerMove); document.addEventListener('mouseup', handlePointerUp);
+        document.addEventListener('touchmove', handlePointerMove, {passive: false}); document.addEventListener('touchend', handlePointerUp);
     }
 
     function handlePointerMove(e) {
+        var clientX = e.type === 'touchmove' ? e.touches[0].pageX : e.pageX;
+        var clientY = e.type === 'touchmove' ? e.touches[0].pageY : e.pageY;
+
         if (!isDragging) {
-            if (Math.abs(e.pageX - startX) > 10 || Math.abs(e.pageY - startY) > 10) {
+            if (Math.abs(clientX - startX) > 10 || Math.abs(clientY - startY) > 10) {
                 isDragging = true;
                 clone = draggedItem.cloneNode(true);
-                // 核心修复：给弹性布局的拖拽克隆体锁定绝对宽高，防止塌陷
-                clone.style.width = draggedItem.offsetWidth + 'px';
-                clone.style.height = draggedItem.offsetHeight + 'px';
+                clone.style.width = draggedItem.offsetWidth + 'px'; clone.style.height = draggedItem.offsetHeight + 'px';
                 clone.style.position = 'absolute'; clone.style.zIndex = '1000'; clone.style.pointerEvents = 'none'; clone.style.opacity = '0.85'; clone.style.margin = '0'; clone.style.boxShadow = '0 10px 20px rgba(0,0,0,0.2)';
                 document.body.appendChild(clone); draggedItem.style.opacity = '0.3';
             }
         }
         if (isDragging) {
-            e.preventDefault(); 
-            clone.style.left = e.pageX - clone.offsetWidth / 2 + 'px'; clone.style.top = e.pageY - clone.offsetHeight / 2 + 'px';
+            if(e.cancelable) e.preventDefault(); 
+            clone.style.left = clientX - clone.offsetWidth / 2 + 'px'; clone.style.top = clientY - clone.offsetHeight / 2 + 'px';
         }
     }
 
     function handlePointerUp(e) {
-        document.removeEventListener('pointermove', handlePointerMove); document.removeEventListener('pointerup', handlePointerUp);
+        document.removeEventListener('mousemove', handlePointerMove); document.removeEventListener('mouseup', handlePointerUp);
+        document.removeEventListener('touchmove', handlePointerMove); document.removeEventListener('touchend', handlePointerUp);
+        
+        var clientX = e.type === 'touchend' && e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
+        var clientY = e.type === 'touchend' && e.changedTouches ? e.changedTouches[0].clientY : e.clientY;
+
         if (isDragging) {
-            if (clone) clone.remove();
+            if (clone) clone.parentNode.removeChild(clone);
             draggedItem.style.opacity = '1'; draggedItem.style.visibility = 'hidden';
-            let target = document.elementFromPoint(e.clientX, e.clientY);
+            var target = document.elementFromPoint(clientX, clientY);
             draggedItem.style.visibility = 'visible';
-            let targetSeat = target ? target.closest('.seat') : null;
+            var targetSeat = target ? getClosestSeat(target) : null;
             if (targetSeat && targetSeat !== draggedItem) attemptSwap(draggedItem, targetSeat);
         } else {
             if (!window.selectedItem) {
@@ -520,17 +636,14 @@
     }
 
     function attemptSwap(seatA, seatB) {
-        const isAEmpty = seatA.dataset.type === 'empty'; const isBEmpty = seatB.dataset.type === 'empty';
-        const rowA = parseInt(seatA.dataset.row); const rowB = parseInt(seatB.dataset.row);
+        var isAEmpty = seatA.dataset.type === 'empty'; var isBEmpty = seatB.dataset.type === 'empty';
+        var rowA = parseInt(seatA.dataset.row); var rowB = parseInt(seatB.dataset.row);
+        if ((isAEmpty && rowB !== 4) || (isBEmpty && rowA !== 4)) { showToast("⚠️ 操作失败：空位只能留在最后一排！"); return; }
 
-        if ((isAEmpty && rowB !== 4) || (isBEmpty && rowA !== 4)) {
-            showToast("⚠️ 操作失败：空位只能留在最后一排！"); return;
-        }
-
-        const isAAbsent = seatA.classList.contains('absent'); const isBAbsent = seatB.classList.contains('absent');
-        const nameA = seatA.dataset.name; const nameB = seatB.dataset.name;
+        var isAAbsent = seatA.classList.contains('absent'); var isBAbsent = seatB.classList.contains('absent');
+        var nameA = seatA.dataset.name; var nameB = seatB.dataset.name;
         seatA.dataset.name = nameB; seatB.dataset.name = nameA;
-        const typeA = seatA.dataset.type; seatA.dataset.type = seatB.dataset.type; seatB.dataset.type = typeA;
+        var typeA = seatA.dataset.type; seatA.dataset.type = seatB.dataset.type; seatB.dataset.type = typeA;
         
         if (isBAbsent) seatA.classList.add('absent'); else seatA.classList.remove('absent');
         if (isAAbsent) seatB.classList.add('absent'); else seatB.classList.remove('absent');
@@ -541,18 +654,14 @@
         seatB.className = 'seat ' + seatB.dataset.type + (seatB.classList.contains('absent') ? ' absent' : '');
         if (seatB.dataset.type === 'student') renderStudentSeatInfo(seatB, seatB.dataset.name); else seatB.innerHTML = '空位';
 
-        autoSaveToCache();
+        saveState(); // 💡 替换为新网络触发器
     }
 
-    function showToast(msg, isLucky = false) {
-        const toast = document.getElementById('toast'); toast.innerText = msg;
+    function showToast(msg, isLucky) {
+        var toast = document.getElementById('toast'); toast.innerText = msg;
         if (isLucky) toast.classList.add('toast-lucky'); else toast.classList.remove('toast-lucky');
-        toast.style.opacity = '1'; 
-        setTimeout(() => toast.style.opacity = '0', isLucky ? 2000 : 1500);
+        toast.style.opacity = '1'; setTimeout(function() { toast.style.opacity = '0'; }, isLucky ? 2000 : 1500);
     }
-
-    initSystem();
 </script>
-
 
 </body></html>
