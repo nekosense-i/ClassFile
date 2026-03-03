@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>智能积分卡</title>
+    <title>智能班级积分卡</title>
     <script async src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script async src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
     <style>
@@ -240,8 +240,10 @@ var DEFAULT_STUDENTS = [
     { class: "10班", name: "龙思羽" }, { class: "10班", name: "张良泽" }
 ];
 
-var STORAGE_KEY = "JP_CARD_OFFLINE_PURE_V1";
-var SYNC_API_URL = "https://sync.nekosensei.cn";
+// 【修改点 1】：统一本地存储的变量名和云端数据房间的后缀
+var STORAGE_KEY = "JP_CARD_GAKUPO24B_V1"; 
+var SYNC_API_URL = "https://sync.nekosensei.cn/gakupo24B"; 
+
 var SCORE_MAP = { hw: { 'A':3, 'B':2, 'C':1, 'D':-1, '未':-1 }, dt: { '满':3, '过':2, '重':1, '未':-1 }, att: { '1':1, '-1':-1, '缺':0 } };
 var DAYS = ['周一', '周二', '周三', '周四', '周五'];
 
@@ -273,15 +275,41 @@ function fetchWithTimeout(url, options, timeout) {
     ]);
 }
 
-// 🔥 核心修改：移除 window.onload 阻塞，保证毫秒级启动！
+// 【修改点 2】：重构初始化生命周期，优先渲染本地数据
 async function initApp() {
+    // 1. 瞬间从本地读取数据，彻底无视网络
+    loadLocalFallback();
+    
+    // 2. 如果本地是空的（首次使用），初始化内置名单
+    if (!appState) appState = {};
+    if (!appState.students || appState.students.length === 0) appState.students = DEFAULT_STUDENTS;
+    if (!appState.records) appState.records = {};
+    if (!appState.monday) appState.monday = new Date().toISOString().split('T')[0];
+
+    // 3. 立即渲染界面，让卡片出来！不再白屏！
+    document.getElementById('mondayDate').value = appState.monday;
+    document.getElementById('mondayDate').addEventListener('change', function(e) { 
+        appState.monday = e.target.value; 
+        saveState(); 
+    });
+    renderTabs();
+    if(appState.students.length > 0) switchView(0);
+
+    // 4. 界面画完后，后台静默开启云端同步
+    syncFromCloud();
+}
+
+// 【修改点 3】：把云端拉取逻辑剥离成独立的后台任务
+async function syncFromCloud() {
     var syncStatus = document.getElementById('syncStatus');
     var reconnectBtn = document.getElementById('reconnectBtn');
     
     try {
-        var res = await fetchWithTimeout(SYNC_API_URL, { method: "GET", cache: "no-store" }, 2000);
+        var res = await fetchWithTimeout(SYNC_API_URL, { method: "GET", cache: "no-store" }, 2500);
         if (!res.ok) throw new Error("网络异常");
         var cloudData = await res.json();
+        
+        // 如果云端有数据，则覆盖并刷新界面
         if (cloudData && Object.keys(cloudData).length > 0 && cloudData.students) {
             appState = cloudData;
             localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
@@ -289,30 +317,19 @@ async function initApp() {
             syncStatus.style.color = "#a7f3d0";
             isOfflineLocked = false; 
             reconnectBtn.style.display = "none";
+            document.getElementById('mondayDate').value = appState.monday;
+            switchView(currentViewDay); 
         } else {
-            loadLocalFallback();
+            // 云端为空，说明是新房间，主动推一次本地数据上去
+            saveState();
         }
     } catch (e) {
+        // 如果被学校防火墙拦截或超时，安静地进入离线模式，卡片依然能点
         isOfflineLocked = true;
         reconnectBtn.style.display = "flex";
         syncStatus.innerText = "✅ 离线安全模式";
         syncStatus.style.color = "#a7f3d0";
-        loadLocalFallback();
     }
-    
-    if (!appState) appState = {};
-    if (!appState.students || appState.students.length === 0) appState.students = DEFAULT_STUDENTS;
-    if (!appState.records) appState.records = {};
-    if (!appState.monday) appState.monday = new Date().toISOString().split('T')[0];
-    
-    document.getElementById('mondayDate').value = appState.monday;
-    document.getElementById('mondayDate').addEventListener('change', function(e) { 
-        appState.monday = e.target.value; 
-        saveState(); 
-    });
-    
-    renderTabs();
-    if(appState.students.length > 0) switchView(0);
 }
 
 // 根据 DOM 状态立即执行，死活不等待外部图表 JS 加载
@@ -366,7 +383,9 @@ async function triggerManualSync() {
     var choice = prompt("当前系统处于离线状态，请选择恢复策略：\n【1】丢弃本地：从云端拉取最新数据\n【2】强制上传：将当前界面的数据推送至云端");
     if (choice === '1') {
         if(!confirm("⚠️ 警告：确定拉取并覆盖当前屏幕内容吗？")) return;
-        location.reload(); 
+        isOfflineLocked = false;
+        document.getElementById('syncStatus').innerText = "🔄 拉取中...";
+        syncFromCloud(); 
     } else if (choice === '2') {
         if(!confirm("⚠️ 警告：确定将本地强行覆盖到云端吗？")) return;
         isOfflineLocked = false;
