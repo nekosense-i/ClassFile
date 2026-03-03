@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>学生积分智能卡片工作台</title>
+    <title>智能卡片工作台 - 满血离线内置版</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
     <style>
@@ -20,7 +20,7 @@
         .tab-btn { background: transparent; color: #cbd5e1; border: none; padding: 6px 16px; border-radius: 4px; font-size: clamp(12px, 1.2vw, 15px); font-weight: bold; cursor: pointer; transition: 0.2s; }
         .tab-btn.active { background: var(--primary); color: white; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
         .toolbar-actions { display: flex; gap: 8px; align-items: center; }
-        button.tool-btn { background: #475569; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: clamp(11px, 1vw, 13px); transition: 0.15s; display: flex; align-items: center; }
+        button.tool-btn { background: #475569; color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: clamp(11px, 1vw, 13px); transition: 0.15s; display: flex; align-items: center; justify-content: center; }
         button.tool-btn:hover { filter: brightness(1.15); transform: translateY(-1px); }
         button.tool-btn:active { transform: translateY(1px); }
         
@@ -97,7 +97,11 @@
 <div class="header">
     <div class="tabs" id="dayTabs"></div>
     <div class="toolbar-actions">
-        <span id="syncStatus" style="font-size: 11px; color: #a7f3d0; margin-right: 5px;">✅ 离线模式已就绪</span>
+        <div style="display:flex; align-items:center; gap:8px; margin-right: 15px;">
+            <span id="syncStatus" style="font-size: 11px; color: #a7f3d0;">🔄 初始化中...</span>
+            <button id="reconnectBtn" class="tool-btn" onclick="triggerManualSync()" style="display:none; background:#ef4444; padding: 4px 8px;">🔌 断网解决冲突</button>
+        </div>
+        
         <input type="date" id="mondayDate" style="padding:4px; border-radius:4px; border:none; outline:none; cursor: pointer; font-size: clamp(11px, 1vw, 13px);" title="选择本周一日期">
         
         <button class="tool-btn" onclick="batchAttendance()" style="background:#10b981;">✅ 本日全勤</button>
@@ -219,27 +223,21 @@
 // 💡 核心内置名单 (硬编码区)
 // ==========================================
 const DEFAULT_STUDENTS = [
-    { class: "9班", name: "杨桓" },
-    { class: "9班", name: "李妮蔓" },
-    { class: "9班", name: "刘睿举" },
-    { class: "9班", name: "都沐篱" },
-    { class: "9班", name: "王子珂" },
-    { class: "9班", name: "黄浩宇" },
-    { class: "9班", name: "肖襄阳" },
-    { class: "9班", name: "赵楷" },
-    { class: "9班", name: "李烨文" },
-    { class: "10班", name: "徐嘉璐" },
-    { class: "10班", name: "钟菲儿" },
-    { class: "10班", name: "刘澄橙" },
-    { class: "10班", name: "龙思羽" },
-    { class: "10班", name: "张良泽" }
+    { class: "9班", name: "杨桓" }, { class: "9班", name: "李妮蔓" }, { class: "9班", name: "刘睿举" },
+    { class: "9班", name: "都沐篱" }, { class: "9班", name: "王子珂" }, { class: "9班", name: "黄浩宇" },
+    { class: "9班", name: "肖襄阳" }, { class: "9班", name: "赵楷" }, { class: "9班", name: "李烨文" },
+    { class: "10班", name: "徐嘉璐" }, { class: "10班", name: "钟菲儿" }, { class: "10班", name: "刘澄橙" },
+    { class: "10班", name: "龙思羽" }, { class: "10班", name: "张良泽" }
 ];
 
 const STORAGE_KEY = "JP_CARD_OFFLINE_PURE_V1";
+const SYNC_API_URL = "https://sync.nekosensei.cn";
 const SCORE_MAP = { hw: { 'A':3, 'B':2, 'C':1, 'D':-1, '未':-1 }, dt: { '满':3, '过':2, '重':1, '未':-1 }, att: { '1':1, '-1':-1, '缺':0 } };
 const DAYS = ['周一', '周二', '周三', '周四', '周五'];
 
+// 核心状态全局变量
 let appState = { students: [], records: {}, monday: "" };
+let isOfflineLocked = false; 
 let currentViewDay = 0;
 let radarChart = null, compareChart = null;
 let g_monthData = {}, g_monthWeeks = [], currentMonthStudent = null;
@@ -250,39 +248,47 @@ function closeAll() { document.querySelectorAll('.modal, .month-dashboard, .over
 function closeSubModal(id) { document.getElementById(id).style.display = 'none'; if (document.getElementById('monthDashboard').style.display !== 'flex') document.getElementById('ovl').style.display = 'none'; }
 
 // ==========================================
-// 💡 云端同步配置区
+// 💡 云端同步配置区 (防脑裂满血版)
 // ==========================================
-const SYNC_API_URL = "https://sync.nekosensei.cn";
-
-// 1. 初始化入口（优先从云端拉取数据）
 window.onload = async () => {
     const syncStatus = document.getElementById('syncStatus');
-    syncStatus.innerText = "🔄 云端拉取中...";
+    const reconnectBtn = document.getElementById('reconnectBtn');
+    syncStatus.innerText = "🔄 云端连接中...";
     syncStatus.style.color = "#fcd34d";
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2000); // 2秒强行熔断
+
     try {
-        // 尝试从云端拉取最新数据
-        const res = await fetch(SYNC_API_URL, { method: "GET", cache: "no-store" });
+        const res = await fetch(SYNC_API_URL, { method: "GET", cache: "no-store", signal: controller.signal });
+        clearTimeout(timeoutId);
         if (!res.ok) throw new Error("网络响应异常");
-        const cloudData = await res.json();
         
+        const cloudData = await res.json();
         if (Object.keys(cloudData).length > 0 && cloudData.students) {
             appState = cloudData;
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(appState)); // 更新本地缓存底座作为备份
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
             syncStatus.innerText = "☁️ 云端已同步";
             syncStatus.style.color = "#a7f3d0";
+            isOfflineLocked = false; 
+            reconnectBtn.style.display = "none";
         } else {
-            loadLocalFallback(); // 云端为空时加载本地
+            loadLocalFallback();
         }
     } catch (e) {
-        console.error("云端连接失败，降级为本地模式", e);
-        syncStatus.innerText = "⚠️ 离线模式(网络异常)";
+        clearTimeout(timeoutId);
+        // 触发熔断：强制锁定本地模式，弹出重连按钮
+        isOfflineLocked = true;
+        reconnectBtn.style.display = "flex";
+        syncStatus.innerText = "⚠️ 离线孤岛模式";
         syncStatus.style.color = "#fca5a5";
         loadLocalFallback();
     }
     
-    // 初始化空缺值（处理首次使用的情况）
+    // 强制防御性初始化：保证核心数据骨架绝不为 undefined
+    if (!appState) appState = {};
     if (!appState.students || appState.students.length === 0) appState.students = DEFAULT_STUDENTS;
+    if (!appState.records) appState.records = {};
     if (!appState.monday) appState.monday = new Date().toISOString().split('T')[0];
     
     document.getElementById('mondayDate').value = appState.monday;
@@ -295,54 +301,85 @@ window.onload = async () => {
     if(appState.students.length > 0) switchView(0);
 };
 
-// 提取本地后备逻辑（当断网或被墙时自动触发）
 function loadLocalFallback() {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved) { 
-        try { 
-            appState = JSON.parse(saved); 
-        } catch(e) { appState.students = DEFAULT_STUDENTS; } 
-    } else { appState.students = DEFAULT_STUDENTS; }
+        try { appState = JSON.parse(saved); } 
+        catch(e) { appState = { students: DEFAULT_STUDENTS, records: {}, monday: "" }; } 
+    } else { 
+        appState = { students: DEFAULT_STUDENTS, records: {}, monday: "" }; 
+    }
 }
 
-// 2. 状态保存函数（本地秒存 + 云端防抖上传）
 let syncTimeout = null;
 async function saveState() {
-    // 步骤A：立即保存本地缓存（保证前端 UI 操作丝滑，不卡顿）
+    // 无论如何，先保存在本地内存中
     localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
-    
     const syncStatus = document.getElementById('syncStatus');
-    syncStatus.innerText = "🔄 正在同步云端...";
+    
+    // 【关键阻断】：如果处于离线锁状态，直接终止执行，绝对不向云端发送数据！
+    if (isOfflineLocked) {
+        syncStatus.innerText = "💾 数据仅存本地";
+        syncStatus.style.color = "#94a3b8";
+        return; 
+    }
+    
+    syncStatus.innerText = "🔄 同步中...";
     syncStatus.style.color = "#fcd34d";
     
-    // 步骤B：防抖上传云端（避免连续点击加分时，发送几十个并发请求导致 Cloudflare 封停）
     if (syncTimeout) clearTimeout(syncTimeout);
     syncTimeout = setTimeout(async () => {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2000);
         try {
-            const res = await fetch(SYNC_API_URL, {
-                method: "POST",
-                body: JSON.stringify(appState)
-            });
+            const res = await fetch(SYNC_API_URL, { method: "POST", body: JSON.stringify(appState), signal: controller.signal });
+            clearTimeout(timeoutId);
             if (!res.ok) throw new Error("上传失败");
             syncStatus.innerText = "☁️ 云端已同步";
             syncStatus.style.color = "#a7f3d0";
         } catch (e) {
-            console.error("上传失败", e);
-            syncStatus.innerText = "⚠️ 未同步(仅本地保存)";
+            clearTimeout(timeoutId);
+            // 上传时如果突然断网，立刻上锁，防止后续继续乱传覆盖数据
+            isOfflineLocked = true;
+            document.getElementById('reconnectBtn').style.display = "flex";
+            syncStatus.innerText = "⚠️ 离线孤岛模式";
             syncStatus.style.color = "#fca5a5";
         }
-    }, 800); // 设定：停止操作 0.8 秒后，自动打包当前最新状态发给云端
+    }, 800);
 }
 
+// 冲突解决调度函数
+async function triggerManualSync() {
+    const choice = prompt(
+        "当前系统处于离线孤岛状态，请选择恢复策略（输入 1 或 2）：\n\n" +
+        "【1】丢弃本地：从云端拉取最新数据（覆盖现在的界面）\n" +
+        "【2】强制上传：将当前界面的数据推送至云端（覆盖云端旧数据）"
+    );
+    
+    if (choice === '1') {
+        if(!confirm("⚠️ 警告：这会清空你断网期间的所有操作，确定拉取吗？")) return;
+        location.reload(); 
+    } else if (choice === '2') {
+        if(!confirm("⚠️ 警告：这会把你现在的本地数据强行覆盖到云端，确定推送吗？")) return;
+        isOfflineLocked = false;
+        document.getElementById('reconnectBtn').style.display = "none";
+        document.getElementById('syncStatus').innerText = "🚀 强制推送中...";
+        saveState(); 
+        alert("已解锁并提交推送请求，请观察左侧状态指示灯。");
+    } else if (choice !== null) {
+        alert("输入无效，请重新点击并输入 1 或 2。");
+    }
+}
 
-// 恢复初始名单
+// ==========================================
+// 💡 以下为原有 UI 渲染与功能逻辑
+// ==========================================
+
 function loadDefaultStudents() {
     if(appState.students.length > 0 && !confirm("⚠️ 警告：重置名单将清空当前所有数据并恢复至出厂 14 人。\n\n确认继续吗？")) return;
     appState.students = DEFAULT_STUDENTS; appState.records = {}; saveState(); switchView(currentViewDay);
 }
 
-
-// 视图路由
 function renderTabs() {
     let html = DAYS.map((day, idx) => `<button class="tab-btn ${currentViewDay === idx ? 'active' : ''}" onclick="switchView(${idx})">${day}</button>`).join('');
     html += `<button class="tab-btn ${currentViewDay === 5 ? 'active' : ''}" onclick="switchView(5)" style="margin-left: 10px; color:#fcd34d;">📊 汇总</button>`;
@@ -355,7 +392,6 @@ function switchView(idx) {
     else { document.getElementById('summaryView').style.display = 'none'; document.getElementById('cardGrid').style.display = 'grid'; renderCards(idx); }
 }
 
-// 渲染卡片核心逻辑
 function renderCards(dayIndex) {
     const grid = document.getElementById('cardGrid'); grid.innerHTML = '';
     let count = appState.students.length, cols = 4, rows = 4;
@@ -364,6 +400,7 @@ function renderCards(dayIndex) {
     
     appState.students.forEach(stu => {
         const name = stu.name;
+        // 防御性补全每个学生的记录结构
         if(!appState.records[name]) appState.records[name] = {};
         if(!appState.records[name][dayIndex]) appState.records[name][dayIndex] = {att:'', hw:'', dt:'', cls:0};
         const rec = appState.records[name][dayIndex];
@@ -421,7 +458,6 @@ function batchAttendance() {
     }); saveState(); renderCards(currentViewDay);
 }
 
-// 汇总视图
 function renderSummary() {
     const tbody = document.getElementById('sumTBody'); tbody.innerHTML = '';
     appState.students.forEach(stu => {
@@ -452,7 +488,6 @@ function exportDetailedWeek() {
     XLSX.writeFile(wb, `颗粒化周报_${appState.monday}.xlsx`);
 }
 
-// 月度分析核心
 function openMonthDashboard() { document.getElementById('ovl').style.display = 'block'; document.getElementById('monthDashboard').style.display = 'flex'; }
 async function processMonthlyFiles(files) {
     if(!files || files.length === 0) return;
@@ -519,7 +554,6 @@ function selectMonthStudent(name) {
     });
 }
 
-// AI 诊断功能
 async function generateWeeklyAI(name, total) {
     let key = localStorage.getItem("DEEPSEEK_KEY") || prompt("请输入 DeepSeek API Key:"); if(!key) return; localStorage.setItem("DEEPSEEK_KEY", key);
     document.getElementById('ovl').style.display = 'block'; document.getElementById('commentModal').style.display = 'flex'; document.getElementById('aiTitle').innerText = `${name} - 周评语`; document.getElementById('aiContent').innerText = "AI 正在思考中...";
@@ -540,7 +574,6 @@ async function generateMonthlyAI() {
     } catch(e) { box.innerHTML = "<span style='color:red;'>生成失败，请检查网络。</span>"; }
 }
 
-// 雷达与排行
 function showRadar(name) {
     let s = { att:0, hw:0, dt:0, cls:0 };
     for(let d=0; d<5; d++) { const rec = appState.records[name]?.[d] || {}; if(rec.att) s.att += SCORE_MAP.att[rec.att] || 0; if(rec.hw) s.hw += SCORE_MAP.hw[rec.hw] || 0; if(rec.dt) s.dt += SCORE_MAP.dt[rec.dt] || 0; s.cls += (rec.cls || 0); }
@@ -557,7 +590,6 @@ function showWeeklyComparison() {
     compareChart = new Chart(document.getElementById('compareChart').getContext('2d'), { type: 'bar', data: { labels: ds.map(d=>d.name), datasets: [{ label: '周积分', data: ds.map(d=>d.total), backgroundColor: ds.map(d => d.total >= 40 ? '#f59e0b' : d.total >= 30 ? '#8b5cf6' : d.total >= 20 ? '#3b82f6' : '#94a3b8'), borderRadius: 6 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } } });
 }
 
-// 本地离线导入/导出
 function exportLocalState() { const b=new Blob([JSON.stringify(appState)],{type:"application/json"}), a=document.createElement("a"); a.href=URL.createObjectURL(b); a.download=`离线备份_${appState.monday}.json`; a.click(); }
 function importLocalState(files) { if(!files||files.length===0)return; const r=new FileReader(); r.onload=(e)=>{try{appState=JSON.parse(e.target.result); saveState(); location.reload();}catch(err){alert("解析失败");}}; r.readAsText(files[0]); }
 function clearAllRecords() { if(confirm("警告：清除缓存会导致未导出数据永久丢失！确认？")) { localStorage.removeItem(STORAGE_KEY); location.reload(); } }
