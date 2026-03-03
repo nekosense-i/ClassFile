@@ -3,72 +3,19 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>4x5 交互式班级座位表 (25A班专属版)</title>
+<title>智能座位表</title>
 
 <script id="app-state" type="application/json">null</script>
 
 <style>
-    body { 
-        font-family: 'Microsoft YaHei', sans-serif; 
-        background-color: #f4f7f6; 
-        margin: 0; 
-        padding: 0; 
-        width: 100vw; 
-        height: 100vh; 
-        display: flex; 
-        justify-content: center; 
-        align-items: center; 
-        overflow: hidden; 
-        touch-action: none; 
-        user-select: none; 
-    }
-    
-    .classroom { 
-        width: 96vw; 
-        height: 94vh; 
-        background: white; 
-        padding: 1.5vmin; 
-        border-radius: 16px; 
-        box-shadow: 0 8px 24px rgba(0,0,0,0.08); 
-        display: flex; 
-        flex-direction: column; 
-        box-sizing: border-box;
-    }
-    
-    .front-board-container { 
-        position: relative; 
-        margin-bottom: 1.5vmin; 
-        display: flex; 
-        justify-content: center; 
-        align-items: center; 
-        width: 100%; 
-        flex-shrink: 0; 
-    }
-    
-    .front-board { 
-        text-align: center; 
-        background: #34495e; 
-        color: white; 
-        padding: 1.2vmin 0; 
-        width: 100%; 
-        font-size: clamp(16px, 2.8vmin, 30px); 
-        border-radius: 8px; 
-        font-weight: bold; 
-        letter-spacing: 1vw; 
-        box-sizing: border-box; 
-        box-shadow: 0 4px 12px rgba(52,73,94,0.2); 
-    }
+    body { font-family: 'Microsoft YaHei', sans-serif; background-color: #f4f7f6; margin: 0; padding: 0; width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center; overflow: hidden; touch-action: none; user-select: none; }
+    .classroom { width: 96vw; height: 94vh; background: white; padding: 1.5vmin; border-radius: 16px; box-shadow: 0 8px 24px rgba(0,0,0,0.08); display: flex; flex-direction: column; box-sizing: border-box; }
+    .front-board-container { position: relative; margin-bottom: 1.5vmin; display: flex; justify-content: center; align-items: center; width: 100%; flex-shrink: 0; }
+    .front-board { text-align: center; background: #34495e; color: white; padding: 1.2vmin 0; width: 100%; font-size: clamp(16px, 2.8vmin, 30px); border-radius: 8px; font-weight: bold; letter-spacing: 1vw; box-sizing: border-box; box-shadow: 0 4px 12px rgba(52,73,94,0.2); }
     
     .btn-group-left { position: absolute; left: 1.5vmin; display: flex; gap: 1vmin; z-index: 10; }
     .btn-group-right { position: absolute; right: 1.5vmin; display: flex; gap: 1vmin; z-index: 10; }
-
-    .action-btn { 
-        color: white; border: none; 
-        padding: 0.8vmin 1.2vmin; 
-        border-radius: 6px; 
-        font-size: clamp(12px, 1.4vmin, 16px); 
-        font-weight: bold; cursor: pointer; transition: all 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.2); 
-    }
+    .action-btn { color: white; border: none; padding: 0.8vmin 1.2vmin; border-radius: 6px; font-size: clamp(12px, 1.4vmin, 16px); font-weight: bold; cursor: pointer; transition: all 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
     .action-btn:active:not(:disabled) { transform: scale(0.95); }
     .action-btn:disabled { background-color: #95a5a6; cursor: not-allowed; }
     
@@ -77,46 +24,14 @@
     .btn-save { background-color: #27ae60; } .btn-save:hover { background-color: #2ecc71; }
     .btn-clear-cache { background-color: #f39c12; } .btn-clear-cache:hover { background-color: #e67e22; }
 
-    .middle-section { 
-        display: flex; 
-        justify-content: space-between; 
-        align-items: stretch; 
-        flex-grow: 1; 
-        min-height: 0; 
-    }
-    
-    .side-wall { 
-        writing-mode: vertical-lr; 
-        padding: 1vmin; 
-        display: flex; 
-        align-items: center; 
-        justify-content: center; 
-        font-size: clamp(14px, 2.2vmin, 26px); 
-        font-weight: bold; 
-        border-radius: 8px; 
-        letter-spacing: 1.5vh; 
-    }
+    .middle-section { display: flex; justify-content: space-between; align-items: stretch; flex-grow: 1; min-height: 0; }
+    .side-wall { writing-mode: vertical-lr; padding: 1vmin; display: flex; align-items: center; justify-content: center; font-size: clamp(14px, 2.2vmin, 26px); font-weight: bold; border-radius: 8px; letter-spacing: 1.5vh; }
     .side-window { background: #e1f5fe; color: #0277bd; border-left: 0.5vmin solid #29b6f6; }
     .side-door { background: #fff3e0; color: #ef6c00; border-right: 0.5vmin solid #ffa726; }
     
-    .seating-grid { 
-        display: grid; 
-        grid-template-columns: repeat(4, 1fr); 
-        /* ==== 核心修改：扩容为 5 行 ==== */
-        grid-template-rows: repeat(5, 1fr); 
-        gap: 1.2vmin; 
-        flex-grow: 1; 
-        margin: 0 1.5vmin; 
-        height: 100%; 
-    }
+    .seating-grid { display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(5, 1fr); gap: 1.2vmin; flex-grow: 1; margin: 0 1.5vmin; height: 100%; }
     
-    .seat { 
-        border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; 
-        height: 100%; 
-        padding-bottom: 1vmin; box-sizing: border-box; 
-        font-size: clamp(12px, 2vmin, 22px); 
-        font-weight: bold; cursor: grab; transition: all 0.2s ease; box-shadow: 0 4px 6px rgba(0,0,0,0.05); position: relative; 
-    }
+    .seat { border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; padding-bottom: 1vmin; box-sizing: border-box; font-size: clamp(12px, 2vmin, 22px); font-weight: bold; cursor: grab; transition: all 0.2s ease; box-shadow: 0 4px 6px rgba(0,0,0,0.05); position: relative; }
     .seat:active { cursor: grabbing; }
     .seat.student { background: #e8f5e9; border: 2px solid #81c784; color: #2e7d32; }
     .seat.empty { background: #f5f5f5; border: 2px dashed #bdbdbd; color: #9e9e9e; cursor: pointer; justify-content: center; padding-bottom: 0;}
@@ -129,12 +44,7 @@
     .seat.lucky-student { animation: pulse-glow 0.8s infinite; border: 3px solid #f1c40f !important; background-color: #fff9c4 !important; color: #d35400 !important; transform: scale(1.08); z-index: 20; filter: none !important; opacity: 1 !important;}
     @keyframes pulse-glow { 0% { box-shadow: 0 0 10px rgba(241, 196, 15, 0.5); } 50% { box-shadow: 0 0 35px rgba(241, 196, 15, 1); } 100% { box-shadow: 0 0 10px rgba(241, 196, 15, 0.5); } }
 
-    .avatar-wrapper { 
-        width: clamp(35px, 6vmin, 75px); 
-        height: clamp(35px, 6vmin, 75px); 
-        border-radius: 50%; background-color: #fff; border: 2px solid #a5d6a7; position: absolute; 
-        top: 0.8vmin; display: flex; align-items: center; justify-content: center; overflow: hidden; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1); z-index: 5; 
-    }
+    .avatar-wrapper { width: clamp(35px, 6vmin, 75px); height: clamp(35px, 6vmin, 75px); border-radius: 50%; background-color: #fff; border: 2px solid #a5d6a7; position: absolute; top: 0.8vmin; display: flex; align-items: center; justify-content: center; overflow: hidden; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1); z-index: 5; }
     .avatar-wrapper img { width: 100%; height: 100%; object-fit: cover; }
     .avatar-placeholder { font-size: clamp(9px, 1.2vmin, 14px); color: #81c784; text-align: center; line-height: 1.2; }
 
@@ -193,7 +103,69 @@
 </div>
 
 <script>
-    // ==== 核心修改：精确映射 25A班 4x5 绝对位置阵列 (null 代表空位) ====
+    // ================= 独立模块：无依赖合成音效引擎 (JS) 开始 =================
+    // 原理：利用 Web Audio API 由浏览器通过代码直接合成声波，彻底摆脱音频文件依赖
+    const synAudioEngine = {
+        ctx: null,
+        init: function() {
+            // 必须在用户点击事件中初始化，以绕过浏览器自动播放限制
+            if (!this.ctx) {
+                this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (this.ctx.state === 'suspended') {
+                this.ctx.resume();
+            }
+        },
+        // 模拟老虎机跳动的短促“滴答”声
+        playTick: function() {
+            if (!this.ctx) return;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            
+            osc.type = 'triangle'; // 三角波，声音偏向电子机械感
+            osc.frequency.setValueAtTime(800 + Math.random() * 200, this.ctx.currentTime); // 增加随机频率提升律动感
+            
+            // 音量包络：极快响起，极快衰减
+            gain.gain.setValueAtTime(0, this.ctx.currentTime);
+            gain.gain.linearRampToValueAtTime(0.3, this.ctx.currentTime + 0.01);
+            gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.05);
+            
+            osc.start(this.ctx.currentTime);
+            osc.stop(this.ctx.currentTime + 0.05);
+        },
+        // 模拟中奖的“噔噔噔噔”电子撒花和弦 (C大调琶音)
+        playTada: function() {
+            if (!this.ctx) return;
+            const playNote = (freq, startTime, duration, vol) => {
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                
+                osc.type = 'sine'; // 正弦波，声音清脆悦耳
+                osc.frequency.value = freq;
+                
+                gain.gain.setValueAtTime(0, startTime);
+                gain.gain.linearRampToValueAtTime(vol, startTime + 0.05);
+                gain.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
+                
+                osc.start(startTime);
+                osc.stop(startTime + duration);
+            };
+
+            const now = this.ctx.currentTime;
+            playNote(523.25, now, 0.2, 0.4);       // C5
+            playNote(659.25, now + 0.1, 0.2, 0.4); // E5
+            playNote(783.99, now + 0.2, 0.2, 0.4); // G5
+            playNote(1046.50, now + 0.3, 0.8, 0.6); // C6 (高音延长爆发)
+        }
+    };
+    // ================= 独立模块：无依赖合成音效引擎 (JS) 结束 =================
+
+
+    // 25A班 4x5 绝对位置阵列
     const defaultLayout = [
         '罗小雅', '陈亦涵', '罗子津', '曾丹',
         '张尔卓', '朱析睿', '陈博睿', '冯嘉仪',
@@ -202,13 +174,8 @@
         '符恺宸', null,     '赵天宇', null
     ];
     
-    // 清空特殊名单权重，大家抽到的概率均等
     const specialStudents = [];
-
-    // ==== 核心修改：扩容至 20 个动态头像 ====
     const avatarFiles = Array.from({length: 20}, (_, i) => `头像${i + 1}.gif`);
-    
-    // ==== 核心修改：云端与本地路径均切换至 25A ====
     const CLOUD_OSS_BASE_URL = "https://jp-game-assets-2026.oss-cn-chengdu.aliyuncs.com/头像库/25A/";
 
     let studentAvatars = {};
@@ -223,7 +190,6 @@
         let fileState = null;
         try { fileState = JSON.parse(document.getElementById('app-state').textContent); } catch(e) {}
         
-        // ==== 核心修改：将缓存Key更改为 25A 专属隔离区 ====
         let cacheState = null;
         try { cacheState = JSON.parse(localStorage.getItem('classSeatingCache_25A')); } catch(e) {}
 
@@ -246,7 +212,6 @@
             studentAvatars = {}; 
             seatLayoutData = []; 
             let index = 0;
-            // 按照 5行 x 4列 遍历精准灌入名单
             for (let row = 1; row <= 5; row++) {
                 for (let col = 1; col <= 4; col++) {
                     const studentName = defaultLayout[index];
@@ -369,6 +334,10 @@
         const studentNodes = Array.from(document.querySelectorAll('.seat.student:not(.absent)'));
         if (studentNodes.length === 0) { showToast("⚠️ 当前没有可供抽选的学生！", false); return; }
 
+        // ================= 触发：初始化音频环境 =================
+        synAudioEngine.init();
+        // ========================================================
+
         const btn = document.getElementById('randomBtn');
         btn.disabled = true; btn.innerText = '🔄 抽取中...';
         document.querySelectorAll('.seat.student').forEach(node => node.classList.remove('lucky-student'));
@@ -379,6 +348,10 @@
         const drawInterval = setInterval(() => {
             if (lastNode) lastNode.classList.remove('lucky-student');
             
+            // ================= 触发：老虎机滴答声 =================
+            synAudioEngine.playTick();
+            // ========================================================
+
             const currentNode = getWeightedRandomStudent(studentNodes);
             currentNode.classList.add('lucky-student');
             lastNode = currentNode;
@@ -390,6 +363,10 @@
                 if (lastNode) lastNode.classList.remove('lucky-student');
                 finalNode.classList.add('lucky-student');
                 
+                // ================= 触发：抽中撒花声 =================
+                synAudioEngine.playTada();
+                // ========================================================
+
                 btn.disabled = false; btn.innerText = '🎲 随机抽查';
                 showToast(`🎉 有请 ${finalNode.dataset.name} 同学！`, true);
                 
@@ -482,7 +459,6 @@
         const isAEmpty = seatA.dataset.type === 'empty'; const isBEmpty = seatB.dataset.type === 'empty';
         const rowA = parseInt(seatA.dataset.row); const rowB = parseInt(seatB.dataset.row);
 
-        // ==== 核心修改：保护第 5 排的空位不被挪到前排 ====
         if ((isAEmpty && rowB !== 5) || (isBEmpty && rowA !== 5)) {
             showToast("⚠️ 操作失败：空位只能留在最后一排！"); return;
         }
