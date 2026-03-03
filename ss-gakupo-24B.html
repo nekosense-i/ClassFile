@@ -122,10 +122,10 @@
     
     <div id="summaryView" class="summary-view">
         <div class="summary-header">
-            <h2 style="color: #1e293b; font-size: 20px;">📊 本周数据汇总看板</h2>
+            <h2 style="color: #1e293b; font-size: 20px;">📊 本周数据汇总</h2>
             <div style="display: flex; gap: 10px;">
                 <button class="tool-btn" onclick="showWeeklyComparison()" style="background:#8b5cf6; padding: 8px 16px;">📈 全班图表排名</button>
-                <button class="tool-btn" onclick="exportDetailedWeek()" style="background:#10b981; padding: 8px 16px;">📤 导出周报(含颗粒细分)</button>
+                <button class="tool-btn" onclick="exportDetailedWeek()" style="background:#10b981; padding: 8px 16px;">📤 导出周报</button>
             </div>
         </div>
         <table class="sum-table">
@@ -484,8 +484,8 @@ function exportDetailedWeek() {
         }
         r.push(wt); rows.push(r);
     });
-    const ws = XLSX.utils.aoa_to_sheet(rows); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "颗粒化数据");
-    XLSX.writeFile(wb, `颗粒化周报_${appState.monday}.xlsx`);
+    const ws = XLSX.utils.aoa_to_sheet(rows); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "本周数据");
+    XLSX.writeFile(wb, `本周数据_${appState.monday}.xlsx`);
 }
 
 function openMonthDashboard() { document.getElementById('ovl').style.display = 'block'; document.getElementById('monthDashboard').style.display = 'flex'; }
