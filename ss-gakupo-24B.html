@@ -30,29 +30,36 @@
         #seatView { display: none; flex-direction: column; height: calc(100% - 48px); width: 100%; background: #f4f7f6; justify-content: center; align-items: center;}
 
         /* ================= 积分卡 (Gakupo) 专属样式 ================= */
-        .header { height: 50px; flex-shrink: 0; background: #1e293b; color: white; padding: 0 10px; display: flex; justify-content: space-between; align-items: center; z-index: 10; border-top: 1px solid #334155;}
-        .tabs { display: flex; background: #334155; padding: 3px; border-radius: 6px; }
-        .tab-btn { background: transparent; color: #cbd5e1; border: none; padding: 2px 10px; border-radius: 4px; cursor: pointer; transition: 0.2s; margin-right: 2px; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.2; }
-        .tab-btn.active { background: var(--primary); color: white; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
-        .date-label { font-size: 9px; font-weight: normal; opacity: 0.8; margin-top: 1px; }
+        /* 🔥 优化：加高顶部栏空间，配合增大的Tab按钮 */
+        .header { height: 60px; flex-shrink: 0; background: #1e293b; color: white; padding: 0 15px; display: flex; justify-content: space-between; align-items: center; z-index: 10; border-top: 1px solid #334155;}
+        
+        /* 🔥 优化：增宽拉长周一至周五的按钮区域，提升可视度与触控体验 */
+        .tabs { display: flex; background: #334155; padding: 4px; border-radius: 8px; gap: 5px; }
+        .tab-btn { background: transparent; color: #cbd5e1; border: none; padding: 6px 15px; border-radius: 6px; cursor: pointer; transition: 0.2s; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.2; min-width: 65px; }
+        .tab-btn.active { background: var(--primary); color: white; box-shadow: 0 2px 6px rgba(0,0,0,0.3); transform: scale(1.05); }
+        .date-label { font-size: 10px; font-weight: normal; opacity: 0.8; margin-top: 3px; }
+        
         .toolbar-actions { display: flex; align-items: center; gap: 5px; overflow-x: auto; white-space: nowrap; padding-bottom: 2px;}
-        button.tool-btn { background: #475569; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 11px; transition: 0.1s; display: flex; align-items: center;}
+        button.tool-btn { background: #475569; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px; transition: 0.1s; display: flex; align-items: center;}
         button.tool-btn:active { transform: scale(0.95); }
         .main-content { flex: 1; min-height: 0; padding: 6px; width: 100%; display: flex; flex-direction: column; overflow: hidden; }
+        
         .grid-container { display: grid; width: 100%; height: 100%; grid-template-columns: repeat(5, 1fr); grid-template-rows: repeat(3, 1fr); grid-gap: 6px; }
+        
         .student-card { background: var(--card-bg); border-radius: 6px; border: 1px solid #cbd5e1; padding: 5px; display: flex; flex-direction: column; justify-content: space-between; min-height: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
         .card-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed #e2e8f0; padding-bottom: 2px; }
         .student-name { font-size: 14px; font-weight: 900; color: #0f172a; cursor: pointer; display: flex; align-items: center; }
         .class-tag { padding: 1px 5px; border-radius: 3px; font-size: 10px; border: 1px solid #e2e8f0; margin-right: 8px; font-weight: bold; color: #64748b; }
+        
         .tag-9 { background: #f0fdf4 !important; color: #166534 !important; border-color: #dcfce7 !important; }
         .tag-10 { background: #eff6ff !important; color: #1e40af !important; border-color: #dbeafe !important; }
+        
         .week-total { background: #eff6ff; color: #2563eb; padding: 1px 6px; border-radius: 8px; font-weight: 800; font-size: 12px; }
         .row-group { display: flex; align-items: center; flex: 1; min-height: 0; margin-top: 2px; }
         .row-label { width: 28px; font-size: 10px; font-weight: bold; color: var(--text-muted); text-align: right; margin-right: 4px; flex-shrink: 0; }
         .btn-group { display: flex; flex: 1; height: 100%; max-height: 28px; }
         .opt { flex: 1; height: 100%; border: 1px solid #e2e8f0; background: #f8fafc; border-radius: 4px; font-size: 11px; font-weight: bold; color: #475569; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.1s; }
         
-        /* 课堂表现条经典样式 */
         .class-action-bar { display: flex; flex: 1; height: 100%; max-height: 28px; align-items: center; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px; padding: 1px; gap: 1px; }
         .opt-btn { flex: 1; height: 100%; border: none; border-radius: 3px; font-size: 11px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; background: white; border: 1px solid #e2e8f0; color: #475569; padding: 0; transition: 0.1s; }
         .opt-btn:active { transform: scale(0.9); }
@@ -62,7 +69,6 @@
         .divider { width: 1px; background: #cbd5e1; height: 70%; margin: 0 1px; }
         .cls-score-val { width: 18px; text-align: center; font-weight: 900; color: #2563eb; font-size: 13px; flex-shrink: 0; }
 
-        /* 状态高亮色 */
         .act-hw-A { background: var(--hw-A) !important; color: white !important; } .act-hw-B { background: var(--hw-B) !important; color: #0f172a !important; } .act-hw-C { background: var(--hw-C) !important; color: #856404 !important; } .act-hw-D { background: var(--hw-D) !important; color: white !important; } .act-hw-未 { background: var(--hw-none) !important; color: white !important; }
         .act-dt-满 { background: #16a34a !important; color: white !important; } .act-dt-过 { background: #86efac !important; color: #0f172a !important; } .act-dt-重 { background: #facc15 !important; color: #856404 !important; } .act-dt-未 { background: #ef4444 !important; color: white !important; }
         .act-att-1 { background: #10b981 !important; color: white !important; } .act-att--1 { background: #ef4444 !important; color: white !important; } .act-att-缺 { background: #000000 !important; color: white !important; }
@@ -71,7 +77,8 @@
         .sum-table { width: 100%; border-collapse: collapse; text-align: center; font-size: 13px; }
         .sum-table th, .sum-table td { border: 1px solid #e2e8f0; padding: 6px 4px; }
         .sum-table th { background: #f8fafc; position: sticky; top: 0; z-index: 5; }
-        .action-link { color: #2563eb; cursor: pointer; font-weight: bold; text-decoration: underline; display: inline-block; margin-top: 4px; }
+        .action-link { cursor: pointer; font-weight: bold; text-decoration: underline; display: inline-block; margin-top: 4px; transition: 0.2s;}
+        .action-link:hover { opacity: 0.8; }
 
         /* ================= 座位表 (Seat) 专属样式 ================= */
         .classroom { width: 96vw; height: 94%; background: white; padding: 1.5vmin; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); display: flex; flex-direction: column; position: relative; }
@@ -88,34 +95,22 @@
         
         .seating-grid { display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(4, 1fr); gap: 1vmin; flex-grow: 1; margin: 0 1.5vmin; height: 100%; }
         
-        /* 🔥 优化1：全量放大座位卡内的核心元素 */
         .seat { border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding: 1.5vmin 1vmin 0.5vmin 1vmin; box-sizing: border-box; cursor: grab; transition: all 0.2s ease; box-shadow: 0 2px 5px rgba(0,0,0,0.05); position: relative; overflow: hidden;}
         .seat.student { background: #e8f5e9; border: 2px solid #81c784; color: #2e7d32; }
         .seat.empty { background: #f5f5f5; border: 2px dashed #bdbdbd; color: #9e9e9e; cursor: pointer; justify-content: center; padding: 0;}
         
-        /* 放大的姓名 */
         .seat > span:not(.absent-toggle) { font-size: 25px; font-weight: 800; margin-top: 3px; margin-bottom: 2px; letter-spacing: 2px;}
         
-        /* 放大的头像 */
         .avatar-wrapper { width: 7.5vmin; height: 7.5vmin; min-width: 60px; min-height: 60px; border-radius: 50%; background-color: #fff; border: 2px solid #a5d6a7; display: flex; align-items: center; justify-content: center; overflow: hidden; cursor: pointer; z-index: 5; margin-bottom: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);}
         .avatar-wrapper img { width: 100%; height: 100%; object-fit: cover; }
         .avatar-placeholder { font-size: 11px; color: #81c784; text-align: center; font-weight: bold;}
 
-        /* 缺勤按钮 */
         .absent-toggle { position: absolute; top: 0.5vmin; right: 0.5vmin; background: #a5d6a7; color: #1b5e20; border: none; border-radius: 4px; font-size: 11px; font-weight: bold; padding: 0.4vmin 0.8vmin; cursor: pointer; z-index: 6; }
         .seat.absent { opacity: 0.6; filter: grayscale(90%); background: #e0e0e0; border-color: #9e9e9e; }
         .seat.absent .absent-toggle { background: #e74c3c; color: white; }
 
-        /* 🔥 优化2：极致吸睛的抽签特效 */
         .seat.lucky-student { animation: pulse-glow 0.5s infinite; border: 3px solid #f1c40f !important; background-color: #fff9c4 !important; color: #d35400 !important; transform: scale(1.08); z-index: 20; filter: none !important; opacity: 1 !important;}
-        .seat.winner-highlight {
-            transform: scale(1.15) translateY(-5px) !important;
-            box-shadow: 0 15px 35px rgba(241, 196, 15, 0.8) !important;
-            border: 4px solid #f39c12 !important;
-            animation: none !important; 
-            background: linear-gradient(135deg, #fff9c4, #ffeb3b) !important;
-            z-index: 100;
-        }
+        .seat.winner-highlight { transform: scale(1.15) translateY(-5px) !important; box-shadow: 0 15px 35px rgba(241, 196, 15, 0.8) !important; border: 4px solid #f39c12 !important; animation: none !important; background: linear-gradient(135deg, #fff9c4, #ffeb3b) !important; z-index: 100; }
         @keyframes pulse-glow { 0% { box-shadow: 0 0 10px rgba(241, 196, 15, 0.5); } 50% { box-shadow: 0 0 40px rgba(241, 196, 15, 1); transform: scale(1.12); } 100% { box-shadow: 0 0 10px rgba(241, 196, 15, 0.5); } }
 
         /* ================= 弹窗与多周看板 ================= */
@@ -174,7 +169,10 @@
         <div id="summaryView" class="summary-view">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
                 <h2 style="font-size:18px;">📊 本周学情明细与汇总 (<span id="summaryWeekText"></span>)</h2>
-                <button class="tool-btn" onclick="showWeeklyComparison()" style="background:#8b5cf6;">📈 查看本周排名</button>
+                <div style="display:flex; gap: 8px;">
+                    <button class="tool-btn" onclick="generateAllWeeklyAI()" style="background:#10b981; font-size:13px; padding: 6px 12px;">✨ 批量生成全班周评</button>
+                    <button class="tool-btn" onclick="showWeeklyComparison()" style="background:#8b5cf6; font-size:13px; padding: 6px 12px;">📈 查看本周排名</button>
+                </div>
             </div>
             <div style="overflow-x: auto;">
                 <table class="sum-table" style="min-width: 800px;">
@@ -215,11 +213,12 @@
 </div>
 
 <div id="commentModal" class="modal">
-    <h3 style="margin-bottom:10px; border-bottom:1px solid #eee; padding-bottom:8px;">AI 智能学情诊断</h3>
-    <div id="aiContent" style="background:#f8fafc; padding:15px; border:1px solid #cbd5e1; border-radius:8px; line-height:1.6; font-size:14px; color:#334155; min-height:80px;"></div>
-    <div style="text-align:right; margin-top:15px;">
-        <button class="tool-btn" onclick="copyText('aiContent')" style="background:#3b82f6; display:inline-block;">复制评语</button>
-        <button class="tool-btn" onclick="closeAllModals()" style="background:#94a3b8; display:inline-block;">关闭</button>
+    <h3 id="commentModalTitle" style="margin-bottom:10px; border-bottom:1px solid #eee; padding-bottom:8px;">AI 智能学情诊断</h3>
+    <div id="aiContent" style="background:#f8fafc; padding:15px; border:1px solid #cbd5e1; border-radius:8px; line-height:1.6; font-size:14px; color:#334155; min-height:80px; max-height:45vh; overflow-y:auto;"></div>
+    <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:15px;">
+        <button class="tool-btn" id="btnRegenAI" style="background:#f59e0b; display:none;">🔄 重新生成</button>
+        <button class="tool-btn" id="btnCopyAI" onclick="copyText('aiContent')" style="background:#3b82f6;">📋 复制评语</button>
+        <button class="tool-btn" onclick="closeAllModals()" style="background:#94a3b8;">关闭</button>
     </div>
 </div>
 
@@ -274,7 +273,7 @@ var DEFAULT_STUDENTS = [
 ];
 var SEAT_NAMES = ['杨桓', '刘睿举', '都沐篱', '徐嘉璐', '赵楷', '黄浩宇', '张良泽', '龙思羽', '王子珂', '李烨文', '刘澄橙', '钟菲儿', '李妮蔓', '肖襄阳'];
 
-// API & Keys
+// API & Keys (24B 专属隔离)
 var GAKUPO_KEY = "JP_CARD_GAKUPO24B_V2"; 
 var GAKUPO_API = "https://sync.nekosensei.cn/gakupo24B"; 
 var SEAT_KEY = "JP_SEAT_24B_V1"; 
@@ -409,16 +408,17 @@ function renderDayTabs() {
     const parts = scoreState.currentMonday.split('-');
     const monday = new Date(parts[0], parts[1] - 1, parts[2]);
 
+    // 🔥 优化：放大了日期字号并精简了显示
     let html = DAYS.map((day, i) => {
         const d = new Date(monday); d.setDate(monday.getDate() + i);
         return `<button class="tab-btn ${currentViewDay === i ? 'active' : ''}" onclick="switchDay(${i})">
-                    <div style="font-weight:bold;">${day}</div>
+                    <div style="font-weight:bold; font-size: 15px;">${day}</div>
                     <div class="date-label">${(d.getMonth() + 1)}/${(d.getDate() < 10 ? '0'+d.getDate() : d.getDate())}</div>
                 </button>`;
     }).join('');
 
     html += `<button class="tab-btn ${currentViewDay === 5 ? 'active' : ''}" onclick="switchDay(5)" style="color:#fcd34d;">
-                <div style="font-weight:bold;">📊 汇总</div>
+                <div style="font-weight:bold; font-size: 15px;">📊 汇总</div>
             </button>`;
     dayTabs.innerHTML = html;
     
@@ -491,8 +491,14 @@ function renderGakupoSummary() {
                 </div>
             </td>`;
         }
+        
+        var stuWeek = weekData[stu.name] || {};
+        var cachedComment = stuWeek.ai_comment;
+        var btnText = cachedComment ? "✅ 查周评" : "✨ 周评";
+        var btnColor = cachedComment ? "#10b981" : "#2563eb";
+
         row += `<td style="color:#2563eb; font-weight:900; font-size:18px; vertical-align:middle;">${wt}</td>
-                <td style="vertical-align:middle;"><span class="action-link" onclick="generateWeeklyAI('${stu.name}', ${wt})">✨周评</span></td></tr>`;
+                <td style="vertical-align:middle;"><span class="action-link" style="color:${btnColor};" onclick="generateWeeklyAI('${stu.name}', ${wt})">${btnText}</span></td></tr>`;
         tbody.innerHTML += row;
     });
 }
@@ -674,7 +680,6 @@ function openAvatarModal(name) {
     document.getElementById('ovl').style.display='block'; document.getElementById('avatarModal').style.display='flex';
 }
 
-/* 🔥 修复3：绝对公正且符合设定的加权点名算法 */
 function getWeightedWinner(nodes) {
     var SPECIAL_STUDENTS = ['钟菲儿', '刘澄橙', '李妮蔓'];
     var totalWeight = 0, weights = [];
@@ -697,7 +702,6 @@ function startRandomDraw() {
     synAudioEngine.init();
     var btn = document.getElementById('randomBtn'); btn.disabled = true; btn.innerText = '🔄 抽取中...';
     
-    // 算法核心：开抽瞬间即已内定最终中签者！确保概率严丝合缝
     var finalWinner = getWeightedWinner(studentNodes);
     
     var jumps = 0, totalJumps = 20, lastNode = null;
@@ -706,7 +710,7 @@ function startRandomDraw() {
         
         var currentNode;
         if (jumps >= totalJumps - 1) {
-            currentNode = finalWinner; // 最后一帧锁定最终赢家
+            currentNode = finalWinner;
         } else {
             var randIdx = Math.floor(Math.random() * studentNodes.length);
             currentNode = studentNodes[randIdx];
@@ -721,7 +725,6 @@ function startRandomDraw() {
             synAudioEngine.playTada();
             showToast("🎉 恭喜 " + currentNode.dataset.name + " 同学！");
             
-            // 触发究极高亮效果
             currentNode.classList.add('winner-highlight');
             btn.disabled = false; btn.innerText = '🎲 随机点名';
             
@@ -792,25 +795,195 @@ function importLocalState(files) {
     r.readAsText(files[0]); 
 }
 
-async function generateWeeklyAI(name, total) {
-    var key = localStorage.getItem("DEEPSEEK_KEY") || prompt("首次使用，请输入大模型 API Key:"); if(!key) return; localStorage.setItem("DEEPSEEK_KEY", key);
-    document.getElementById('ovl').style.display='block'; document.getElementById('commentModal').style.display='flex';
+// 🔥 核心升级：单点查看/强制刷新，并动态控制复制按钮
+async function generateWeeklyAI(name, total, force = false) {
+    var weekData = scoreState.history[scoreState.currentMonday];
+    if (!weekData[name]) weekData[name] = {};
+    
+    document.getElementById('ovl').style.display='block'; 
+    document.getElementById('commentModal').style.display='flex';
+    document.getElementById('commentModalTitle').innerText = `AI 智能学情诊断 - ${name}`;
+    
+    var regenBtn = document.getElementById('btnRegenAI');
+    var copyBtn = document.getElementById('btnCopyAI');
+    
+    // 如果已有缓存且非强制刷新，则直接秒开
+    if (!force && weekData[name].ai_comment) {
+        document.getElementById('aiContent').innerHTML = weekData[name].ai_comment;
+        regenBtn.style.display = 'inline-block';
+        copyBtn.style.display = 'inline-block';
+        regenBtn.onclick = () => generateWeeklyAI(name, total, true);
+        return;
+    }
+
+    var key = localStorage.getItem("DEEPSEEK_KEY") || prompt("首次使用，请输入大模型 API Key:"); 
+    if(!key) { closeAllModals(); return; }
+    localStorage.setItem("DEEPSEEK_KEY", key);
+    
+    regenBtn.style.display = 'none'; // 生成中隐藏重置按钮
+    copyBtn.style.display = 'none';  // 生成中隐藏复制按钮
     document.getElementById('aiContent').innerText = "🤖 正在抓取本周详细学情并进行诊断分析...";
     
-    var perf = { att:0, hw:[], dt:[], cls:0, vio:0 };
-    var weekData = scoreState.history[scoreState.currentMonday];
+    // 🔥 引入动态考勤分母逻辑
+    var perf = { att:0, attTotal:0, hw:[], dt:[], cls:0, vio:0 };
     for(var d=0; d<5; d++){
         var r = (weekData[name] && weekData[name][d]) ? weekData[name][d] : {};
-        if(r.att === '1') perf.att += 1; if(r.hw) perf.hw.push(r.hw); if(r.dt) perf.dt.push(r.dt); 
+        // 核心逻辑：只要这一天老师打了卡（无论是出勤1、迟到-1还是缺勤'缺'），就计入总课时（分母）
+        if(r.att !== undefined && r.att !== '') {
+            perf.attTotal += 1;
+            if(r.att === '1') perf.att += 1; // 分子：只有正常出勤才 +1
+        }
+        if(r.hw) perf.hw.push(r.hw); if(r.dt) perf.dt.push(r.dt); 
         perf.cls += (r.cls || 0); perf.vio += (r.vio || 0);
     }
+    
     try {
+        var hwStatus = perf.hw.length > 0 ? perf.hw.join(', ') : '无记录';
+        var dtStatus = perf.dt.length > 0 ? perf.dt.join(', ') : '无记录';
+        var attStatus = perf.attTotal > 0 ? `${perf.att}/${perf.attTotal} 次` : '无记录';
+        
+        // 🔥 优化后的数据字典 Prompt
+        var promptMessage = `
+# 角色：专业日语老师
+# 任务：为学生 ${name} 撰写周评语（约60字），发给家长。
+
+# 符号说明表（务必准确理解）：
+- 出勤：数字代表次数。记录中若有“-1”代表迟到/早退，“缺”代表缺勤。
+- 作业：“未”代表未交或未完成（注意：这不是无记录，是负面表现）。
+- 听写：“重”代表重考后才过关（勉强及格），“未”代表未过关（负面表现）。
+
+# 学生本周真实数据：
+- 总积分：${total}
+- 出勤：${attStatus}
+- 作业等级：[${hwStatus}]
+- 听写成绩：[${dtStatus}]
+- 课堂加分：${perf.cls}
+- 违纪次数：${perf.vio}
+
+# 核心约束（严格执行）：
+1. **无记录 = 未安排**：若某项（如作业或听写）整体显示“无记录”，表示本周根本没有布置该任务，评语中请【完全跳过】该项，严禁误说成学生没做。
+2. **精准点出问题**：如果数据中有迟到(-1)、作业“未”、听写“未”或“重”、违纪等，必须客观指出这些短板。
+3. **先抑后扬**：指出问题后，结合加分项或总分给予正面鼓励。
+4. **语言风格**：温和、精炼、专业。`.trim();
+
         var res = await fetch("https://api.deepseek.com/v1/chat/completions", {
             method: 'POST', headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key},
-            body: JSON.stringify({ model: "deepseek-chat", messages: [{role:"user", content: `作为日语老师，请为学生 ${name} 写一段周评语(80字左右)。本周总积分：${total}分。明细：出勤${perf.att}/5次但注意如果当天出勤没有任何记录，一般不是该生缺勤而是这天没有日语课，作业等级为[${perf.hw.join(', ')||'无记录'}]，听写成绩为[${perf.dt.join(', ')||'无记录'}]，课堂加分 ${perf.cls} 分，违纪 ${perf.vio} 次。要求：指出短板并鼓励。`}], temperature: 0.6 })
+            body: JSON.stringify({ 
+                model: "deepseek-chat", 
+                messages: [
+                    { role: "system", content: "你是一个严谨的教学助手，擅长撰写客观且有温度的学生评语。" },
+                    { role: "user", content: promptMessage }
+                ], 
+                temperature: 0.5 
+            })
         });
-        var json = await res.json(); document.getElementById('aiContent').innerText = json.choices[0].message.content;
-    } catch(e) { document.getElementById('aiContent').innerText = "请求失败，请检查网络或密钥额度。"; }
+        var json = await res.json(); 
+        var comment = json.choices[0].message.content;
+        
+        // 存入底层状态并同步
+        weekData[name].ai_comment = comment.replace(/\n/g, '<br>'); 
+        triggerSaveScore(); 
+        renderGakupoSummary(); 
+        
+        document.getElementById('aiContent').innerHTML = weekData[name].ai_comment;
+        regenBtn.style.display = 'inline-block';
+        copyBtn.style.display = 'inline-block'; // 生成完毕恢复显示复制按钮
+        regenBtn.onclick = () => generateWeeklyAI(name, total, true);
+    } catch(e) { 
+        document.getElementById('aiContent').innerText = "请求失败，请检查网络或密钥额度。"; 
+    }
+}
+
+// 🔥 核心升级：支持无限次重复覆盖的批量生成引擎
+async function generateAllWeeklyAI() {
+    if(!confirm("确定要为全班重新生成智能周评吗？\n\n⚠️ 注意：这会覆盖所有已有的周评缓存，并且可能需要消耗 1~2 分钟时间。")) return;
+
+    var key = localStorage.getItem("DEEPSEEK_KEY") || prompt("首次使用，请输入大模型 API Key:"); 
+    if(!key) return; 
+    localStorage.setItem("DEEPSEEK_KEY", key);
+
+    var weekData = scoreState.history[scoreState.currentMonday];
+    // 强制把所有学生加入重新生成队列
+    var studentsToProcess = scoreState.students.map(stu => ({ name: stu.name, total: calcTotal(stu.name, scoreState.currentMonday) }));
+
+    document.getElementById('ovl').style.display='block'; 
+    document.getElementById('commentModal').style.display='flex';
+    document.getElementById('commentModalTitle').innerText = "批量生成全班周评";
+    
+    // 🔥 在批量生成期间，屏蔽“复制”和“单体重置”按钮
+    document.getElementById('btnRegenAI').style.display = 'none';
+    document.getElementById('btnCopyAI').style.display = 'none';
+    
+    for (let i = 0; i < studentsToProcess.length; i++) {
+        let stu = studentsToProcess[i];
+        if (!weekData[stu.name]) weekData[stu.name] = {};
+        
+        document.getElementById('aiContent').innerHTML = `<div style="text-align:center; padding: 20px;">🤖 <b>正在批量生成全班周评...</b><br><br>当前进度: <b style="color:#2563eb; font-size:18px;">${stu.name}</b> (${i+1}/${studentsToProcess.length})<br><br><span style="color:#f59e0b; font-size:12px;">⚠️ 请勿关闭当前页面，整个过程可能需要几十秒。</span></div>`;
+        
+        // 🔥 引入动态考勤分母逻辑
+        var perf = { att:0, attTotal:0, hw:[], dt:[], cls:0, vio:0 };
+        for(var d=0; d<5; d++){
+            var r = (weekData[stu.name] && weekData[stu.name][d]) ? weekData[stu.name][d] : {};
+            // 核心逻辑：只要这一天老师打了卡（无论是出勤1、迟到-1还是缺勤'缺'），就计入总课时（分母）
+            if(r.att !== undefined && r.att !== '') {
+                perf.attTotal += 1;
+                if(r.att === '1') perf.att += 1; // 分子：只有正常出勤才 +1
+            }
+            if(r.hw) perf.hw.push(r.hw); if(r.dt) perf.dt.push(r.dt); 
+            perf.cls += (r.cls || 0); perf.vio += (r.vio || 0);
+        }
+        
+        try {
+            var hwStatus = perf.hw.length > 0 ? perf.hw.join(', ') : '无记录';
+            var dtStatus = perf.dt.length > 0 ? perf.dt.join(', ') : '无记录';
+            var attStatus = perf.attTotal > 0 ? `${perf.att}/${perf.attTotal} 次` : '无记录';
+            
+            // 🔥 优化后的数据字典 Prompt (同样应用于批量生成)
+            var promptMessage = `
+# 角色：专业日语老师
+# 任务：为学生 ${stu.name} 撰写周评语（约60字），发给家长。
+
+# 符号说明表（务必准确理解）：
+- 出勤：数字代表次数。记录中若有“-1”代表迟到/早退，“缺”代表缺勤。
+- 作业：“未”代表未交或未完成（注意：这不是无记录，是负面表现）。
+- 听写：“重”代表重考后才过关（勉强及格），“未”代表未过关（负面表现）。
+
+# 学生本周真实数据：
+- 总积分：${stu.total}
+- 出勤：${attStatus}
+- 作业等级：[${hwStatus}]
+- 听写成绩：[${dtStatus}]
+- 课堂加分：${perf.cls}
+- 违纪次数：${perf.vio}
+
+# 核心约束（严格执行）：
+1. **无记录 = 未安排**：若某项（如作业或听写）整体显示“无记录”，表示本周根本没有布置该任务，评语中请【完全跳过】该项，严禁误说成学生没做。
+2. **精准点出问题**：如果数据中有迟到(-1)、作业“未”、听写“未”或“重”、违纪等，必须客观指出这些短板。
+3. **先抑后扬**：指出问题后，结合加分项或总分给予正面鼓励。
+4. **语言风格**：温和、精炼、专业。`.trim();
+
+            var res = await fetch("https://api.deepseek.com/v1/chat/completions", {
+                method: 'POST', headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key},
+                body: JSON.stringify({ 
+                    model: "deepseek-chat", 
+                    messages: [
+                        { role: "system", content: "你是一个严谨的教学助手，擅长撰写客观且有温度的学生评语。" },
+                        { role: "user", content: promptMessage }
+                    ], 
+                    temperature: 0.5 
+                })
+            });
+            var json = await res.json(); 
+            weekData[stu.name].ai_comment = json.choices[0].message.content.replace(/\n/g, '<br>');
+            triggerSaveScore(); 
+            renderGakupoSummary(); // 实时更新底层状态，让列表中的按钮变绿
+        } catch(e) { 
+            document.getElementById('aiContent').innerHTML += `<br><br><span style="color:red">❌ 请求失败 (${stu.name})，请检查网络或余额。批量生成已中止。</span>`;
+            return;
+        }
+    }
+    
+    document.getElementById('aiContent').innerHTML = `<div style="text-align:center; padding: 20px;"><span style="font-size:40px;">✅</span><br><br><b>批量覆盖生成完成！</b><br><br>成功生成了 ${studentsToProcess.length} 份周评。<br>您现在可以在汇总界面秒开查阅。</div>`;
 }
 
 function showRadar(name) {
