@@ -2,408 +2,948 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>日语积分系统-全功能完美修复版</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>智能班级管家</title>
+    <script async src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script async src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
     <style>
+        /* ================= 全局公共与重置变量 ================= */
         :root {
-            --bg: #f0f2f5; --border: #d9d9d9;
-            --hw-A: #237804; --hw-B: #73d13d; --hw-C: #fffb8f; --hw-D: #ffadd2; --hw-none: #f5222d;
-            --dt-full: #237804; --dt-pass: #73d13d; --dt-re: #fadb14; --dt-fail: #f5222d;
-            --att-1: #52c41a; --att-miss: #f5222d; --att-absent: #000000;
-            --rank-low: #000000; --rank-mid: #1890ff; --rank-high: #722ed1; --rank-top: #fa8c16;
+            --bg: #e2e8f0; --card-bg: #ffffff;
+            --primary: #3b82f6; --primary-hover: #2563eb;
+            --hw-A: #22c55e; --hw-B: #86efac; --hw-C: #fef08a; --hw-D: #fca5a5; --hw-none: #ef4444;
+            --text-main: #1e293b; --text-muted: #64748b;
         }
-        * { box-sizing: border-box; font-family: -apple-system, system-ui, sans-serif; }
-        body { margin: 0; padding: 10px; background: var(--bg); font-size: 11px; height: 100vh; display: flex; flex-direction: column; }
+        * { box-sizing: border-box; font-family: -apple-system, system-ui, sans-serif; margin: 0; padding: 0; }
+        html, body { height: 100%; width: 100%; overflow: hidden; }
+        body { background: var(--bg); display: flex; flex-direction: column; color: var(--text-main); user-select: none; -webkit-user-select: none; touch-action: none;}
+
+        /* ================= 顶层全局导航与状态栏 ================= */
+        .global-nav { height: 48px; background: #0f172a; display: flex; justify-content: center; align-items: center; gap: 15px; flex-shrink: 0; position: relative; z-index: 2000; box-shadow: 0 2px 10px rgba(0,0,0,0.3);}
+        .nav-btn { background: #334155; color: #cbd5e1; border: none; padding: 8px 25px; border-radius: 20px; font-weight: bold; font-size: 14px; cursor: pointer; transition: 0.3s; }
+        .nav-btn.active { background: var(--primary); color: white; box-shadow: 0 0 12px rgba(59,130,246,0.6); }
+        .global-sync { position: absolute; right: 10px; font-size: 11px; display: flex; flex-direction: column; align-items: flex-end;}
+        .sync-indicator { margin-bottom: 2px; font-weight: bold; }
+
+        /* ================= 视图容器切换 ================= */
+        #gakupoView { display: flex; flex-direction: column; height: calc(100% - 48px); width: 100%; }
+        #seatView { display: none; flex-direction: column; height: calc(100% - 48px); width: 100%; background: #f4f7f6; justify-content: center; align-items: center;}
+
+        /* ================= 积分卡 (Gakupo) 专属样式 ================= */
+        .header { height: 50px; flex-shrink: 0; background: #1e293b; color: white; padding: 0 10px; display: flex; justify-content: space-between; align-items: center; z-index: 10; border-top: 1px solid #334155;}
+        .tabs { display: flex; background: #334155; padding: 3px; border-radius: 6px; }
+        .tab-btn { background: transparent; color: #cbd5e1; border: none; padding: 2px 10px; border-radius: 4px; cursor: pointer; transition: 0.2s; margin-right: 2px; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.2; }
+        .tab-btn.active { background: var(--primary); color: white; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+        .date-label { font-size: 9px; font-weight: normal; opacity: 0.8; margin-top: 1px; }
+        .toolbar-actions { display: flex; align-items: center; gap: 5px; overflow-x: auto; white-space: nowrap; padding-bottom: 2px;}
+        button.tool-btn { background: #475569; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 11px; transition: 0.1s; display: flex; align-items: center;}
+        button.tool-btn:active { transform: scale(0.95); }
+        .main-content { flex: 1; min-height: 0; padding: 6px; width: 100%; display: flex; flex-direction: column; overflow: hidden; }
         
-        #toolbar { display: flex; align-items: center; gap: 8px; padding: 10px; background: white; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 8px; flex-wrap: wrap; }
-        .table-container { flex: 1; overflow: auto; background: white; border: 1px solid var(--border); border-radius: 4px; }
-        table { border-collapse: collapse; min-width: 1600px; width: 100%; table-layout: fixed; }
-        th, td { border: 1px solid var(--border); text-align: center; height: 38px; padding: 0 2px; }
-        th { background: #444; color: white; position: sticky; top: 0; z-index: 20; }
-
-        .date-container { font-size: 10px; font-weight: normal; margin-top: 2px; color: #ffeb3b; }
-        .date-input { font-size: 10px; border: none; border-radius: 2px; padding: 1px; width: 95%; cursor: pointer; }
-
-        .sticky-class { position: sticky; left: 0; background: #f9f9f9 !important; z-index: 10; width: 50px; min-width: 50px; }
-        .sticky-name { position: sticky; left: 50px; background: #f9f9f9 !important; z-index: 10; width: 80px; min-width: 80px; border-right: 2px solid #888 !important; text-decoration: underline; cursor: pointer; white-space: nowrap; font-weight: bold; }
-
-        .btn-group { display: flex; justify-content: center; gap: 1px; width: 100%; }
-        .opt { padding: 2px 0; border: 1px solid #ccc; cursor: pointer; background: #eee; border-radius: 2px; font-size: 9px; flex: 1; user-select: none; transition: 0.1s; }
-        [data-type="att"] .opt { font-size: 8px; max-width: 18px; }
-
-        .act-hw-A { background: var(--hw-A) !important; color: white; }
-        .act-hw-B { background: var(--hw-B) !important; color: #000; }
-        .act-hw-C { background: var(--hw-C) !important; color: #856404; }
-        .act-hw-D { background: var(--hw-D) !important; color: white; }
-        .act-hw-未 { background: var(--hw-none) !important; color: white; }
-        .act-dt-满 { background: var(--dt-full) !important; color: white; }
-        .act-dt-过 { background: var(--dt-pass) !important; color: #000; }
-        .act-dt-重 { background: var(--dt-re) !important; color: #856404; }
-        .act-dt-未 { background: var(--dt-fail) !important; color: white; }
-        .act-att-1 { background: var(--att-1) !important; color: white; }
-        .act-att--1 { background: var(--att-miss) !important; color: white; }
-        .act-att-缺 { background: var(--att-absent) !important; color: white; }
-
-        .week-sum { background: #f0f5ff !important; color: #ff4d4f !important; font-weight: 800; cursor: pointer; }
-        .class-box { display: flex; align-items: center; justify-content: center; gap: 1px; width: 100%; }
-        .class-box button { width: 18px; height: 18px; padding: 0; border: 1px solid #ccc; background: #fff; border-radius: 3px; flex-shrink: 0; -webkit-appearance: none; appearance: none; }
-        .score-val { font-weight: bold; width: 16px; color: #1890ff; font-size: 11px; text-align: center; }
-        .day-sum { background: #fffdf0; font-weight: bold; }
-
-        .modal { display:none; position:fixed; top:5%; left:5%; width:90%; height:90%; background:white; z-index:1000; padding:20px; border-radius:12px; box-shadow:0 10px 40px rgba(0,0,0,0.3); flex-direction:column; }
-        .overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:900; }
+        /* 🔥 25A班 18人网格：6列 x 3行 */
+        .grid-container { display: grid; width: 100%; height: 100%; grid-template-columns: repeat(6, 1fr); grid-template-rows: repeat(3, 1fr); grid-gap: 6px; }
         
-        #compareScrollWrapper { width: 100%; flex: 1; overflow-x: auto; overflow-y: hidden; border: 1px solid #eee; background: #fafafa; border-radius: 8px; padding: 10px; }
+        .student-card { background: var(--card-bg); border-radius: 6px; border: 1px solid #cbd5e1; padding: 5px; display: flex; flex-direction: column; justify-content: space-between; min-height: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .card-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed #e2e8f0; padding-bottom: 2px; }
+        .student-name { font-size: 14px; font-weight: 900; color: #0f172a; cursor: pointer; display: flex; align-items: center; }
+        .class-tag { padding: 1px 5px; border-radius: 3px; font-size: 10px; border: 1px solid #e2e8f0; margin-right: 8px; font-weight: bold; color: #64748b; }
+        
+        /* 🔥 25A 班级专属标签色 */
+        .tag-1 { background: #f3e8ff !important; color: #7e22ce !important; border-color: #e9d5ff !important; }
+        .tag-4 { background: #eff6ff !important; color: #1e40af !important; border-color: #dbeafe !important; }
+        .tag-6 { background: #f0f9ff !important; color: #0369a1 !important; border-color: #e0f2fe !important; }
+        .tag-7 { background: #fdf2f8 !important; color: #be185d !important; border-color: #fbcfe8 !important; }
+        .tag-8 { background: #ecfdf5 !important; color: #047857 !important; border-color: #d1fae5 !important; }
+        
+        .week-total { background: #eff6ff; color: #2563eb; padding: 1px 6px; border-radius: 8px; font-weight: 800; font-size: 12px; }
+        .row-group { display: flex; align-items: center; flex: 1; min-height: 0; margin-top: 2px; }
+        .row-label { width: 28px; font-size: 10px; font-weight: bold; color: var(--text-muted); text-align: right; margin-right: 4px; flex-shrink: 0; }
+        .btn-group { display: flex; flex: 1; height: 100%; max-height: 28px; }
+        .opt { flex: 1; height: 100%; border: 1px solid #e2e8f0; background: #f8fafc; border-radius: 4px; font-size: 11px; font-weight: bold; color: #475569; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.1s; }
+        
+        .class-action-bar { display: flex; flex: 1; height: 100%; max-height: 28px; align-items: center; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px; padding: 1px; gap: 1px; }
+        .opt-btn { flex: 1; height: 100%; border: none; border-radius: 3px; font-size: 11px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; background: white; border: 1px solid #e2e8f0; color: #475569; padding: 0; transition: 0.1s; }
+        .opt-btn:active { transform: scale(0.9); }
+        .vio-btn-off { color: #94a3b8; background: #f1f5f9; border-color: #e2e8f0; }
+        .act-vio { background: #ef4444 !important; color: white !important; border-color: #ef4444 !important; }
+        .success-btn { color: #10b981; background: #ecfdf5; border-color: #a7f3d0; }
+        .divider { width: 1px; background: #cbd5e1; height: 70%; margin: 0 1px; }
+        .cls-score-val { width: 18px; text-align: center; font-weight: 900; color: #2563eb; font-size: 13px; flex-shrink: 0; }
 
-        button.primary { background: #1890ff; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 11px; }
-        button.danger { background: #f5222d; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .act-hw-A { background: var(--hw-A) !important; color: white !important; } .act-hw-B { background: var(--hw-B) !important; color: #0f172a !important; } .act-hw-C { background: var(--hw-C) !important; color: #856404 !important; } .act-hw-D { background: var(--hw-D) !important; color: white !important; } .act-hw-未 { background: var(--hw-none) !important; color: white !important; }
+        .act-dt-满 { background: #16a34a !important; color: white !important; } .act-dt-过 { background: #86efac !important; color: #0f172a !important; } .act-dt-重 { background: #facc15 !important; color: #856404 !important; } .act-dt-未 { background: #ef4444 !important; color: white !important; }
+        .act-att-1 { background: #10b981 !important; color: white !important; } .act-att--1 { background: #ef4444 !important; color: white !important; } .act-att-缺 { background: #000000 !important; color: white !important; }
+
+        .summary-view { display: none; background: white; padding: 15px; border-radius: 8px; width: 100%; height: 100%; overflow-y: auto; }
+        .sum-table { width: 100%; border-collapse: collapse; text-align: center; font-size: 13px; }
+        .sum-table th, .sum-table td { border: 1px solid #e2e8f0; padding: 6px 4px; }
+        .sum-table th { background: #f8fafc; position: sticky; top: 0; z-index: 5; }
+        .action-link { color: #2563eb; cursor: pointer; font-weight: bold; text-decoration: underline; display: inline-block; margin-top: 4px; }
+
+        /* ================= 座位表 (Seat) 专属样式 ================= */
+        .classroom { width: 96vw; height: 94%; background: white; padding: 1.5vmin; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); display: flex; flex-direction: column; position: relative; }
+        .front-board-container { display: flex; justify-content: center; align-items: center; width: 100%; margin-bottom: 1vmin; position: relative;}
+        .front-board { background: #34495e; color: white; padding: 1vmin 0; width: 60%; font-size: 20px; border-radius: 8px; font-weight: bold; letter-spacing: 0.5vw; text-align: center; }
+        .btn-group-left { position: absolute; left: 0; display: flex; gap: 5px; } .btn-group-right { position: absolute; right: 0; display: flex; gap: 5px; }
+        .action-btn { color: white; border: none; padding: 0.8vmin 1.2vmin; border-radius: 6px; font-size: 14px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        .btn-random { background-color: #3498db; } .btn-reset { background-color: #e74c3c; } 
+        
+        .middle-section { display: flex; justify-content: space-between; align-items: stretch; flex-grow: 1; min-height: 0; }
+        .side-wall { writing-mode: vertical-lr; padding: 1vmin; display: flex; align-items: center; font-size: 16px; font-weight: bold; border-radius: 6px; letter-spacing: 1vh; }
+        .side-window { background: #e1f5fe; color: #0277bd; border-left: 0.5vmin solid #29b6f6; }
+        .side-door { background: #fff3e0; color: #ef6c00; border-right: 0.5vmin solid #ffa726; }
+        
+        /* 🔥 25A班 4列 x 5行 网格 */
+        .seating-grid { display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(5, 1fr); gap: 1vmin; flex-grow: 1; margin: 0 1.5vmin; height: 100%; }
+        
+        .seat { border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding: 1.5vmin 1vmin 0.5vmin 1vmin; box-sizing: border-box; cursor: grab; transition: all 0.2s ease; box-shadow: 0 2px 5px rgba(0,0,0,0.05); position: relative; overflow: hidden;}
+        .seat.student { background: #e8f5e9; border: 2px solid #81c784; color: #2e7d32; }
+        .seat.empty { background: #f5f5f5; border: 2px dashed #bdbdbd; color: #9e9e9e; cursor: pointer; justify-content: center; padding: 0;}
+        
+        .seat > span:not(.absent-toggle) { font-size: 18px; font-weight: 900; margin-top: 3px; margin-bottom: 2px; letter-spacing: 1px;}
+        
+        .avatar-wrapper { width: 6vmin; height: 6vmin; min-width: 45px; min-height: 45px; border-radius: 50%; background-color: #fff; border: 2px solid #a5d6a7; display: flex; align-items: center; justify-content: center; overflow: hidden; cursor: pointer; z-index: 5; margin-bottom: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);}
+        .avatar-wrapper img { width: 100%; height: 100%; object-fit: cover; }
+        .avatar-placeholder { font-size: 11px; color: #81c784; text-align: center; font-weight: bold;}
+
+        .absent-toggle { position: absolute; top: 0.5vmin; right: 0.5vmin; background: #a5d6a7; color: #1b5e20; border: none; border-radius: 4px; font-size: 11px; font-weight: bold; padding: 0.4vmin 0.8vmin; cursor: pointer; z-index: 6; }
+        .seat.absent { opacity: 0.6; filter: grayscale(90%); background: #e0e0e0; border-color: #9e9e9e; }
+        .seat.absent .absent-toggle { background: #e74c3c; color: white; }
+
+        .seat.lucky-student { animation: pulse-glow 0.5s infinite; border: 3px solid #f1c40f !important; background-color: #fff9c4 !important; color: #d35400 !important; transform: scale(1.08); z-index: 20; filter: none !important; opacity: 1 !important;}
+        .seat.winner-highlight { transform: scale(1.15) translateY(-5px) !important; box-shadow: 0 15px 35px rgba(241, 196, 15, 0.8) !important; border: 4px solid #f39c12 !important; animation: none !important; background: linear-gradient(135deg, #fff9c4, #ffeb3b) !important; z-index: 100; }
+        @keyframes pulse-glow { 0% { box-shadow: 0 0 10px rgba(241, 196, 15, 0.5); } 50% { box-shadow: 0 0 40px rgba(241, 196, 15, 1); transform: scale(1.12); } 100% { box-shadow: 0 0 10px rgba(241, 196, 15, 0.5); } }
+
+        /* ================= 弹窗与多周看板 ================= */
+        .overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index: 3000; }
+        .modal { display:none; position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); width:90%; max-width:550px; background:white; z-index: 3001; padding:20px; border-radius:12px; flex-direction: column; box-shadow:0 15px 50px rgba(0,0,0,0.3); }
+        .gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); grid-gap: 10px; max-height: 50vh; overflow-y: auto; padding: 10px; }
+        .gallery-item { border-radius: 8px; overflow: hidden; border: 3px solid transparent; cursor: pointer; height: 80px; position: relative; }
+        .gallery-item img { width: 100%; height: 100%; object-fit: cover; }
+        .gallery-item.taken { filter: grayscale(100%); opacity: 0.5; pointer-events: none;}
+        .month-dashboard { display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:#f8fafc; z-index: 3100; flex-direction:column; overflow:hidden;}
+        .stu-list-item { padding: 10px; margin-bottom: 5px; background: #f1f5f9; border-radius: 6px; cursor: pointer; display: flex; justify-content: space-between; border: 1px solid transparent; font-size: 14px;}
+        .stu-list-item:hover { background: #e2e8f0; }
+        .stu-list-item.active { background: #eff6ff; border-color: #bfdbfe; font-weight: bold; color: #2563eb; }
+        .week-selector-container { padding: 12px 20px; background: white; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; gap: 15px; overflow-x: auto; flex-shrink: 0;}
+        .week-chk-label { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: bold; color: #334155; cursor: pointer; background: #f1f5f9; padding: 4px 10px; border-radius: 6px; white-space: nowrap;}
+        #toast { position: fixed; top: 10vh; left: 50%; transform: translateX(-50%); background: rgba(0, 0, 0, 0.8); color: #fff; padding: 10px 20px; border-radius: 8px; font-size: 16px; opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 9999; }
     </style>
 </head>
 <body>
 
-<div id="toolbar">
-    <button class="primary" onclick="loadFromOSS()">☁️ 同步云母版</button>
-    <button class="primary" onclick="exportWeek()" style="background:#52c41a">📤 导出彩色周报</button>
-    <button class="primary" onclick="openMonth()" style="background:#722ed1">📅 月度分析</button>
-    <button class="primary" onclick="syncManual()" style="background:#faad14">🔄 手动同步</button>
-    <button class="primary" onclick="setAIKey()" style="background:#8c8c8c">🔑 设置 AI Key</button>
-    <div style="flex:1"></div>
-    <button class="danger" onclick="clearAllRecords()">🗑️ 清空记录</button>
-</div>
+<div id="toast"></div>
+<div class="overlay" id="ovl" onclick="closeAllModals()"></div>
 
-<div class="table-container">
-    <table id="mainTable">
-        <thead id="tHead"></thead>
-        <tbody id="tBody"></tbody>
-    </table>
-</div>
-
-<div class="overlay" id="ovl" onclick="closeAll()"></div>
-
-<div id="commentModal" class="modal" style="width:450px; height:auto; min-height:300px; left:50%; top:50%; transform:translate(-50%,-50%)">
-    <h3 id="aiTitle" style="margin:0; color:#1890ff">AI 助教评语</h3>
-    <div id="aiContent" style="background:#f9f9f9; padding:15px; border-radius:8px; border:1px dashed #ccc; margin:15px 0; min-height:80px; font-size:13px; line-height:1.6; text-align:left;">正在分析数据...</div>
-    <div style="display:flex; gap:10px; justify-content: center;">
-        <button class="primary" onclick="copyText()" id="copyBtn" style="display:none">复制评语</button>
-        <button class="primary" onclick="closeAll()" style="background:#ff4d4f">关闭窗口</button>
+<div class="global-nav">
+    <button class="nav-btn active" id="btnNavGakupo" onclick="switchGlobalView('gakupo')">📊 学情积分卡(25A)</button>
+    <button class="nav-btn" id="btnNavSeat" onclick="switchGlobalView('seat')">🗺️座位表</button>
+    
+    <div class="global-sync">
+        <span class="sync-indicator" id="syncGakupoStatus" style="color:#94a3b8;">积分: 读取中...</span>
+        <span class="sync-indicator" id="syncSeatStatus" style="color:#94a3b8;">座位: 读取中...</span>
     </div>
 </div>
 
-<div id="monthModal" class="modal">
-    <div style="display:flex; justify-content:space-between; margin-bottom:15px; align-items:center">
-        <h2>月度成长趋势分析</h2>
-        <div>
-            <button onclick="document.getElementById('multiIn').click()" class="primary" style="background:#13c2c2">+ 批量导入周报</button>
-            <input type="file" id="multiIn" multiple accept=".xlsx" style="display:none" onchange="calcMonth(this.files)"/>
-            <button onclick="exportMonth()" class="primary" style="background:#faad14">导出汇总</button>
-            <button onclick="closeAll()" class="primary" style="background:#ff4d4f">关闭</button>
+<div id="gakupoView">
+    <div class="header">
+        <div class="tabs" id="dayTabs"></div>
+        <div class="toolbar-actions">
+            <div style="display:flex; align-items:center; gap:4px; margin-left:5px; margin-right: 5px;">
+                <span style="font-size:10px; color:#94a3b8; white-space:nowrap;">周期校准:</span>
+                <input type="date" id="mondayDate" style="padding:2px; font-size: 11px; border-radius: 4px; border:none; outline:none; background:#334155; color:white;">
+            </div>
+            <button class="tool-btn" onclick="batchAttendance()" style="background:#10b981;">✅ 全勤</button>
+            <button class="tool-btn" onclick="openMonthDashboard()" style="background:#eab308; color:#0f172a;">📅 多周分析</button>
+            <button class="tool-btn" onclick="exportDetailedWeek()" style="background:#10b981;">📤 导出Excel</button>
+            <button class="tool-btn" onclick="exportLocalState()" style="background:#f59e0b;">💾 双端备份</button>
+            <button class="tool-btn" onclick="document.getElementById('importStateIn').click()" style="background:#06b6d4;">📂 一键恢复</button>
+            <input type="file" id="importStateIn" accept=".json" style="display:none" onchange="importLocalState(this.files)"/>
+            <button class="tool-btn" onclick="clearAllRecords()" style="background:#ef4444;">🗑️ 清理缓存</button>
         </div>
     </div>
-    <div style="height:320px; width:100%; border-bottom:1px solid #eee; margin-bottom:10px;"><canvas id="monthChart"></canvas></div>
-    <div id="monthList" style="flex:1; overflow:auto"></div>
-</div>
-
-<div id="compareModal" class="modal">
-    <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-        <h2 style="margin:0">全班周积分排名</h2>
-        <div style="display:flex; gap:10px;">
-            <button class="primary" id="sortBtn" onclick="toggleCompareSort()" style="background:#faad14">切换排序</button>
-            <button class="primary" onclick="closeAll()" style="background:#ff4d4f">关闭</button>
+    <div class="main-content">
+        <div id="cardGrid" class="grid-container"></div>
+        <div id="summaryView" class="summary-view">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                <h2 style="font-size:18px;">📊 本周学情明细与汇总 (<span id="summaryWeekText"></span>)</h2>
+                <button class="tool-btn" onclick="showWeeklyComparison()" style="background:#8b5cf6;">📈 查看本周排名</button>
+            </div>
+            <div style="overflow-x: auto;">
+                <table class="sum-table" style="min-width: 800px;">
+                    <thead><tr><th style="width:40px;">班级</th><th style="width:60px;">姓名</th><th>周一</th><th>周二</th><th>周三</th><th>周四</th><th>周五</th><th style="width:60px;">总分</th><th style="width:70px;">操作</th></tr></thead>
+                    <tbody id="sumTBody"></tbody>
+                </table>
+            </div>
         </div>
     </div>
-    <div id="compareScrollWrapper">
-        <div id="compareInner" style="height: 100%; position: relative;"><canvas id="compareChart"></canvas></div>
+</div>
+
+<div id="seatView">
+    <div class="classroom">
+        <div class="front-board-container">
+            <div class="btn-group-left">
+                <button class="action-btn btn-random" id="randomBtn" onclick="startRandomDraw()">🎲 随机点名</button>
+            </div>
+            <div class="front-board">讲台 (当前计分：<span id="seatDayIndicator" style="color:#f1c40f;"></span>)</div>
+            <div class="btn-group-right">
+                <button class="action-btn btn-reset" onclick="resetAllAvatars()">🔄 重置头像</button>
+            </div>
+        </div>
+        
+        <div class="middle-section">
+            <div class="side-wall side-window">窗户</div>
+            <div class="seating-grid" id="seatingGrid"></div>
+            <div class="side-wall side-door">教室门</div>
+        </div>
     </div>
 </div>
 
-<div id="radarModal" class="modal" style="width:500px; height:550px; left:50%; top:50%; transform:translate(-50%,-50%)">
-    <h3 id="rTitle" style="text-align:center; margin-bottom: 5px;">个人能力分布</h3>
-    <div style="width:400px; height:400px; margin: 0 auto;"><canvas id="radarChart"></canvas></div>
-    <button class="primary" onclick="closeAll()" style="margin-top:10px; width:100%; background:#ff4d4f">关闭窗口</button>
+<div id="avatarModal" class="modal">
+    <div style="display:flex; justify-content:space-between; border-bottom:1px solid #eee; padding-bottom:10px; margin-bottom:10px;">
+        <h3 id="modalTitle">选择头像 - <span id="currentStudentName" style="color:#4CAF50;"></span></h3>
+        <button class="tool-btn" style="background:#ef4444;" onclick="closeAllModals()">关闭</button>
+    </div>
+    <div class="gallery-grid" id="galleryGrid"></div>
+</div>
+
+<div id="commentModal" class="modal">
+    <h3 style="margin-bottom:10px; border-bottom:1px solid #eee; padding-bottom:8px;">AI 智能学情诊断</h3>
+    <div id="aiContent" style="background:#f8fafc; padding:15px; border:1px solid #cbd5e1; border-radius:8px; line-height:1.6; font-size:14px; color:#334155; min-height:80px;"></div>
+    <div style="text-align:right; margin-top:15px;">
+        <button class="tool-btn" onclick="copyText('aiContent')" style="background:#3b82f6; display:inline-block;">复制评语</button>
+        <button class="tool-btn" onclick="closeAllModals()" style="background:#94a3b8; display:inline-block;">关闭</button>
+    </div>
+</div>
+
+<div id="radarModal" class="modal" style="width:380px;">
+    <h3 style="text-align:center;">能力评价雷达</h3>
+    <div style="height:320px; position:relative;"><canvas id="radarChart"></canvas></div>
+    <button class="tool-btn" onclick="closeAllModals()" style="background:#ef4444; margin-top:10px;">关闭</button>
+</div>
+
+<div id="compareModal" class="modal" style="max-width:800px; width:95%;">
+    <h3 style="margin-bottom: 10px;">本周积分对比</h3>
+    <div style="height:350px; position:relative;"><canvas id="compareChart"></canvas></div>
+    <button class="tool-btn" onclick="closeAllModals()" style="background:#ef4444; margin-top:15px;">关闭</button>
+</div>
+
+<div id="monthDashboard" class="month-dashboard">
+    <div style="background:#1e293b; color:white; padding:10px 20px; display:flex; justify-content:space-between; align-items:center; flex-shrink:0;">
+        <h3 style="margin:0;">📅 多周连贯数据追踪</h3>
+        <button class="tool-btn" onclick="closeAllModals()" style="background:#ef4444;">关闭面板</button>
+    </div>
+    <div id="weekSelector" class="week-selector-container"></div>
+    <div style="flex:1; display:flex; overflow:hidden;">
+        <div style="width:260px; border-right:1px solid #ddd; overflow-y:auto; padding:10px; background:white;" id="monthStuList"></div>
+        <div style="flex:1; padding:20px; overflow-y:auto; background:#f8fafc;" id="monthRightPane">
+            <div style="display: flex; justify-content: space-between; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; margin-bottom: 15px;">
+                <div><span id="mStuClass" class="class-tag" style="font-size:14px;"></span><span id="mStuName" style="font-size:24px; font-weight:900;"></span></div>
+                <div style="font-size: 18px; font-weight: 800; color: #2563eb;">累计追踪积分：<span id="mStuTotal">0</span></div>
+            </div>
+             <div style="display:flex; gap:10px; height:300px; margin-bottom:15px;">
+                 <div style="flex:2; background:white; padding:15px; border:1px solid #e2e8f0; border-radius:12px; position:relative;"><canvas id="monthLineChart"></canvas></div>
+                 <div style="flex:1; background:white; padding:15px; border:1px solid #e2e8f0; border-radius:12px; position:relative;"><canvas id="monthRadarChart"></canvas></div>
+             </div>
+             <div style="background:white; border:1px dashed #cbd5e1; border-radius:12px; padding:15px;">
+                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                     <h4 style="margin:0;">🤖 AI 多周综合分析</h4>
+                     <button class="tool-btn" onclick="generateMonthlyAI()" style="background:#8b5cf6;">✨ 诊断所选周期</button>
+                 </div>
+                 <div id="aiMonthContent" style="background:#f1f5f9; padding:15px; border-radius:8px; min-height:60px; font-size:14px; line-height:1.6; color:#334155;">选取上方周期后，点击按钮生成跨周期综合报告。</div>
+             </div>
+        </div>
+    </div>
 </div>
 
 <script>
-// --- 全局变量与配置 ---
-const OSS_URL = "https://jp-game-assets-2026.oss-cn-chengdu.aliyuncs.com/学生名单模板/ss-gakupo-25A.xlsx";
-const STORAGE_KEY = "JAPANESE_SYSTEM_DATA";
-const AI_KEY_STORAGE = "DEEPSEEK_API_KEY";
-const SCORE_MAP = { hw: { 'A':3, 'B':2, 'C':1, 'D':-1, '未':-1 }, dt: { '满':3, '过':2, '重':1, '未':-1 }, att: { '1':1, '-1':-1, '缺':0 } };
-const CLS_MAP = { hw: { 'A':'act-hw-A','B':'act-hw-B','C':'act-hw-C','D':'act-hw-D','未':'act-hw-未' }, dt: { '满':'act-dt-满','过':'act-dt-过','重':'act-dt-重','未':'act-dt-未' } };
+/* ================= 全局核心配置 (25A 专属隔离) ================= */
+// 🔥 25A 全量名单 (18人)
+var DEFAULT_STUDENTS = [
+    { class: "1班", name: "刘湘婷" }, { class: "1班", name: "李佩息" },
+    { class: "4班", name: "罗子津" }, { class: "4班", name: "朱析睿" }, { class: "4班", name: "张尔卓" },
+    { class: "6班", name: "陈亦涵" }, { class: "6班", name: "赵天宇" },
+    { class: "7班", name: "陈博睿" }, { class: "7班", name: "冯嘉仪" }, { class: "7班", name: "符恺宸" },
+    { class: "8班", name: "冯裕阳" }, { class: "8班", name: "蒙玙璠" }, { class: "8班", name: "罗小雅" }, { class: "8班", name: "曾丹" }, { class: "8班", name: "胡溪媛" }, { class: "8班", name: "任亦航" }, { class: "8班", name: "王晰玉" }, { class: "8班", name: "廖若涵" }
+];
+// 🔥 25A 座位分布 (4列 x 5行)
+var SEAT_NAMES = ['罗小雅', '陈亦涵', '罗子津', '曾丹', '张尔卓', '朱析睿', '陈博睿', '冯嘉仪', '刘湘婷', '冯裕阳', '任亦航', '胡溪媛', '李佩息', '王晰玉', '廖若涵', '蒙玙璠', '符恺宸', '赵天宇'];
 
-let currentStudentList = [], isCompareSorted = false, monthData = {};
-let radarChart = null, compareChart = null, monthChart = null;
-let savedApiKey = localStorage.getItem(AI_KEY_STORAGE) || "";
+// 🔥 25A 专属 Keys 与 API
+var GAKUPO_KEY = "JP_CARD_GAKUPO25A_V2"; 
+var GAKUPO_API = "https://sync.nekosensei.cn/gakupo25A"; 
+var SEAT_KEY = "JP_SEAT_25A_V1"; 
+var SEAT_API = "https://sync.nekosensei.cn/seat25A"; 
 
-window.onload = async () => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-        const parsed = JSON.parse(saved);
-        currentStudentList = parsed.students;
-        initTable(currentStudentList, parsed.records, parsed.monday);
-    } else { loadFromOSS(); }
+var SCORE_MAP = { hw: { 'A':3, 'B':2, 'C':1, 'D':-1, '未':-1 }, dt: { '满':3, '过':2, '重':1, '未':-1 }, att: { '1':1, '-1':-1, '缺':0 } };
+var DAYS = ['周一', '周二', '周三', '周四', '周五'];
+// 🔥 25A OSS 路径
+var CLOUD_OSS_BASE_URL = "https://jp-game-assets-2026.oss-cn-chengdu.aliyuncs.com/头像库/25A/";
+var avatarFiles = Array.from({length: 20}, (_, i) => `头像${i + 1}.gif`);
+
+// State Trees
+var scoreState = { students: DEFAULT_STUDENTS, history: {}, currentMonday: "" };
+var seatState = { lastModified: 0, avatars: {}, seats: [] };
+
+// Run Time Vars
+var currentViewDay = 0; 
+var currentSelectingStudent = null;
+var syncTimeouts = { gakupo: null, seat: null };
+var draggedItem = null, isDragging = false, clone = null, startX, startY;
+var radarChart, compareChart, c_monthLine, c_monthRadar;
+var g_monthData = {}, g_monthWeeks = [], currentMonthStudent = null;
+
+var synAudioEngine = {
+    ctx: null,
+    init: function() {
+        if (!this.ctx) { var AudioContext = window.AudioContext || window.webkitAudioContext; if (AudioContext) { this.ctx = new AudioContext(); } }
+        if (this.ctx && this.ctx.state === 'suspended') { this.ctx.resume(); }
+    },
+    playTick: function() {
+        if (!this.ctx) return;
+        const osc = this.ctx.createOscillator(); const gain = this.ctx.createGain();
+        osc.connect(gain); gain.connect(this.ctx.destination);
+        osc.type = 'triangle'; osc.frequency.setValueAtTime(800 + Math.random() * 200, this.ctx.currentTime);
+        gain.gain.setValueAtTime(0, this.ctx.currentTime); gain.gain.linearRampToValueAtTime(0.3, this.ctx.currentTime + 0.01); gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.05);
+        osc.start(this.ctx.currentTime); osc.stop(this.ctx.currentTime + 0.05);
+    },
+    playTada: function() {
+        if (!this.ctx) return;
+        var _this = this;
+        function playNote(freq, startTime, duration, vol) {
+            var osc = _this.ctx.createOscillator(); var gain = _this.ctx.createGain();
+            osc.connect(gain); gain.connect(_this.ctx.destination);
+            osc.type = 'sine'; osc.frequency.value = freq;
+            gain.gain.setValueAtTime(0, startTime); gain.gain.linearRampToValueAtTime(vol, startTime + 0.05); gain.gain.exponentialRampToValueAtTime(0.01, startTime + duration);
+            osc.start(startTime); osc.stop(startTime + duration);
+        }
+        var now = this.ctx.currentTime;
+        playNote(523.25, now, 0.2, 0.4); playNote(659.25, now + 0.1, 0.2, 0.4); playNote(783.99, now + 0.2, 0.2, 0.4); playNote(1046.50, now + 0.3, 0.8, 0.6); 
+    }
 };
 
-// --- 表格初始化 ---
-function initTable(students, records = {}, monday = "") {
-    const head = document.getElementById('tHead'), body = document.getElementById('tBody');
-    body.innerHTML = "";
-    let dayHeaders = "";
-    ['周一','周二','周三','周四','周五'].forEach((day, idx) => {
-        let dateHtml = idx === 0 ? `<div class="date-container"><input type="date" class="date-input" id="mondayDate" value="${monday}" onchange="updateWeekDates(this.value)"></div>` : `<div class="date-container" id="date-label-${idx}">-- / --</div>`;
-        dayHeaders += `<th colspan="5" style="border-left:2px solid #fff; height: 50px;">${day}${dateHtml}</th>`;
-    });
-    head.innerHTML = `<tr><th rowspan="2" class="sticky-class">班级</th><th rowspan="2" class="sticky-name">姓名</th>${dayHeaders}<th rowspan="2" class="week-sum" onclick="showWeeklyComparison()">周合计</th></tr><tr>${Array(5).fill('<th>出</th><th>作</th><th>听</th><th>课</th><th class="day-sum">∑</th>').join('')}</tr>`;
-    
-    students.forEach((stu, sIdx) => {
-        const tr = document.createElement('tr'); 
-        tr.dataset.sidx = sIdx; tr.dataset.name = stu.name; tr.dataset.class = stu.class;
-        let cells = `<td class="sticky-class">${stu.class||''}</td><td class="sticky-name" onclick="showRadar(${sIdx})">${stu.name}</td>`;
-        for(let d=0; d<5; d++) {
-            const rec = records[stu.name]?.[d] || { att:'', hw:'', dt:'', cls:0 };
-            cells += `<td><div class="btn-group" data-type="att" data-day="${d}">
-                        <span class="opt ${rec.att=='1'?'act-att-1':''}" data-val="1">1</span><span class="opt ${rec.att=='-1'?'act-att--1':''}" data-val="-1">-1</span><span class="opt ${rec.att=='缺'?'act-att-缺':''}" data-val="缺">缺</span>
-                      </div></td>
-                      <td><div class="btn-group" data-type="hw" data-day="${d}">${['A','B','C','D','未'].map(v => `<span class="opt ${rec.hw==v?CLS_MAP.hw[v]:''}" data-val="${v}">${v==='未'?'×':v}</span>`).join('')}</div></td>
-                      <td><div class="btn-group" data-type="dt" data-day="${d}">${['满','过','重','未'].map(v => `<span class="opt ${rec.dt==v?CLS_MAP.dt[v]:''}" data-val="${v}">${v}</span>`).join('')}</div></td>
-                      <td><div class="class-box" data-day="${d}"><button onclick="updCls(this,-1)">-</button><span class="score-val">${rec.cls}</span><button onclick="updCls(this,1)">+</button></div></td><td class="day-sum" id="sum-${sIdx}-${d}">0</td>`;
-        }
-        cells += `<td class="week-sum" id="total-${sIdx}" onclick="generateAIComment(${sIdx})">0</td>`;
-        tr.innerHTML = cells; body.appendChild(tr); calcScore(tr, sIdx);
-    });
-    if(monday) updateWeekDates(monday);
+/* ================= 1. 防御性数据清洗器 ================= */
+function ensureScoreStateIntegrity(data) {
+    if (!data) data = {};
+    if (data.records && !data.history) { data.history = {}; var d = data.monday || getMonday(new Date().toISOString().split('T')[0]); data.history[d] = data.records; data.currentMonday = d; delete data.records; delete data.monday; }
+    if (!data.students || !Array.isArray(data.students)) data.students = DEFAULT_STUDENTS;
+    if (!data.history) data.history = {};
+    if (!data.currentMonday) data.currentMonday = getMonday(new Date().toISOString().split('T')[0]);
+    if (!data.history[data.currentMonday]) data.history[data.currentMonday] = {};
+    return data;
 }
 
-// --- 计算与变色 ---
-document.body.addEventListener('click', e => {
-    if(!e.target.classList.contains('opt')) return;
-    const opt = e.target, p = opt.parentElement, type = p.dataset.type, val = opt.dataset.val, tr = opt.closest('tr');
-    let tCls = type === 'att' ? `act-att-${val}` : CLS_MAP[type][val];
-    const alreadyAct = opt.classList.contains(tCls);
-    Array.from(p.children).forEach(o => { const c = Array.from(o.classList).find(x => x.startsWith('act-')); if(c) o.classList.remove(c); });
-    if(!alreadyAct) opt.classList.add(tCls);
-    calcScore(tr, tr.dataset.sidx); autoSave();
+function ensureSeatStateIntegrity(data) {
+    if (!data) data = {};
+    if (!data.avatars) data.avatars = {};
+    if (!data.seats || !Array.isArray(data.seats) || data.seats.length === 0) {
+        data.seats = []; var idx=0;
+        // 🔥 生成 4列 x 5行 (20座)
+        for(var r=1; r<=5; r++){ for(var c=1; c<=4; c++){ if(idx < SEAT_NAMES.length) data.seats.push({row:r, col:c, type:'student', name:SEAT_NAMES[idx], absent:false}); else data.seats.push({row:r, col:c, type:'empty', name:'空位', absent:false}); idx++; } }
+    }
+    return data;
+}
+
+/* ================= 2. 启动与视图调度 ================= */
+document.addEventListener('DOMContentLoaded', async () => {
+    scoreState.currentMonday = getMonday(new Date().toISOString().split('T')[0]);
+    loadLocalFallback();
+    bindGlobalEvents();
+    renderAll();
+    await Promise.all([syncCloudGakupo(), syncCloudSeat()]);
 });
 
-function calcScore(tr, sIdx) {
-    let weekSum = 0;
-    for(let d=0; d<5; d++) {
-        let dSum = 0;
-        ['att','hw','dt'].forEach(t => {
-            const act = tr.querySelector(`[data-type="${t}"][data-day="${d}"] .opt[class*="act-"]`);
-            if(act) dSum += (t === 'att' ? SCORE_MAP.att[act.dataset.val] : SCORE_MAP[t][act.dataset.val]);
-        });
-        dSum += parseInt(tr.querySelector(`.class-box[data-day="${d}"] .score-val`).innerText);
-        const dsEl = document.getElementById(`sum-${sIdx}-${d}`); if(dsEl) dsEl.innerText = dSum;
-        weekSum += dSum;
-    }
-    const tsEl = document.getElementById(`total-${sIdx}`); if(tsEl) tsEl.innerText = weekSum;
-    const nameEl = tr.querySelector('.sticky-name');
-    if(nameEl) {
-        if (weekSum >= 40) nameEl.style.color = 'var(--rank-top)';
-        else if (weekSum >= 30) nameEl.style.color = 'var(--rank-high)';
-        else if (weekSum >= 20) nameEl.style.color = 'var(--rank-mid)';
-        else nameEl.style.color = 'var(--rank-low)';
+function switchGlobalView(view) {
+    document.getElementById('btnNavGakupo').classList.toggle('active', view === 'gakupo');
+    document.getElementById('btnNavSeat').classList.toggle('active', view === 'seat');
+    document.getElementById('gakupoView').style.display = view === 'gakupo' ? 'flex' : 'none';
+    document.getElementById('seatView').style.display = view === 'seat' ? 'flex' : 'none';
+}
+
+function updateGlobalUI() {
+    renderGakupoCards(currentViewDay);
+    renderSeatGrid(); 
+}
+
+function renderAll() {
+    renderDayTabs();
+    if(currentViewDay === 5) {
+        document.getElementById('cardGrid').style.display = 'none'; 
+        document.getElementById('summaryView').style.display = 'block'; 
+        document.getElementById('summaryWeekText').innerText = scoreState.currentMonday + " 周期";
+        renderGakupoSummary();
+    } else {
+        document.getElementById('summaryView').style.display = 'none'; 
+        document.getElementById('cardGrid').style.display = 'grid'; 
+        updateGlobalUI();
     }
 }
 
-// --- 绘图功能补全 ---
-
-// 1. 雷达图
-function showRadar(sIdx) {
-    const tr = document.querySelector(`tr[data-sidx="${sIdx}"]`), name = tr.dataset.name;
-    let s = { att:0, hw:0, dt:0, cls:0 };
-    for(let d=0; d<5; d++) {
-        const a = tr.querySelector(`[data-type="att"][data-day="${d}"] .opt[class*="act-"]`); if(a) s.att += SCORE_MAP.att[a.dataset.val];
-        const h = tr.querySelector(`[data-type="hw"][data-day="${d}"] .opt[class*="act-"]`); if(h) s.hw += SCORE_MAP.hw[h.dataset.val];
-        const dt = tr.querySelector(`[data-type="dt"][data-day="${d}"] .opt[class*="act-"]`); if(dt) s.dt += SCORE_MAP.dt[dt.dataset.val];
-        s.cls += parseInt(tr.querySelector(`.class-box[data-day="${d}"] .score-val`).innerText);
-    }
-    const norm = (v, t) => {
-        if (t === 'att') return (v/5)*100; if (t === 'hw' || t === 'dt') return (v/15)*100;
-        if (t === 'cls') { if(v<=0) return (v/10)*100; if(v<=5) return (v/5)*66.6; return 66.6+((v-5)/5)*33.4; }
-        return v;
-    };
-    document.getElementById('ovl').style.display = 'block'; document.getElementById('radarModal').style.display = 'block';
-    document.getElementById('rTitle').innerText = `${name} 周能力雷达 (${s.att+s.hw+s.dt+s.cls})`;
-    if(radarChart) radarChart.destroy();
-    radarChart = new Chart(document.getElementById('radarChart'), {
-        type: 'radar',
-        data: {
-            labels: [`出勤(${s.att})`,`作业(${s.hw})`,`听写(${s.dt})`,`课堂(${s.cls})`],
-            datasets: [{ label:'能力分布', data:[norm(s.att,'att'),norm(s.hw,'hw'),norm(s.dt,'dt'),norm(s.cls,'cls')], backgroundColor:'rgba(24,144,255,0.2)', borderColor:'#1890ff' }]
-        },
-        options: { scales: { r: { min:-20, max:100, ticks:{display:false} } } }
-    });
+/* ================= 3. 核心交互逻辑 ================= */
+function setScore(name, day, type, val) { 
+    if(!scoreState.history[scoreState.currentMonday][name]) scoreState.history[scoreState.currentMonday][name] = {};
+    if(!scoreState.history[scoreState.currentMonday][name][day]) scoreState.history[scoreState.currentMonday][name][day] = {att:'', hw:'', dt:'', cls:0, vio:0};
+    scoreState.history[scoreState.currentMonday][name][day][type] = (scoreState.history[scoreState.currentMonday][name][day][type] === val) ? '' : val; 
+    triggerSaveScore(); updateGlobalUI(); 
 }
 
-// 2. 全班对比柱状图
-function showWeeklyComparison() {
-    let ds = []; document.querySelectorAll('#tBody tr').forEach(tr => { ds.push({ name: tr.dataset.name, total: parseInt(tr.querySelector('.week-sum').innerText) }); });
-    if(isCompareSorted) ds.sort((a, b) => b.total - a.total);
-    const ns = ds.map(d => d.name), ts = ds.map(d => d.total);
-    document.getElementById('ovl').style.display = 'block'; document.getElementById('compareModal').style.display = 'flex';
-    const dw = Math.max(document.getElementById('compareScrollWrapper').clientWidth - 20, ns.length * 45);
-    document.getElementById('compareInner').style.width = dw + 'px';
-    const ctx = document.getElementById('compareChart').getContext('2d');
-    if(compareChart) compareChart.destroy();
-    compareChart = new Chart(ctx, {
-        type: 'bar', data: { labels: ns, datasets: [{ label: '积分', data: ts, backgroundColor: ts.map(v => { if (v >= 40) return '#fa8c16'; if (v >= 30) return '#722ed1'; if (v >= 20) return '#1890ff'; return '#8c8c8c'; }), borderRadius: 4 }] },
-        options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } }, plugins: { legend: { display: false } } }
-    });
+function updCls(name, day, delta) { 
+    if(!scoreState.history[scoreState.currentMonday][name]) scoreState.history[scoreState.currentMonday][name] = {};
+    if(!scoreState.history[scoreState.currentMonday][name][day]) scoreState.history[scoreState.currentMonday][name][day] = {cls:0, vio:0};
+    scoreState.history[scoreState.currentMonday][name][day].cls = (scoreState.history[scoreState.currentMonday][name][day].cls||0) + delta; 
+    triggerSaveScore(); updateGlobalUI(); 
 }
 
-function toggleCompareSort() { isCompareSorted = !isCompareSorted; document.getElementById('sortBtn').innerText = isCompareSorted ? "排序：按分数" : "排序：按名单"; showWeeklyComparison(); }
+function toggleVio(name, day) {
+    if(!scoreState.history[scoreState.currentMonday][name]) scoreState.history[scoreState.currentMonday][name] = {};
+    if(!scoreState.history[scoreState.currentMonday][name][day]) scoreState.history[scoreState.currentMonday][name][day] = {cls:0, vio:0};
+    var r = scoreState.history[scoreState.currentMonday][name][day];
+    r.vio = (r.vio || 0) > 0 ? 0 : 1;
+    triggerSaveScore(); updateGlobalUI();
+}
 
-// --- AI 评语逻辑 ---
-async function generateAIComment(sIdx) {
-    if(!savedApiKey) { savedApiKey = prompt("请输入 DeepSeek API Key:"); if(!savedApiKey) return; localStorage.setItem(AI_KEY_STORAGE, savedApiKey); }
-    const tr = document.querySelector(`tr[data-sidx="${sIdx}"]`), name = tr.dataset.name, total = tr.querySelector('.week-sum').innerText;
-    document.getElementById('ovl').style.display = 'block'; document.getElementById('commentModal').style.display = 'flex';
-    document.getElementById('aiContent').innerText = "AI 正在分析表现...";
+function updVio(name, day, delta) { 
+    var r = scoreState.history[scoreState.currentMonday][name][day];
+    r.vio = Math.max(0, (r.vio || 0) + delta); 
+    triggerSaveScore(); renderGakupoSummary(); 
+}
+
+/* ================= 4. 积分卡专用逻辑 ================= */
+function renderDayTabs() {
+    const dayTabs = document.getElementById('dayTabs');
+    const parts = scoreState.currentMonday.split('-');
+    const monday = new Date(parts[0], parts[1] - 1, parts[2]);
+
+    let html = DAYS.map((day, i) => {
+        const d = new Date(monday); d.setDate(monday.getDate() + i);
+        return `<button class="tab-btn ${currentViewDay === i ? 'active' : ''}" onclick="switchDay(${i})">
+                    <div style="font-weight:bold;">${day}</div>
+                    <div class="date-label">${(d.getMonth() + 1)}/${(d.getDate() < 10 ? '0'+d.getDate() : d.getDate())}</div>
+                </button>`;
+    }).join('');
+
+    html += `<button class="tab-btn ${currentViewDay === 5 ? 'active' : ''}" onclick="switchDay(5)" style="color:#fcd34d;">
+                <div style="font-weight:bold;">📊 汇总</div>
+            </button>`;
+    dayTabs.innerHTML = html;
     
-    let perf = { att:0, hw:[], dt:[], cls:0 };
-    for(let d=0; d<5; d++) {
-        const a = tr.querySelector(`[data-type="att"][data-day="${d}"] .opt[class*="act-"]`); if(a) perf.att += SCORE_MAP.att[a.dataset.val];
-        const h = tr.querySelector(`[data-type="hw"][data-day="${d}"] .opt[class*="act-"]`); if(h) perf.hw.push(h.dataset.val);
-        const dt = tr.querySelector(`[data-type="dt"][data-day="${d}"] .opt[class*="act-"]`); if(dt) perf.dt.push(dt.dataset.val);
-        perf.cls += parseInt(tr.querySelector(`.class-box[data-day="${d}"] .score-val`).innerText);
-    }
-    const prompt = `高中日语老师用来发给家长的学生评语(30-50字)：${name}，周分${total}。出勤${perf.att}/5；作业${perf.hw.join(',')}；听写${perf.dt.join(',')}；课堂${perf.cls}。语气亲切多鼓励。`;
-
-    try {
-        const res = await fetch("https://api.deepseek.com/v1/chat/completions", {
-            method: 'POST', headers: {'Content-Type': 'application/json', 'Authorization': `Bearer ${savedApiKey}`},
-            body: JSON.stringify({ model: "deepseek-chat", messages: [{role:"user", content: prompt}] })
-        });
-        const data = await res.json();
-        document.getElementById('aiContent').innerText = data.choices[0].message.content;
-        document.getElementById('copyBtn').style.display='inline-block';
-    } catch(e) { document.getElementById('aiContent').innerText = "生成失败，请检查 API Key。"; }
+    if(currentViewDay < 5) { document.getElementById('seatDayIndicator').innerText = DAYS[currentViewDay]; } 
+    else { document.getElementById('seatDayIndicator').innerText = "本周汇总(不可计分)"; }
 }
 
-// --- 基础同步与存储 ---
-async function loadFromOSS() {
-    try {
-        const res = await fetch(OSS_URL);
-        const buf = await res.arrayBuffer();
-        const raw = XLSX.utils.sheet_to_json(XLSX.read(new Uint8Array(buf), {type:'array'}).Sheets[XLSX.read(new Uint8Array(buf), {type:'array'}).SheetNames[0]], {header:1});
-        currentStudentList = raw.slice(3).filter(r => r[1]).map(r => ({ class: r[0], name: r[1] }));
-        initTable(currentStudentList);
-    } catch(e) { alert("云端拉取失败"); }
-}
+function switchDay(idx) { currentViewDay = idx; renderAll(); }
 
-function syncManual() {
-    const act = prompt("EXPORT - 复制代码 / IMPORT - 粘贴代码");
-    if(act === 'EXPORT') alert(localStorage.getItem(STORAGE_KEY));
-    else if(act === 'IMPORT') { const c = prompt("粘贴同步代码"); if(c){localStorage.setItem(STORAGE_KEY, c); location.reload();} }
-}
+function renderGakupoCards(day) {
+    var grid = document.getElementById('cardGrid'); grid.innerHTML = '';
+    var weekData = scoreState.history[scoreState.currentMonday] || {};
 
-function autoSave() {
-    const recs = {};
-    document.querySelectorAll('#tBody tr').forEach(tr => {
-        const n = tr.dataset.name; recs[n] = {};
-        for(let d=0; d<5; d++) recs[n][d] = {
-            att: tr.querySelector(`[data-type="att"][data-day="${d}"] .opt[class*="act-"]`)?.dataset.val || '',
-            hw: tr.querySelector(`[data-type="hw"][data-day="${d}"] .opt[class*="act-"]`)?.dataset.val || '',
-            dt: tr.querySelector(`[data-type="dt"][data-day="${d}"] .opt[class*="act-"]`)?.dataset.val || '',
-            cls: parseInt(tr.querySelector(`.class-box[data-day="${d}"] .score-val`).innerText)
-        };
+    scoreState.students.forEach(stu => {
+        if(!weekData[stu.name]) weekData[stu.name] = {};
+        if(!weekData[stu.name][day]) weekData[stu.name][day] = {att:'', hw:'', dt:'', cls:0, vio:0};
+        var r = weekData[stu.name][day];
+        
+        var clsTag = "";
+        if(stu.class === "1班") clsTag = "tag-1";
+        else if(stu.class === "4班") clsTag = "tag-4";
+        else if(stu.class === "6班") clsTag = "tag-6";
+        else if(stu.class === "7班") clsTag = "tag-7";
+        else if(stu.class === "8班") clsTag = "tag-8";
+        
+        var vioClass = (r.vio > 0) ? 'act-vio' : 'vio-btn-off';
+        
+        var card = document.createElement('div'); card.className = 'student-card';
+        card.innerHTML = `
+            <div class="card-header">
+                <span class="student-name" onclick="showRadar('${stu.name}')"><span class="class-tag ${clsTag}">${stu.class||''}</span>${stu.name}</span>
+                <span class="week-total">${calcTotal(stu.name, scoreState.currentMonday)}分</span>
+            </div>
+            <div class="row-group"><div class="row-label">出勤</div><div class="btn-group">
+                ${['1','-1','缺'].map(v => `<div class="opt ${r.att==v?'act-att-'+v:''}" onclick="setScore('${stu.name}',${day},'att','${v}')">${v=='1'?'出':v}</div>`).join('')}
+            </div></div>
+            <div class="row-group"><div class="row-label">作业</div><div class="btn-group">
+                ${['A','B','C','D','未'].map(v => `<div class="opt ${r.hw==v?'act-hw-'+v:''}" onclick="setScore('${stu.name}',${day},'hw','${v}')">${v}</div>`).join('')}
+            </div></div>
+            <div class="row-group"><div class="row-label">听写</div><div class="btn-group">
+                ${['满','过','重','未'].map(v => `<div class="opt ${r.dt==v?'act-dt-'+v:''}" onclick="setScore('${stu.name}',${day},'dt','${v}')">${v}</div>`).join('')}
+            </div></div>
+            <div class="row-group"><div class="row-label">课堂</div><div class="class-action-bar">
+                <button class="opt-btn ${vioClass}" onclick="toggleVio('${stu.name}',${day})">违</button>
+                <button class="opt-btn success-btn" onclick="updCls('${stu.name}',${day},1)">答1</button>
+                <button class="opt-btn success-btn" onclick="updCls('${stu.name}',${day},2)">答2</button>
+                <button class="opt-btn success-btn" onclick="updCls('${stu.name}',${day},3)">答3</button>
+                <div class="divider"></div>
+                <button class="opt-btn" onclick="updCls('${stu.name}',${day},-1)">-</button>
+                <div class="cls-score-val">${r.cls||0}</div>
+                <button class="opt-btn" onclick="updCls('${stu.name}',${day},1)">+</button>
+            </div></div>`;
+        grid.appendChild(card);
     });
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ students:currentStudentList, records:recs, monday:document.getElementById('mondayDate')?.value||'' }));
 }
 
-// --- 导出逻辑 (带样式) ---
-function exportWeek() {
-    const monday = document.getElementById('mondayDate').value;
-    const s_header = { fill: { fgColor: { rgb: "444444" } }, font: { color: { rgb: "FFFFFF" }, bold: true }, alignment: { horizontal: "center" } };
-    const h1 = ["班级", "姓名", "周一", "", "", "", "", "周二", "", "", "", "", "周三", "", "", "", "", "周四", "", "", "", "", "周五", "", "", "", "", "总计"];
-    const h2 = ["", "", "出勤", "作业", "听写", "课堂", "当日∑", "出勤", "作业", "听写", "课堂", "当日∑", "出勤", "作业", "听写", "课堂", "当日∑", "出勤", "作业", "听写", "课堂", "当日∑", "出勤", "作业", "听写", "课堂", "当日∑", ""];
-    const rows = [];
-    document.querySelectorAll('#tBody tr').forEach(tr => {
-        const r = [ {v: tr.dataset.class}, {v: tr.dataset.name} ];
-        for(let d=0; d<5; d++) {
-            r.push(
-                {v: tr.querySelector(`[data-type="att"][data-day="${d}"] .opt[class*="act-"]`)?.dataset.val || ""},
-                {v: tr.querySelector(`[data-type="hw"][data-day="${d}"] .opt[class*="act-"]`)?.dataset.val || ""},
-                {v: tr.querySelector(`[data-type="dt"][data-day="${d}"] .opt[class*="act-"]`)?.dataset.val || ""},
-                {v: parseInt(tr.querySelector(`.class-box[data-day="${d}"] .score-val`).innerText)},
-                {v: parseInt(tr.querySelector(`#sum-${tr.dataset.sidx}-${d}`).innerText)}
-            );
+function renderGakupoSummary() {
+    var tbody = document.getElementById('sumTBody'); tbody.innerHTML = '';
+    var weekData = scoreState.history[scoreState.currentMonday] || {};
+    
+    scoreState.students.forEach(stu => {
+        var wt = calcTotal(stu.name, scoreState.currentMonday);
+        var row = `<tr><td style="color:#64748b; font-size:11px;">${stu.class||''}</td><td><b style="color:#0f172a;">${stu.name}</b></td>`;
+        for(var i=0; i<5; i++){
+            var r = (weekData[stu.name] && weekData[stu.name][i]) ? weekData[stu.name][i] : {};
+            var attStr = r.att === '1' ? '出勤' : (r.att === '-1' ? '迟/退' : (r.att === '缺' ? '缺勤' : '-'));
+            row += `<td style="text-align:left; font-size:11px; padding:6px; line-height:1.5; white-space:nowrap;">
+                <div style="color:#475569;">出勤：<b style="${r.att=='缺'?'color:#ef4444;':'color:#0f172a'}">${attStr}</b></div>
+                <div style="color:#475569;">作业：<b style="color:#0f172a">${r.hw || '-'}</b></div>
+                <div style="color:#475569;">听写：<b style="color:#0f172a">${r.dt || '-'}</b></div>
+                <div style="color:#475569;">加分：<b style="color:#2563eb">+${r.cls || 0}</b></div>
+                <div style="display:flex; align-items:center; gap:3px; margin-top:2px;">
+                    <span style="color:#ef4444;">违纪：</span>
+                    <button class="opt-btn" onclick="updVio('${stu.name}',${i},-1)" style="width:14px; height:14px; font-size:10px; line-height:1; border-color:#ccc;">-</button>
+                    <b style="color:#ef4444; width:10px; text-align:center;">${r.vio || 0}</b>
+                    <button class="opt-btn" onclick="updVio('${stu.name}',${i},1)" style="width:14px; height:14px; font-size:10px; line-height:1; border-color:#ccc;">+</button>
+                </div>
+            </td>`;
         }
-        r.push({ v: parseInt(tr.querySelector('.week-sum').innerText), s: { font: { bold: true, color:{rgb:"FF0000"} } } });
-        rows.push(r);
+        row += `<td style="color:#2563eb; font-weight:900; font-size:18px; vertical-align:middle;">${wt}</td>
+                <td style="vertical-align:middle;"><span class="action-link" onclick="generateWeeklyAI('${stu.name}', ${wt})">✨ 智能诊断</span></td></tr>`;
+        tbody.innerHTML += row;
     });
-    const ws = XLSX.utils.aoa_to_sheet([[{ v: `周报(${monday})`, s:{font:{bold:true}} }], h1.map(h=>({v:h,s:s_header})), h2.map(h=>({v:h,s:s_header})), ...rows]);
-    ws['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 27 } }, ...[0, 1, 2, 3, 4].map(i => ({ s: { r: 1, c: 2 + i * 5 }, e: { r: 1, c: 6 + i * 5 } })) ];
-    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "周数据");
-    XLSX.writeFile(wb, `彩色周报_${monday}.xlsx`);
 }
 
-// 辅助函数
-function setAIKey() { const k = prompt("输入 DeepSeek API Key:", savedApiKey); if(k){savedApiKey=k; localStorage.setItem(AI_KEY_STORAGE,k);} }
-function copyText() { navigator.clipboard.writeText(document.getElementById('aiContent').innerText).then(()=>alert("已复制")); }
-function updCls(btn, dlt) { const s = btn.parentElement.querySelector('.score-val'); s.innerText = parseInt(s.innerText) + dlt; calcScore(btn.closest('tr'), btn.closest('tr').dataset.sidx); autoSave(); }
-function updateWeekDates(v) { if(!v) return; const m = new Date(v); for(let i=1; i<5; i++) { const t = new Date(m); t.setDate(m.getDate()+i); const l = document.getElementById(`date-label-${i}`); if(l) l.innerText = `${(t.getMonth()+1).toString().padStart(2,'0')} / ${t.getDate().toString().padStart(2,'0')}`; } autoSave(); }
-function closeAll() { document.querySelectorAll('.modal, .overlay').forEach(el => el.style.display='none'); }
-function clearAllRecords() { if(confirm("清除所有本地记录吗？")) { localStorage.removeItem(STORAGE_KEY); location.reload(); } }
-function openMonth() { document.getElementById('ovl').style.display='block'; document.getElementById('monthModal').style.display='flex'; }
+/* ================= 5. 座位表融合渲染逻辑 ================= */
+function renderSeatGrid() {
+    var grid = document.getElementById('seatingGrid');
+    if (!grid) return;
+    grid.innerHTML = ''; 
+    
+    seatState.seats.forEach(seatData => {
+        var day = currentViewDay;
+        var weekData = scoreState.history[scoreState.currentMonday] || {};
+        var stuData = weekData[seatData.name] || {};
+        var r = stuData[day] || {cls: 0, vio: 0};
+        
+        var isAbsent = (day < 5) ? (r.att === '缺') : false; 
 
-// 月度分析 (补齐完整解析逻辑)
-async function calcMonth(files) {
-    monthData = {}; let weeks = [];
-    const sortedFiles = Array.from(files).sort((a,b) => a.name.localeCompare(b.name));
-    for(let i=0; i<sortedFiles.length; i++){
-        const wKey = `W${i+1}`; weeks.push(wKey);
-        const workbook = XLSX.read(await sortedFiles[i].arrayBuffer(), {type:'array'});
-        const data = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], {header:1});
-        data.slice(3).forEach(row => {
-            if(!row[1]) return;
-            const key = `${row[0]}-${row[1]}`;
-            if(!monthData[key]) monthData[key] = { c:row[0], n:row[1], ws:[] };
-            let att=0, hw=0, dt=0, cls=0;
-            for(let d=0; d<5; d++) {
-                const base = 2 + d * 5;
-                att += (row[base] == '1' ? 1 : (row[base] == '-1' ? -1 : 0));
-                hw += (SCORE_MAP.hw[row[base+1]] || 0);
-                dt += (SCORE_MAP.dt[row[base+2]] || 0);
-                cls += (parseInt(row[base+3]) || 0);
+        var seat = document.createElement('div');
+        seat.className = 'seat ' + seatData.type + (isAbsent ? ' absent' : '');
+        seat.dataset.row = seatData.row; seat.dataset.col = seatData.col;
+        seat.dataset.type = seatData.type; seat.dataset.name = seatData.name;
+        
+        if (seatData.type === 'student') {
+            var absentBtn = document.createElement('button');
+            absentBtn.className = 'absent-toggle'; absentBtn.innerText = isAbsent ? '缺勤' : '在位';
+            var handleAbs = (e) => {
+                e.stopPropagation(); e.preventDefault();
+                if(day >= 5) return showToast("⚠️ 汇总页不可修改出勤记录");
+                var newState = isAbsent ? '1' : '缺'; 
+                setScore(seatData.name, day, 'att', newState); 
+            };
+            absentBtn.onmousedown = handleAbs; absentBtn.ontouchstart = handleAbs;
+            seat.appendChild(absentBtn);
+
+            var avatarDiv = document.createElement('div'); avatarDiv.className = 'avatar-wrapper';
+            var aFile = seatState.avatars[seatData.name];
+            if (aFile) avatarDiv.innerHTML = `<img src="./头像库/25A/${aFile}" data-filename="${aFile}" draggable="false" onerror="this.src='${CLOUD_OSS_BASE_URL}'+this.dataset.filename">`;
+            else avatarDiv.innerHTML = '<div class="avatar-placeholder">选头像</div>';
+            var handleAva = (e) => { e.stopPropagation(); e.preventDefault(); openAvatarModal(seatData.name); };
+            avatarDiv.onmousedown = handleAva; avatarDiv.ontouchstart = handleAva;
+            seat.appendChild(avatarDiv);
+
+            var nameSpan = document.createElement('span'); nameSpan.innerText = seatData.name;
+            seat.appendChild(nameSpan);
+
+            if(day < 5) {
+                var vioClass = (r.vio > 0) ? 'act-vio' : 'vio-btn-off';
+                var scoreBar = document.createElement('div');
+                scoreBar.className = 'class-action-bar';
+                scoreBar.style.marginTop = 'auto'; 
+                scoreBar.style.width = '100%';
+                
+                var stopProp = (e) => { e.stopPropagation(); };
+                scoreBar.onmousedown = stopProp; scoreBar.ontouchstart = stopProp;
+
+                scoreBar.innerHTML = `
+                    <button class="opt-btn ${vioClass}" onclick="toggleVio('${seatData.name}',${day})">违</button>
+                    <button class="opt-btn success-btn" onclick="updCls('${seatData.name}',${day},1)">答1</button>
+                    <button class="opt-btn success-btn" onclick="updCls('${seatData.name}',${day},2)">答2</button>
+                    <button class="opt-btn success-btn" onclick="updCls('${seatData.name}',${day},3)">答3</button>
+                    <div class="divider"></div>
+                    <button class="opt-btn" onclick="updCls('${seatData.name}',${day},-1)">-</button>
+                    <div class="cls-score-val" style="font-size:11px;">${r.cls||0}</div>
+                    <button class="opt-btn" onclick="updCls('${seatData.name}',${day},1)">+</button>
+                `;
+                seat.appendChild(scoreBar);
             }
-            monthData[key].ws.push({ att, hw, dt, cls, t: att+hw+dt+cls });
-        });
+        } else {
+            seat.innerText = '空位';
+        }
+        
+        seat.addEventListener('mousedown', handlePointerDown);
+        seat.addEventListener('touchstart', handlePointerDown, {passive: false});
+        grid.appendChild(seat);
+    });
+}
+
+function handlePointerDown(e) {
+    if (e.type === 'mousedown' && e.button !== 0) return; 
+    var clientX = e.type === 'touchstart' ? e.touches[0].pageX : e.pageX;
+    var clientY = e.type === 'touchstart' ? e.touches[0].pageY : e.pageY;
+    draggedItem = e.currentTarget; isDragging = false; startX = clientX; startY = clientY;
+    document.addEventListener('mousemove', handlePointerMove); document.addEventListener('mouseup', handlePointerUp);
+    document.addEventListener('touchmove', handlePointerMove, {passive: false}); document.addEventListener('touchend', handlePointerUp);
+}
+
+function handlePointerMove(e) {
+    var clientX = e.type === 'touchmove' ? e.touches[0].pageX : e.pageX;
+    var clientY = e.type === 'touchmove' ? e.touches[0].pageY : e.pageY;
+    if (!isDragging && (Math.abs(clientX - startX) > 10 || Math.abs(clientY - startY) > 10)) {
+        isDragging = true; clone = draggedItem.cloneNode(true);
+        clone.style.width = draggedItem.offsetWidth + 'px'; clone.style.height = draggedItem.offsetHeight + 'px';
+        clone.style.position = 'absolute'; clone.style.zIndex = '2000'; clone.style.pointerEvents = 'none'; clone.style.opacity = '0.85'; clone.style.boxShadow = '0 10px 20px rgba(0,0,0,0.2)';
+        document.body.appendChild(clone); draggedItem.style.opacity = '0.3';
     }
-    renderMonthChart(Object.keys(monthData)[0], weeks);
+    if (isDragging) { if(e.cancelable) e.preventDefault(); clone.style.left = clientX - clone.offsetWidth / 2 + 'px'; clone.style.top = clientY - clone.offsetHeight / 2 + 'px'; }
 }
 
-function renderMonthChart(key, weeks) {
-    const s = monthData[key], ctx = document.getElementById('monthChart').getContext('2d');
-    if(monthChart) monthChart.destroy();
-    monthChart = new Chart(ctx, {
-        data: {
-            labels: weeks,
-            datasets: [
-                { type:'line', label:'趋势', data: s.ws.map(x=>x.t), borderColor:'#ff4d4f', fill:false },
-                { type:'bar', label:'出勤', data: s.ws.map(x=>x.att), backgroundColor:'#52c41a' },
-                { type:'bar', label:'作业', data: s.ws.map(x=>x.hw), backgroundColor:'#1890ff' },
-                { type:'bar', label:'听写', data: s.ws.map(x=>x.dt), backgroundColor:'#722ed1' },
-                { type:'bar', label:'课堂', data: s.ws.map(x=>x.cls), backgroundColor:'#faad14' }
-            ]
-        },
-        options: { responsive:true, maintainAspectRatio:false, scales: { x:{stacked:true}, y:{stacked:true} } }
-    });
-    let h = `<table border="1" style="width:100%; border-collapse:collapse"><thead><tr><th>班级</th><th>姓名</th><th>月度累计</th><th>操作</th></tr></thead><tbody>`;
-    Object.keys(monthData).forEach(x => h += `<tr><td>${monthData[x].c}</td><td>${monthData[x].n}</td><td>${monthData[x].ws.reduce((a,b)=>a+b.t,0)}</td><td><button class="primary" onclick="renderMonthChart('${x}', ${JSON.stringify(weeks)})">查看</button></td></tr>`);
-    document.getElementById('monthList').innerHTML = h + `</tbody></table>`;
+function handlePointerUp(e) {
+    document.removeEventListener('mousemove', handlePointerMove); document.removeEventListener('mouseup', handlePointerUp);
+    document.removeEventListener('touchmove', handlePointerMove); document.removeEventListener('touchend', handlePointerUp);
+    var clientX = e.type === 'touchend' && e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
+    var clientY = e.type === 'touchend' && e.changedTouches ? e.changedTouches[0].clientY : e.clientY;
+
+    if (isDragging) {
+        if (clone) clone.parentNode.removeChild(clone);
+        draggedItem.style.opacity = '1'; draggedItem.style.visibility = 'hidden';
+        var target = document.elementFromPoint(clientX, clientY);
+        draggedItem.style.visibility = 'visible';
+        
+        var targetSeat = target;
+        while (targetSeat && targetSeat !== document && (!targetSeat.classList || !targetSeat.classList.contains('seat'))) { targetSeat = targetSeat.parentNode; }
+        if (targetSeat && targetSeat !== document && targetSeat !== draggedItem) attemptSwap(draggedItem, targetSeat);
+    }
+    draggedItem = null;
 }
 
-function exportMonth() {
-    const data = Object.values(monthData).map(s => {
-        const r = { '班级':s.c, '姓名':s.n };
-        s.ws.forEach((w,i) => r[`W${i+1}`] = w.t);
-        r['总计'] = s.ws.reduce((a,b)=>a+b.t,0);
-        return r;
+function attemptSwap(seatA, seatB) {
+    var isAEmpty = seatA.dataset.type === 'empty'; var isBEmpty = seatB.dataset.type === 'empty';
+    var rowA = parseInt(seatA.dataset.row); var rowB = parseInt(seatB.dataset.row);
+    // 🔥 25A 座位表 5行
+    if ((isAEmpty && rowB !== 5) || (isBEmpty && rowA !== 5)) { showToast("⚠️ 空位只能留在最后一排！"); return; }
+
+    var idxA = seatState.seats.findIndex(s => s.row == rowA && s.col == seatA.dataset.col);
+    var idxB = seatState.seats.findIndex(s => s.row == rowB && s.col == seatB.dataset.col);
+    
+    var tempNode = { type: seatState.seats[idxA].type, name: seatState.seats[idxA].name, absent: seatState.seats[idxA].absent };
+    seatState.seats[idxA].type = seatState.seats[idxB].type; seatState.seats[idxA].name = seatState.seats[idxB].name; seatState.seats[idxA].absent = seatState.seats[idxB].absent;
+    seatState.seats[idxB].type = tempNode.type; seatState.seats[idxB].name = tempNode.name; seatState.seats[idxB].absent = tempNode.absent;
+
+    triggerSaveSeat(); renderSeatGrid();
+}
+
+/* ================= 6. 功能重构 ================= */
+function getMonday(dateString) {
+    var parts = dateString.split('-'); var d = new Date(parts[0], parts[1] - 1, parts[2]);
+    var day = d.getDay() || 7; if(day !== 1) d.setDate(d.getDate() - (day - 1));
+    var m = d.getMonth() + 1; var dd = d.getDate();
+    return d.getFullYear() + '-' + (m < 10 ? '0' + m : m) + '-' + (dd < 10 ? '0' + dd : dd);
+}
+
+function calcTotal(name, weekStr) {
+    var t = 0; var weekData = scoreState.history[weekStr];
+    if(!weekData || !weekData[name]) return 0;
+    for(var i=0; i<5; i++){ 
+        var r = weekData[name][i] || {}; 
+        t += (SCORE_MAP.att[r.att]||0) + (SCORE_MAP.hw[r.hw]||0) + (SCORE_MAP.dt[r.dt]||0) + (r.cls||0) - ((r.vio||0) * 3); 
+    }
+    return t;
+}
+
+function showToast(msg) {
+    var toast = document.getElementById('toast'); toast.innerText = msg;
+    toast.style.opacity = '1'; setTimeout(() => toast.style.opacity = '0', 2000);
+}
+
+function closeAllModals() { 
+    document.querySelectorAll('.modal, .month-dashboard, .overlay').forEach(el => el.style.display='none');
+    currentSelectingStudent = null; 
+}
+
+function copyText(id) { navigator.clipboard.writeText(document.getElementById(id).innerText).then(()=>alert("已成功复制到剪贴板")); }
+
+function openAvatarModal(name) {
+    currentSelectingStudent = name; document.getElementById('currentStudentName').innerText = name;
+    var gallery = document.getElementById('galleryGrid'); gallery.innerHTML = ''; 
+    var taken = Object.values(seatState.avatars).filter(v => v !== seatState.avatars[name]);
+
+    avatarFiles.forEach(file => {
+        var item = document.createElement('div'); item.className = 'gallery-item'; 
+        item.innerHTML = `<img src="./头像库/25A/${file}" data-filename="${file}" onerror="this.src='${CLOUD_OSS_BASE_URL}'+this.dataset.filename">`;
+        if (taken.includes(file)) { item.classList.add('taken'); } 
+        else { 
+            if (seatState.avatars[name] === file) item.style.borderColor = '#4CAF50'; 
+            item.onclick = () => { seatState.avatars[name] = file; triggerSaveSeat(); renderSeatGrid(); closeAllModals(); }; 
+        }
+        gallery.appendChild(item);
     });
-    XLSX.writeFile(XLSX.utils.book_append_sheet(XLSX.utils.book_new(), XLSX.utils.json_to_sheet(data), "月汇总"), "月度汇总.xlsx");
+    document.getElementById('ovl').style.display='block'; document.getElementById('avatarModal').style.display='flex';
+}
+
+function getWeightedWinner(nodes) {
+    var totalWeight = 0, weights = [];
+    nodes.forEach(node => {
+        var w = 2; // 公平随机
+        weights.push(w); totalWeight += w;
+    });
+    var rand = Math.random() * totalWeight; var sum = 0;
+    for(var i = 0; i < nodes.length; i++) {
+        sum += weights[i];
+        if(rand < sum) return nodes[i];
+    }
+    return nodes[nodes.length - 1];
+}
+
+function startRandomDraw() {
+    var studentNodes = Array.from(document.querySelectorAll('.seat.student:not(.absent)'));
+    if (studentNodes.length === 0) return showToast("⚠️ 当前没有可供抽选的学生！");
+    
+    synAudioEngine.init();
+    var btn = document.getElementById('randomBtn'); btn.disabled = true; btn.innerText = '🔄 抽取中...';
+    
+    var finalWinner = getWeightedWinner(studentNodes);
+    var jumps = 0, totalJumps = 20, lastNode = null;
+    
+    var drawInterval = setInterval(() => {
+        if (lastNode) lastNode.classList.remove('lucky-student');
+        var currentNode;
+        if (jumps >= totalJumps - 1) { currentNode = finalWinner; }
+        else { 
+            synAudioEngine.playTick(); 
+            var randIdx = Math.floor(Math.random() * studentNodes.length); currentNode = studentNodes[randIdx]; 
+        }
+        
+        currentNode.classList.add('lucky-student');
+        lastNode = currentNode;
+        jumps++;
+        
+        if (jumps >= totalJumps) {
+            clearInterval(drawInterval);
+            synAudioEngine.playTada();
+            showToast("🎉 有请 " + currentNode.dataset.name + " 同学！");
+            currentNode.classList.add('winner-highlight');
+            btn.disabled = false; btn.innerText = '🎲 随机点名';
+            setTimeout(() => { currentNode.classList.remove('lucky-student', 'winner-highlight'); }, 3000);
+        }
+    }, 75);
+}
+
+function resetAllAvatars() { if(confirm("⚠️ 确定清空全班头像？")) { seatState.avatars = {}; triggerSaveSeat(); renderSeatGrid(); } }
+
+function batchAttendance() { 
+    scoreState.students.forEach(s => { 
+        if(!scoreState.history[scoreState.currentMonday][s.name]) scoreState.history[scoreState.currentMonday][s.name]={}; 
+        if(!scoreState.history[scoreState.currentMonday][s.name][currentViewDay]) scoreState.history[scoreState.currentMonday][s.name][currentViewDay]={cls:0, vio:0}; 
+        scoreState.history[scoreState.currentMonday][s.name][currentViewDay].att = '1'; 
+    }); 
+    triggerSaveScore(); updateGlobalUI(); 
+    showToast("✅ 今日全勤已录入！");
+}
+
+function clearAllRecords() { 
+    if(confirm("警告：仅清理本地设备缓存！若云端有数据，下次刷新可能恢复。")) { localStorage.removeItem(GAKUPO_KEY); localStorage.removeItem(SEAT_KEY); location.reload(); } 
+}
+
+function exportDetailedWeek() {
+    var headers = ["班级", "姓名", "周一", "周二", "周三", "周四", "周五", "周总计积分"];
+    var rows = [headers];
+    var weekData = scoreState.history[scoreState.currentMonday] || {};
+    scoreState.students.forEach(s => {
+        var row = [s.class || '', s.name];
+        for(var i=0; i<5; i++) {
+            var r = (weekData[s.name] && weekData[s.name][i]) ? weekData[s.name][i] : {};
+            var attStr = r.att === '1' ? '出勤' : (r.att === '-1' ? '迟/退' : (r.att === '缺' ? '缺勤' : '未记录'));
+            row.push(`出勤：${attStr}\n作业：${r.hw||'未记录'}\n听写：${r.dt||'未记录'}\n课堂加分：+${r.cls||0}\n违纪次数：${r.vio||0}次`);
+        }
+        row.push(calcTotal(s.name, scoreState.currentMonday)); rows.push(row);
+    });
+    var ws = XLSX.utils.aoa_to_sheet(rows);
+    for(var R = 1; R < rows.length; ++R) {
+        for(var C = 2; C <= 6; ++C) { var ref = XLSX.utils.encode_cell({c:C, r:R}); if(ws[ref]) ws[ref].s = { alignment: { wrapText: true, vertical: 'center' } }; }
+    }
+    var wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "学情周报");
+    XLSX.writeFile(wb, "智能学情周报25A_" + scoreState.currentMonday + ".xlsx");
+}
+
+function exportLocalState() { 
+    var fullBackup = { gakupo: scoreState, seat: seatState };
+    var b = new Blob([JSON.stringify(fullBackup)], {type:"application/json"}); 
+    var a = document.createElement("a"); a.href=URL.createObjectURL(b); a.download="智能管家25A_双擎备份.json"; a.click(); 
+}
+
+function importLocalState(files) { 
+    if(!files.length) return; 
+    var r = new FileReader(); 
+    r.onload = async function(e) {
+        try {
+            var fullData = JSON.parse(e.target.result);
+            if(fullData.gakupo) scoreState = ensureScoreStateIntegrity(fullData.gakupo);
+            if(fullData.seat) seatState = ensureSeatStateIntegrity(fullData.seat);
+            localStorage.setItem(GAKUPO_KEY, JSON.stringify(scoreState));
+            localStorage.setItem(SEAT_KEY, JSON.stringify(seatState));
+            await Promise.all([ fetch(GAKUPO_API, {method:"POST", body:JSON.stringify(scoreState)}).catch(()=>null), fetch(SEAT_API, {method:"POST", body:JSON.stringify(seatState)}).catch(()=>null) ]);
+            location.reload();
+        } catch(err) { alert("文件解析失败，请检查格式！"); }
+    }; 
+    r.readAsText(files[0]); 
+}
+
+async function generateWeeklyAI(name, total) {
+    var key = localStorage.getItem("DEEPSEEK_KEY") || prompt("首次使用，请输入大模型 API Key:"); if(!key) return; localStorage.setItem("DEEPSEEK_KEY", key);
+    document.getElementById('ovl').style.display='block'; document.getElementById('commentModal').style.display='flex';
+    document.getElementById('aiContent').innerText = "🤖 正在抓取本周详细学情并进行诊断分析...";
+    var perf = { att:0, hw:[], dt:[], cls:0, vio:0 };
+    var weekData = scoreState.history[scoreState.currentMonday];
+    for(var d=0; d<5; d++){
+        var r = (weekData[name] && weekData[name][d]) ? weekData[name][d] : {};
+        if(r.att === '1') perf.att += 1; if(r.hw) perf.hw.push(r.hw); if(r.dt) perf.dt.push(r.dt); 
+        perf.cls += (r.cls || 0); perf.vio += (r.vio || 0);
+    }
+    try {
+        var res = await fetch("https://api.deepseek.com/v1/chat/completions", {
+            method: 'POST', headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key},
+            body: JSON.stringify({ model: "deepseek-chat", messages: [{role:"user", content: `作为日语老师，请为学生 ${name} 写一段周评语(60字左右)。本周总积分：${total}分。明细：出勤${perf.att}/5次，作业等级为[${perf.hw.join(', ')||'无记录'}]，听写成绩为[${perf.dt.join(', ')||'无记录'}]，课堂加分 ${perf.cls} 分，违纪 ${perf.vio} 次。要求：指出短板并鼓励。`}], temperature: 0.6 })
+        });
+        var json = await res.json(); document.getElementById('aiContent').innerText = json.choices[0].message.content;
+    } catch(e) { document.getElementById('aiContent').innerText = "请求失败，请检查网络或密钥额度。"; }
+}
+
+function showRadar(name) {
+    var s = { att:0, hw:0, dt:0, cls:0 };
+    var weekData = scoreState.history[scoreState.currentMonday];
+    for(var d=0; d<5; d++){ 
+        var r = (weekData[name] && weekData[name][d]) ? weekData[name][d] : {}; 
+        s.att += SCORE_MAP.att[r.att]||0; s.hw += SCORE_MAP.hw[r.hw]||0; s.dt += SCORE_MAP.dt[r.dt]||0; 
+        s.cls += (r.cls||0) - (r.vio||0)*3; 
+    }
+    s.cls = Math.max(0, s.cls); 
+    document.getElementById('ovl').style.display='block'; document.getElementById('radarModal').style.display='flex';
+    if(radarChart) radarChart.destroy();
+    radarChart = new Chart(document.getElementById('radarChart').getContext('2d'), { 
+        type:'radar', data:{ labels:["出勤","作业","听写","课堂表现"], datasets:[{label:'能力雷达', data:[s.att*20, s.hw*6, s.dt*6, s.cls*10], backgroundColor:'rgba(59,130,246,0.2)', borderColor:'#3b82f6'}] }, 
+        options:{ responsive: true, maintainAspectRatio: false, scales:{ r:{ min:0, suggestedMax:100 } } } 
+    });
+}
+
+function showWeeklyComparison() {
+    var ds = scoreState.students.map(s => ({ name:s.name, total:calcTotal(s.name, scoreState.currentMonday) })).sort((a,b)=>b.total-a.total);
+    document.getElementById('ovl').style.display='block'; document.getElementById('compareModal').style.display='flex';
+    if(compareChart) compareChart.destroy();
+    compareChart = new Chart(document.getElementById('compareChart').getContext('2d'), { 
+        type:'bar', data:{ labels:ds.map(d=>d.name), datasets:[{ label:'总积分', data:ds.map(d=>d.total), backgroundColor: ds.map(d => { if (d.total >= 40) return '#f59e0b'; if (d.total >= 30) return '#8b5cf6'; if (d.total >= 20) return '#3b82f6'; return '#94a3b8'; }), borderRadius:4 }] }, 
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } } 
+    });
+}
+
+function openMonthDashboard() { 
+    document.getElementById('ovl').style.display='block'; document.getElementById('monthDashboard').style.display='flex'; 
+    var weeks = Object.keys(scoreState.history).sort();
+    if(weeks.length === 0) { document.getElementById('weekSelector').innerHTML = "<span style='color:#ef4444;'>暂无历史记录</span>"; return; }
+    var html = '<span style="font-weight:bold; margin-right:10px; color:#1e293b; font-size:14px; white-space:nowrap;">选择对比周：</span>';
+    weeks.forEach(w => { html += `<label class="week-chk-label"><input type="checkbox" class="week-checkbox" value="${w}" checked onchange="analyzeSelectedWeeks()"> ${w}</label>`; });
+    document.getElementById('weekSelector').innerHTML = html; analyzeSelectedWeeks();
+}
+
+function analyzeSelectedWeeks() {
+    var checkboxes = document.querySelectorAll('.week-checkbox:checked');
+    var selected = Array.from(checkboxes).map(cb => cb.value).sort();
+    if(selected.length === 0) { document.getElementById('monthRightPane').style.display = 'none'; return; }
+    g_monthWeeks = selected; g_monthData = {};
+    scoreState.students.forEach(stu => {
+        g_monthData[stu.name] = { class: stu.class, name: stu.name, weeks: [], total: 0 };
+        selected.forEach(weekStr => { var wTotal = calcTotal(stu.name, weekStr); g_monthData[stu.name].weeks.push(wTotal); g_monthData[stu.name].total += wTotal; });
+    });
+    document.getElementById('monthRightPane').style.display = 'block';
+    var list = Object.values(g_monthData).sort((a,b)=>b.total-a.total);
+    document.getElementById('monthStuList').innerHTML = list.map(s => `<div class="stu-list-item" id="mlist_${s.name}" onclick="selectMonthStu('${s.name}')"><span><span style="color:#64748b; font-size:11px;">[${s.class}]</span> <b>${s.name}</b></span><span style="color:#2563eb;">${s.total}</span></div>`).join('');
+    if(list.length > 0) selectMonthStu(list[0].name);
+}
+
+function selectMonthStu(name) {
+    currentMonthStudent = name; document.querySelectorAll('.stu-list-item').forEach(el => el.classList.remove('active')); document.getElementById('mlist_'+name).classList.add('active');
+    var data = g_monthData[name]; document.getElementById('mStuName').innerText = name; document.getElementById('mStuClass').innerText = data.class; document.getElementById('mStuTotal').innerText = data.total;
+    var chartLabels = g_monthWeeks.map(d => d.substring(5).replace('-', '/'));
+    if(c_monthLine) c_monthLine.destroy(); 
+    c_monthLine = new Chart(document.getElementById('monthLineChart').getContext('2d'), { type:'line', data:{ labels:chartLabels, datasets:[{label:'历史积分走势', data:data.weeks, borderColor:'#3b82f6', tension:0.2, borderWidth:3, pointBackgroundColor:'#1e40af', pointRadius:4}] }, options: { responsive:true, maintainAspectRatio: false } });
+    if(c_monthRadar) c_monthRadar.destroy();
+    c_monthRadar = new Chart(document.getElementById('monthRadarChart').getContext('2d'), { type:'bar', data:{ labels:chartLabels, datasets:[{label:'单周总分', data:data.weeks, backgroundColor: data.weeks.map(w => { if (w >= 40) return '#f59e0b'; if (w >= 30) return '#8b5cf6'; if (w >= 20) return '#3b82f6'; return '#94a3b8'; }), borderRadius:4}] }, options: { responsive:true, maintainAspectRatio: false, plugins:{legend:{display:false}} } });
+}
+
+async function generateMonthlyAI() {
+    if(!currentMonthStudent) return; 
+    var key = localStorage.getItem("DEEPSEEK_KEY") || prompt("首次使用，请输入大模型 API Key:"); if(!key) return; localStorage.setItem("DEEPSEEK_KEY", key);
+    var box = document.getElementById('aiMonthContent'); box.innerHTML = "🤖 正在进行综合分析...";
+    var data = g_monthData[currentMonthStudent]; var chartLabels = g_monthWeeks.map(d => d.substring(5).replace('-', '/'));
+    var trendStr = data.weeks.map((w, i) => `${chartLabels[i]}周:${w}分`).join('，');
+    try {
+        var res = await fetch("https://api.deepseek.com/v1/chat/completions", { method: 'POST', headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key}, body: JSON.stringify({ model: "deepseek-chat", messages: [{role:"user", content: `多周学情诊断：学生 ${currentMonthStudent}，选定总积分：${data.total}分。得分波动：[${trendStr}]。请作为班主任，分析趋势给出鼓励。`}], temperature: 0.7 }) });
+        var json = await res.json(); box.innerHTML = json.choices[0].message.content.replace(/\n/g, '<br>');
+    } catch(e) { box.innerHTML = "生成失败，请检查网络或 Key 额度。"; }
+}
+
+/* ================= 7. 通信持久化 ================= */
+function fetchWithTimeout(url, options, timeout = 5000) { return Promise.race([ fetch(url, options), new Promise((_, r) => setTimeout(() => r(new Error('timeout')), timeout)) ]); }
+
+function bindGlobalEvents() {
+    var md = document.getElementById('mondayDate'); md.value = scoreState.currentMonday;
+    md.onchange = (e) => { 
+        var correct = getMonday(e.target.value); 
+        if(correct !== e.target.value) { alert("自动校准为周一: "+correct); e.target.value = correct; }
+        scoreState.currentMonday = correct; if(!scoreState.history[scoreState.currentMonday]) scoreState.history[scoreState.currentMonday] = {};
+        triggerSaveScore(); renderAll(); 
+    };
+}
+
+function loadLocalFallback() {
+    var savedG = localStorage.getItem(GAKUPO_KEY);
+    if(savedG) { try { scoreState = ensureScoreStateIntegrity(JSON.parse(savedG)); } catch(e){ scoreState = ensureScoreStateIntegrity({}); } } else { scoreState = ensureScoreStateIntegrity({}); }
+    var savedS = localStorage.getItem(SEAT_KEY);
+    if(savedS) { try { seatState = ensureSeatStateIntegrity(JSON.parse(savedS)); } catch(e){ seatState = ensureSeatStateIntegrity({}); } } else { seatState = ensureSeatStateIntegrity({}); }
+}
+
+async function syncCloudGakupo() {
+    var st = document.getElementById('syncGakupoStatus');
+    try {
+        var res = await fetchWithTimeout(GAKUPO_API, { cache: "no-store" }, 5000);
+        if(!res.ok) throw new Error("HTTP Error");
+        scoreState = ensureScoreStateIntegrity(await res.json()); localStorage.setItem(GAKUPO_KEY, JSON.stringify(scoreState)); document.getElementById('mondayDate').value = scoreState.currentMonday; updateGlobalUI(); 
+        st.innerText = "积分: ☁️已同步"; st.style.color = "#10b981";
+    } catch(e) { st.innerText = "积分: ⚠️离线"; st.style.color = "#f59e0b"; }
+}
+
+function triggerSaveScore() {
+    localStorage.setItem(GAKUPO_KEY, JSON.stringify(scoreState));
+    var st = document.getElementById('syncGakupoStatus'); st.innerText = "积分: 🔄保存中"; st.style.color = "#3b82f6";
+    if(syncTimeouts.gakupo) clearTimeout(syncTimeouts.gakupo);
+    syncTimeouts.gakupo = setTimeout(async () => {
+        try { var res = await fetchWithTimeout(GAKUPO_API, { method: "POST", body: JSON.stringify(scoreState) }, 4000); if(!res.ok) throw new Error("HTTP Error"); st.innerText = "积分: ☁️已同步"; st.style.color = "#10b981"; } catch(e) { st.innerText = "积分: ⚠️离线存储"; st.style.color = "#f59e0b"; }
+    }, 800);
+}
+
+async function syncCloudSeat() {
+    var st = document.getElementById('syncSeatStatus');
+    try {
+        var res = await fetchWithTimeout(SEAT_API, { cache: "no-store" }, 5000);
+        if(!res.ok) throw new Error("HTTP Error");
+        seatState = ensureSeatStateIntegrity(await res.json()); localStorage.setItem(SEAT_KEY, JSON.stringify(seatState)); renderSeatGrid(); 
+        st.innerText = "座位: ☁️已同步"; st.style.color = "#10b981";
+    } catch(e) { st.innerText = "座位: ⚠️离线"; st.style.color = "#f59e0b"; }
+}
+
+function triggerSaveSeat() {
+    seatState.lastModified = new Date().getTime(); localStorage.setItem(SEAT_KEY, JSON.stringify(seatState));
+    var st = document.getElementById('syncSeatStatus'); st.innerText = "座位: 🔄保存中"; st.style.color = "#3b82f6";
+    if(syncTimeouts.seat) clearTimeout(syncTimeouts.seat);
+    syncTimeouts.seat = setTimeout(async () => {
+        try { var res = await fetchWithTimeout(SEAT_API, { method: "POST", body: JSON.stringify(seatState) }, 4000); if(!res.ok) throw new Error("HTTP Error"); st.innerText = "座位: ☁️已同步"; st.style.color = "#10b981"; } catch(e) { st.innerText = "座位: ⚠️离线存储"; st.style.color = "#f59e0b"; }
+    }, 800);
 }
 </script>
 </body>
