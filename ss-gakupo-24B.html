@@ -807,7 +807,7 @@ async function generateWeeklyAI(name, total) {
     try {
         var res = await fetch("https://api.deepseek.com/v1/chat/completions", {
             method: 'POST', headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key},
-            body: JSON.stringify({ model: "deepseek-chat", messages: [{role:"user", content: `作为日语老师，请为学生 ${name} 写一段周评语(60字左右)。本周总积分：${total}分。明细：出勤${perf.att}/5次，作业等级为[${perf.hw.join(', ')||'无记录'}]，听写成绩为[${perf.dt.join(', ')||'无记录'}]，课堂加分 ${perf.cls} 分，违纪 ${perf.vio} 次。要求：指出短板并鼓励。`}], temperature: 0.6 })
+            body: JSON.stringify({ model: "deepseek-chat", messages: [{role:"user", content: `作为日语老师，请为学生 ${name} 写一段周评语(80字左右)。本周总积分：${total}分。明细：出勤${perf.att}/5次但注意如果当天出勤没有任何记录，一般不是该生缺勤而是这天没有日语课，作业等级为[${perf.hw.join(', ')||'无记录'}]，听写成绩为[${perf.dt.join(', ')||'无记录'}]，课堂加分 ${perf.cls} 分，违纪 ${perf.vio} 次。要求：指出短板并鼓励。`}], temperature: 0.6 })
         });
         var json = await res.json(); document.getElementById('aiContent').innerText = json.choices[0].message.content;
     } catch(e) { document.getElementById('aiContent').innerText = "请求失败，请检查网络或密钥额度。"; }
