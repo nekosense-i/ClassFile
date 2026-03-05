@@ -560,7 +560,7 @@ function renderSeatGrid() {
 
             var avatarDiv = document.createElement('div'); avatarDiv.className = 'avatar-wrapper';
             var aFile = seatState.avatars[seatData.name];
-            if (aFile) avatarDiv.innerHTML = `<img src="./头像库/26CJ/${aFile}" data-filename="${aFile}" draggable="false" onerror="this.src='${CLOUD_OSS_BASE_URL}'+this.dataset.filename">`;
+            if (aFile) avatarDiv.innerHTML = `<img src="./头像库/xq26cj/${aFile}" data-filename="${aFile}" draggable="false" onerror="this.src='${CLOUD_OSS_BASE_URL}'+this.dataset.filename">`;
             else avatarDiv.innerHTML = '<div class="avatar-placeholder">选头像</div>';
             var handleAva = (e) => { e.stopPropagation(); e.preventDefault(); openAvatarModal(seatData.name); };
             avatarDiv.onmousedown = handleAva; avatarDiv.ontouchstart = handleAva;
@@ -694,7 +694,7 @@ function openAvatarModal(name) {
 
     avatarFiles.forEach(file => {
         var item = document.createElement('div'); item.className = 'gallery-item'; 
-        item.innerHTML = `<img src="./头像库/26CJ/${file}" data-filename="${file}" onerror="this.src='${CLOUD_OSS_BASE_URL}'+this.dataset.filename">`;
+        item.innerHTML = `<img src="./头像库/xq26cj/${file}" data-filename="${file}" onerror="this.src='${CLOUD_OSS_BASE_URL}'+this.dataset.filename">`;
         if (taken.includes(file)) { item.classList.add('taken'); } 
         else { 
             if (seatState.avatars[name] === file) item.style.borderColor = '#4CAF50'; 
