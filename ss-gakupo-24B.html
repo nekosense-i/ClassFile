@@ -6,6 +6,15 @@
     <title>智能班级管家</title>
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.4/Chart.min.js"></script>
     <script defer src="https://unpkg.com/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+    <script>
+        // 浏览器内核兼容性嗅探，防止旧设备白屏无响应
+        if (typeof window.fetch === 'undefined' || typeof window.Promise === 'undefined') {
+            alert("⚠️ 严重警告：当前浏览器版本过低（不支持 fetch/Promise）。\n请升级浏览器内核，否则云同步和 AI 功能将无法正常运行！");
+        }
+        // 动态计算真实视口高度，解决老旧浏览器 dvh 塌陷问题
+        function setVH() { var vh = window.innerHeight * 0.01; document.documentElement.style.setProperty('--vh', vh + 'px'); }
+        window.addEventListener('resize', setVH); setVH();
+    </script>
     <style>
         /* ================= 全局公共与重置变量 ================= */
         :root {
@@ -14,11 +23,17 @@
             --hw-A: #22c55e; --hw-B: #86efac; --hw-C: #fef08a; --hw-D: #fca5a5; --hw-none: #ef4444;
             --text-main: #1e293b; --text-muted: #64748b;
         }
-        * { box-sizing: border-box; font-family: -apple-system, system-ui, sans-serif; margin: 0; padding: 0; }
         
-        /* 100dvh 与 100vh 双保险，免疫高度塌陷 */
+        /* 加入中文字体栈优化 */
+        * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif; margin: 0; padding: 0; }
+        
+        /* 高度使用动态计算的 --vh，绝对防止溢出 */
         html, body { height: 100%; width: 100%; overflow: hidden; }
-        body { background: var(--bg); height: 100vh; height: 100dvh; display: flex; flex-direction: column; color: var(--text-main); user-select: none; -webkit-user-select: none; touch-action: none;}
+        body { background: var(--bg); height: 100vh; height: calc(var(--vh, 1vh) * 100); display: flex; flex-direction: column; color: var(--text-main); touch-action: manipulation;}
+
+        /* 防止误触选中文字，仅在 UI 控件生效，允许长按复制 AI 评语 */
+        .no-select { user-select: none; -webkit-user-select: none; }
+        .allow-select { user-select: text; -webkit-user-select: text; }
 
         /* ================= 顶层全局导航 ================= */
         .global-nav { height: 48px; background: #0f172a; display: flex; justify-content: center; align-items: center; gap: 15px; flex-shrink: 0; position: relative; z-index: 2000; box-shadow: 0 2px 10px rgba(0,0,0,0.3);}
@@ -34,7 +49,6 @@
         /* ================= 积分卡 (Gakupo) 样式 ================= */
         .header { height: 60px; flex-shrink: 0; background: #1e293b; color: white; padding: 0 15px; display: flex; justify-content: space-between; align-items: center; z-index: 10; border-top: 1px solid #334155;}
         
-        /* 页签栏增加弹性滚动，防止增加周末后挤爆小屏幕 */
         .tabs { display: flex; background: #334155; padding: 4px; border-radius: 8px; gap: 5px; overflow-x: auto; scrollbar-width: none; max-width: 55vw; }
         .tabs::-webkit-scrollbar { display: none; }
         
@@ -49,7 +63,8 @@
         button.tool-btn:active { transform: scale(0.95); }
         .main-content { flex: 1; min-height: 0; padding: 6px; width: 100%; display: flex; flex-direction: column; overflow: hidden; }
         
-        .grid-container { flex: 1; min-height: 0; display: grid; width: 100%; grid-template-columns: repeat(5, 1fr); grid-template-rows: repeat(3, 1fr); grid-gap: 6px; }
+        /* 布局优化：动态 Grid */
+        .grid-container { flex: 1; min-height: 0; display: grid; width: 100%; grid-gap: 6px; }
         
         .student-card { background: var(--card-bg); border-radius: 6px; border: 1px solid #cbd5e1; padding: 5px; display: flex; flex-direction: column; justify-content: space-between; min-height: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
         .card-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed #e2e8f0; padding-bottom: 2px; }
@@ -136,15 +151,15 @@
         #toast { position: fixed; top: 10vh; left: 50%; transform: translateX(-50%); background: rgba(0, 0, 0, 0.8); color: #fff; padding: 10px 20px; border-radius: 8px; font-size: 16px; opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 9999; }
     </style>
 </head>
-<body>
+<body class="no-select">
 
 <div id="toast"></div>
 <div class="overlay" id="ovl" onclick="closeAllModals()"></div>
 
 <div class="global-nav">
-    <button class="nav-btn active" id="btnNavGakupo" onclick="switchGlobalView('gakupo')">📊 学情积分卡</button>
-    <button class="nav-btn" id="btnNavSeat" onclick="switchGlobalView('seat')">🗺️ 座位表</button>
-    <div class="global-sync">
+    <button class="nav-btn active allow-select" id="btnNavGakupo" onclick="switchGlobalView('gakupo')">📊 学情积分卡</button>
+    <button class="nav-btn allow-select" id="btnNavSeat" onclick="switchGlobalView('seat')">🗺️ 座位表</button>
+    <div class="global-sync allow-select">
         <span class="sync-indicator" id="syncGakupoStatus" style="color:#94a3b8;">积分: 读取中...</span>
         <span class="sync-indicator" id="syncSeatStatus" style="color:#94a3b8;">座位: 读取中...</span>
     </div>
@@ -171,7 +186,7 @@
     </div>
     <div class="main-content">
         <div id="cardGrid" class="grid-container"></div>
-        <div id="summaryView" class="summary-view">
+        <div id="summaryView" class="summary-view allow-select">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
                 <h2 style="font-size:18px;">📊 本周学情明细与汇总 (<span id="summaryWeekText"></span>)</h2>
                 <div style="display:flex; gap: 8px;">
@@ -193,17 +208,17 @@
     <div class="classroom">
         <div class="front-board-container">
             <div class="btn-group-left">
-                <button class="action-btn btn-random" id="randomBtn" onclick="startRandomDraw()">🎲 随机点名</button>
+                <button class="action-btn btn-random allow-select" id="randomBtn" onclick="startRandomDraw()">🎲 随机点名</button>
             </div>
-            <div class="front-board">讲台 (当前计分：<span id="seatDayIndicator" style="color:#f1c40f;"></span>)</div>
+            <div class="front-board allow-select">讲台 (当前计分：<span id="seatDayIndicator" style="color:#f1c40f;"></span>)</div>
             <div class="btn-group-right">
-                <button class="action-btn btn-reset" onclick="resetAllAvatars()">🔄 重置头像</button>
+                <button class="action-btn btn-reset allow-select" onclick="resetAllAvatars()">🔄 重置头像</button>
             </div>
         </div>
         <div class="middle-section">
-            <div class="side-wall side-window">窗户</div>
+            <div class="side-wall side-window allow-select">窗户</div>
             <div class="seating-grid" id="seatingGrid"></div>
-            <div class="side-wall side-door">教室门</div>
+            <div class="side-wall side-door allow-select">教室门</div>
         </div>
     </div>
 </div>
@@ -211,18 +226,18 @@
 <div id="avatarModal" class="modal">
     <div style="display:flex; justify-content:space-between; border-bottom:1px solid #eee; padding-bottom:10px; margin-bottom:10px;">
         <h3 id="modalTitle">选择头像 - <span id="currentStudentName" style="color:#4CAF50;"></span></h3>
-        <button class="tool-btn" style="background:#ef4444;" onclick="closeAllModals()">关闭</button>
+        <button class="tool-btn allow-select" style="background:#ef4444;" onclick="closeAllModals()">关闭</button>
     </div>
     <div class="gallery-grid" id="galleryGrid"></div>
 </div>
 
 <div id="commentModal" class="modal">
     <h3 id="commentModalTitle" style="margin-bottom:10px; border-bottom:1px solid #eee; padding-bottom:8px;">AI 智能学情诊断</h3>
-    <div id="aiContent" style="background:#f8fafc; padding:15px; border:1px solid #cbd5e1; border-radius:8px; line-height:1.6; font-size:14px; color:#334155; min-height:80px; max-height:45vh; overflow-y:auto;"></div>
+    <div id="aiContent" class="allow-select" style="background:#f8fafc; padding:15px; border:1px solid #cbd5e1; border-radius:8px; line-height:1.6; font-size:14px; color:#334155; min-height:80px; max-height:45vh; overflow-y:auto;"></div>
     <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:15px;">
-        <button class="tool-btn" id="btnRegenAI" style="background:#f59e0b; display:none;">🔄 重新生成</button>
-        <button class="tool-btn" id="btnCopyAI" onclick="copyText('aiContent')" style="background:#3b82f6;">📋 复制评语</button>
-        <button class="tool-btn" onclick="closeAllModals()" style="background:#94a3b8;">关闭</button>
+        <button class="tool-btn allow-select" id="btnRegenAI" style="background:#f59e0b; display:none;">🔄 重新生成</button>
+        <button class="tool-btn allow-select" id="btnCopyAI" onclick="copyText('aiContent')" style="background:#3b82f6;">📋 复制评语</button>
+        <button class="tool-btn allow-select" onclick="closeAllModals()" style="background:#94a3b8;">关闭</button>
     </div>
 </div>
 
@@ -230,7 +245,7 @@
     <h3 style="text-align:center; margin-bottom:10px;">能力评价雷达</h3>
     <div style="height:320px; position:relative; width:100%;"><canvas id="radarChart"></canvas></div>
     <div style="text-align:right; margin-top:10px;">
-        <button class="tool-btn" onclick="closeAllModals()" style="background:#ef4444;">关闭</button>
+        <button class="tool-btn allow-select" onclick="closeAllModals()" style="background:#ef4444;">关闭</button>
     </div>
 </div>
 
@@ -238,22 +253,22 @@
     <h3 style="margin-bottom: 10px;">本周积分对比</h3>
     <div style="height:350px; position:relative; width:100%;"><canvas id="compareChart"></canvas></div>
     <div style="text-align:right; margin-top:15px;">
-        <button class="tool-btn" onclick="closeAllModals()" style="background:#ef4444;">关闭</button>
+        <button class="tool-btn allow-select" onclick="closeAllModals()" style="background:#ef4444;">关闭</button>
     </div>
 </div>
 
 <div id="monthDashboard" class="month-dashboard">
     <div style="background:#1e293b; color:white; padding:10px 20px; display:flex; justify-content:space-between; align-items:center; flex-shrink:0;">
         <h3 style="margin:0;">📅 多周连贯数据追踪</h3>
-        <button class="tool-btn" onclick="closeAllModals()" style="background:#ef4444;">关闭面板</button>
+        <button class="tool-btn allow-select" onclick="closeAllModals()" style="background:#ef4444;">关闭面板</button>
     </div>
     <div id="weekSelector" class="week-selector-container"></div>
     <div style="flex:1; display:flex; overflow:hidden;">
         <div style="width:260px; border-right:1px solid #ddd; overflow-y:auto; padding:10px; background:white;" id="monthStuList"></div>
         <div style="flex:1; padding:20px; overflow-y:auto; background:#f8fafc;" id="monthRightPane">
             <div style="display: flex; justify-content: space-between; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; margin-bottom: 15px;">
-                <div><span id="mStuClass" class="class-tag" style="font-size:14px;"></span><span id="mStuName" style="font-size:24px; font-weight:900;"></span></div>
-                <div style="font-size: 18px; font-weight: 800; color: #2563eb;">累计追踪积分：<span id="mStuTotal">0</span></div>
+                <div><span id="mStuClass" class="class-tag allow-select" style="font-size:14px;"></span><span id="mStuName" class="allow-select" style="font-size:24px; font-weight:900;"></span></div>
+                <div class="allow-select" style="font-size: 18px; font-weight: 800; color: #2563eb;">累计追踪积分：<span id="mStuTotal">0</span></div>
             </div>
              <div style="display:flex; gap:10px; height:300px; margin-bottom:15px;">
                  <div style="flex:2; background:white; padding:15px; border:1px solid #e2e8f0; border-radius:12px; position:relative;"><canvas id="monthLineChart"></canvas></div>
@@ -263,11 +278,11 @@
                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
                      <h4 style="margin:0;">🤖 AI 多周综合分析</h4>
                      <div style="display:flex; gap:8px;">
-                         <button class="tool-btn" onclick="copyText('aiMonthContent')" style="background:#3b82f6;">📋 复制分析</button>
-                         <button class="tool-btn" onclick="generateMonthlyAI()" style="background:#8b5cf6;">✨ 诊断所选周期</button>
+                         <button class="tool-btn allow-select" onclick="copyText('aiMonthContent')" style="background:#3b82f6;">📋 复制分析</button>
+                         <button class="tool-btn allow-select" onclick="generateMonthlyAI()" style="background:#8b5cf6;">✨ 诊断所选周期</button>
                      </div>
                  </div>
-                 <div id="aiMonthContent" style="background:#f1f5f9; padding:15px; border-radius:8px; min-height:60px; font-size:14px; line-height:1.6; color:#334155;">选取上方周期后，点击按钮生成跨周期综合报告。</div>
+                 <div id="aiMonthContent" class="allow-select" style="background:#f1f5f9; padding:15px; border-radius:8px; min-height:60px; max-height:200px; overflow-y:auto; font-size:14px; line-height:1.6; color:#334155;">选取上方周期后，点击按钮生成跨周期综合报告。</div>
              </div>
         </div>
     </div>
@@ -298,8 +313,6 @@ var scoreState = { students: DEFAULT_STUDENTS, history: {}, currentMonday: "" };
 var seatState = { lastModified: 0, avatars: {}, seats: [] };
 
 var cloudSyncState = { gakupoLoaded: false, seatLoaded: false };
-
-// 核心定位：获取打开系统当天的周索引 (周日=6, 周一=0)
 var currentViewDay = (new Date().getDay() + 6) % 7; 
 var currentSelectingStudent = null;
 var syncTimeouts = { gakupo: null, seat: null };
@@ -329,7 +342,15 @@ var synAudioEngine = {
     }
 };
 
-/* ================= 2. 底层数据处理与初始化工具 ================= */
+/* ================= 2. 底层数据处理与安全防护 ================= */
+// 防御 XSS 注入，避免 AI 返回异常脚本
+function escapeHTML(str) {
+    if (!str) return '';
+    var div = document.createElement('div');
+    div.innerText = str;
+    return div.innerHTML;
+}
+
 function getMonday(dateString) {
     var parts = dateString.split('-'); var d = new Date(parts[0], parts[1] - 1, parts[2]);
     var day = d.getDay() || 7; if(day !== 1) d.setDate(d.getDate() - (day - 1));
@@ -372,7 +393,7 @@ function bindGlobalEvents() {
     };
 }
 
-/* ================= 3. 视图调度与渲染层 ================= */
+/* ================= 3. 视图调度与自适应渲染层 ================= */
 function switchGlobalView(view) {
     document.getElementById('btnNavGakupo').classList.toggle('active', view === 'gakupo');
     document.getElementById('btnNavSeat').classList.toggle('active', view === 'seat');
@@ -413,8 +434,18 @@ function renderDayTabs() {
 
 function switchDay(idx) { currentViewDay = idx; renderAll(); }
 
+// 动态计算 Grid 列数，自适应 14~50 人大班级
+function applyDynamicGridColumns(gridElement, studentCount) {
+    var cols = 5;
+    if (studentCount > 15 && studentCount <= 24) cols = 6;
+    else if (studentCount > 24 && studentCount <= 35) cols = 7;
+    else if (studentCount > 35) cols = 8;
+    gridElement.style.gridTemplateColumns = 'repeat(' + cols + ', 1fr)';
+}
+
 function renderGakupoCards(day) {
     var grid = document.getElementById('cardGrid'); grid.innerHTML = '';
+    applyDynamicGridColumns(grid, scoreState.students.length);
     var weekData = scoreState.history[scoreState.currentMonday] || {};
     scoreState.students.forEach(function(stu) {
         if(!weekData[stu.name]) weekData[stu.name] = {};
@@ -442,7 +473,7 @@ function renderGakupoSummary() {
         var cachedComment = stuWeek.ai_comment;
         var btnText = cachedComment ? "✅ 查周评" : "✨ 周评";
         var btnColor = cachedComment ? "#10b981" : "#2563eb";
-        row += '<td style="color:#2563eb; font-weight:900; font-size:18px; vertical-align:middle;">'+wt+'</td><td style="vertical-align:middle;"><span class="action-link" style="color:'+btnColor+';" onclick="generateWeeklyAI(\''+stu.name+'\', '+wt+')">'+btnText+'</span></td></tr>';
+        row += '<td style="color:#2563eb; font-weight:900; font-size:18px; vertical-align:middle;">'+wt+'</td><td style="vertical-align:middle;"><span class="action-link allow-select" style="color:'+btnColor+';" onclick="generateWeeklyAI(\''+stu.name+'\', '+wt+')">'+btnText+'</span></td></tr>';
         tbody.innerHTML += row;
     });
 }
@@ -730,7 +761,6 @@ function showWeeklyComparison() {
     } catch(e) { alert("⚠️ 渲染对比图错误: " + e.message); }
 }
 
-// 核心修复：多周分析页面选择对比周，只自动选中当前周数据
 function openMonthDashboard() { 
     document.getElementById('ovl').style.display='block'; document.getElementById('monthDashboard').style.display='flex'; 
     var weeks = Object.keys(scoreState.history).sort();
@@ -775,7 +805,7 @@ function selectMonthStu(name) {
     } catch(e) { console.error("多周图表渲染失败: ", e); }
 }
 
-/* ================= 7. 附加模块 (弹窗、AI 诊断) ================= */
+/* ================= 7. 附加模块 (弹窗、AI 诊断、智能点名) ================= */
 function showToast(msg) { var toast = document.getElementById('toast'); toast.innerText = msg; toast.style.opacity = '1'; setTimeout(function(){ toast.style.opacity = '0'; }, 2000); }
 function closeAllModals() { document.querySelectorAll('.modal, .month-dashboard, .overlay').forEach(function(el){ el.style.display='none'; }); currentSelectingStudent = null; }
 function copyText(id) { navigator.clipboard.writeText(document.getElementById(id).innerText).then(function(){ alert("已成功复制到剪贴板"); }); }
@@ -796,7 +826,16 @@ function openAvatarModal(name) {
 
 function getWeightedWinner(nodes) {
     var SPECIAL = ['钟菲儿', '刘澄橙', '李妮蔓']; var tot = 0, ws = [];
-    nodes.forEach(function(n) { var w = SPECIAL.includes(n.dataset.name) ? 1 : 2; ws.push(w); tot += w; });
+    nodes.forEach(function(n) { 
+        var name = n.dataset.name;
+        var r = (scoreState.history[scoreState.currentMonday] && scoreState.history[scoreState.currentMonday][name] && scoreState.history[scoreState.currentMonday][name][currentViewDay]) || {};
+        var w = 10;
+        if (SPECIAL.includes(name)) w = 5;
+        if (r.att === '缺') w = 0; 
+        else if (r.att === '-1') w = 5; 
+        if (r.vio > 0) w = Math.max(1, w - r.vio * 3); 
+        ws.push(w); tot += w; 
+    });
     var rand = Math.random() * tot; var sum = 0;
     for(var i = 0; i < nodes.length; i++) { sum += ws[i]; if(rand < sum) return nodes[i]; }
     return nodes[nodes.length - 1];
@@ -824,6 +863,7 @@ function startRandomDraw() {
 
 function resetAllAvatars() { if(confirm("⚠️ 确定清空全班头像？")) { seatState.avatars = {}; triggerSaveSeat(); renderSeatGrid(); } }
 
+// 纯净单周评语
 async function generateWeeklyAI(name, total, force) {
     var weekData = scoreState.history[scoreState.currentMonday]; if (!weekData[name]) weekData[name] = {};
     document.getElementById('ovl').style.display='block'; document.getElementById('commentModal').style.display='flex'; document.getElementById('commentModalTitle').innerText = 'AI 智能学情诊断 - ' + name;
@@ -837,39 +877,16 @@ async function generateWeeklyAI(name, total, force) {
     
     try {
         var hwStatus = perf.hw.length > 0 ? perf.hw.join(', ') : '无记录'; var dtStatus = perf.dt.length > 0 ? perf.dt.join(', ') : '无记录'; var attStatus = perf.attTotal > 0 ? perf.att+'/'+perf.attTotal+' 次' : '无记录';
-        var promptMessage = "# 角色：专业日语老师\n# 任务：为学生 " + name + " 撰写周评语（约60字），发给家长。\n# 学生本周真实数据：\n- 总积分：" + total + "\n- 出勤：" + attStatus + "\n- 作业等级：[" + hwStatus + "]\n- 听写成绩：[" + dtStatus + "]\n- 课堂加分：" + perf.cls + "\n- 违纪次数：" + perf.vio + "\n# 核心约束（严格执行）：\n1. **无记录 = 未安排**：若某项整体显示“无记录”，表示本周根本没有布置该任务，评语中请【完全跳过】该项，严禁误说成学生没做。\n2. **精准点出问题**：如果数据中有迟到(-1)、作业“未”、听写“未”或“重”、违纪等，必须客观指出这些短板。\n3. **先抑后扬**：指出问题后，结合加分项或总分给予正面鼓励。\n4. **排版要求**：绝对禁止使用星号（*）等特殊符号。";
+        var promptMessage = "# 角色：专业日语老师\n# 任务：为学生 " + name + " 撰写周评语（约80字），发给家长。\n# 学生本周真实数据：\n- 总积分：" + total + "\n- 出勤：" + attStatus + "\n- 作业等级：[" + hwStatus + "]\n- 听写成绩：[" + dtStatus + "]\n- 课堂加分：" + perf.cls + "\n- 违纪次数：" + perf.vio + "\n# 核心约束（严格执行）：\n1. **无记录 = 未安排**：若某项整体显示“无记录”，表示本周根本没有布置该任务，评语中请【完全跳过】该项，严禁误说成学生没做。\n2. **精准点出问题**：如果数据中有迟到(-1)、作业“未”、听写“未”或“重”、违纪等，必须客观指出这些短板。\n3. **先抑后扬**：指出问题后，结合加分项或总分给予正面鼓励。\n4. **排版要求**：绝对禁止使用星号（*）等特殊符号。";
         var res = await fetch("https://api.deepseek.com/v1/chat/completions", { method: 'POST', headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key}, body: JSON.stringify({ model: "deepseek-chat", messages: [ { role: "system", content: "你是一个严谨的教学助手，绝对不使用星号等特殊符号。" }, { role: "user", content: promptMessage } ], temperature: 0.5 }) });
-        var json = await res.json(); var comment = json.choices[0].message.content.replace(/\*/g, '');
+        var json = await res.json(); 
+        var comment = escapeHTML(json.choices[0].message.content.replace(/\*/g, ''));
         weekData[name].ai_comment = comment.replace(/\n/g, '<br>'); triggerSaveScore(); renderGakupoSummary(); 
         document.getElementById('aiContent').innerHTML = weekData[name].ai_comment; regenBtn.style.display = 'inline-block'; copyBtn.style.display = 'inline-block'; regenBtn.onclick = function() { generateWeeklyAI(name, total, true); };
     } catch(e) { document.getElementById('aiContent').innerText = "请求失败，请检查网络或密钥额度。"; }
 }
 
-async function generateAllWeeklyAI() {
-    if(!confirm("确定要为全班重新生成智能周评吗？\n\n⚠️ 注意：这会覆盖所有已有的周评缓存，并且可能需要消耗 1~2 分钟时间。")) return;
-    var key = localStorage.getItem("DEEPSEEK_KEY") || prompt("首次使用，请输入大模型 API Key:"); if(!key) return; localStorage.setItem("DEEPSEEK_KEY", key);
-    var weekData = scoreState.history[scoreState.currentMonday]; var studentsToProcess = scoreState.students.map(function(stu) { return { name: stu.name, total: calcTotal(stu.name, scoreState.currentMonday) }; });
-    document.getElementById('ovl').style.display='block'; document.getElementById('commentModal').style.display='flex'; document.getElementById('commentModalTitle').innerText = "批量生成全班周评";
-    document.getElementById('btnRegenAI').style.display = 'none'; document.getElementById('btnCopyAI').style.display = 'none';
-    
-    for (var i = 0; i < studentsToProcess.length; i++) {
-        var stu = studentsToProcess[i]; if (!weekData[stu.name]) weekData[stu.name] = {};
-        document.getElementById('aiContent').innerHTML = '<div style="text-align:center; padding: 20px;">🤖 <b>正在批量生成全班周评...</b><br><br>当前进度: <b style="color:#2563eb; font-size:18px;">'+stu.name+'</b> ('+(i+1)+'/'+studentsToProcess.length+')<br><br><span style="color:#f59e0b; font-size:12px;">⚠️ 请勿关闭当前页面，整个过程可能需要几十秒。</span></div>';
-        var perf = { att:0, attTotal:0, hw:[], dt:[], cls:0, vio:0 };
-        for(var d=0; d<7; d++){ var r = (weekData[stu.name] && weekData[stu.name][d]) ? weekData[stu.name][d] : {}; if(r.att !== undefined && r.att !== '') { perf.attTotal += 1; if(r.att === '1') perf.att += 1; } if(r.hw) perf.hw.push(r.hw); if(r.dt) perf.dt.push(r.dt); perf.cls += (r.cls || 0); perf.vio += (r.vio || 0); }
-        
-        try {
-            var hwStatus = perf.hw.length > 0 ? perf.hw.join(', ') : '无记录'; var dtStatus = perf.dt.length > 0 ? perf.dt.join(', ') : '无记录'; var attStatus = perf.attTotal > 0 ? perf.att+'/'+perf.attTotal+' 次' : '无记录';
-            var promptMessage = "# 角色：专业日语老师\n# 任务：为学生 " + stu.name + " 撰写周评语（约60字）。\n# 学生本周真实数据：\n- 总积分：" + stu.total + "\n- 出勤：" + attStatus + "\n- 作业等级：[" + hwStatus + "]\n- 听写成绩：[" + dtStatus + "]\n- 课堂加分：" + perf.cls + "\n- 违纪次数：" + perf.vio + "\n# 核心约束（严格执行）：\n1. **无记录 = 未安排**：若某项整体显示“无记录”，请【完全跳过】该项。\n2. **精准点出问题**：如果数据中有迟到(-1)、作业“未”、听写“未”或“重”、违纪等，必须客观指出这些短板。\n3. **先抑后扬**：指出问题后，结合加分项或总分给予正面鼓励。\n4. **排版要求**：绝对禁止使用星号（*）等特殊符号。";
-            var res = await fetch("https://api.deepseek.com/v1/chat/completions", { method: 'POST', headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key}, body: JSON.stringify({ model: "deepseek-chat", messages: [ { role: "system", content: "你是一个严谨的教学助手，绝对不使用星号等特殊符号。" }, { role: "user", content: promptMessage } ], temperature: 0.5 }) });
-            var json = await res.json(); var comment = json.choices[0].message.content.replace(/\*/g, '');
-            weekData[stu.name].ai_comment = comment.replace(/\n/g, '<br>'); triggerSaveScore(); renderGakupoSummary(); 
-        } catch(e) { document.getElementById('aiContent').innerHTML += '<br><br><span style="color:red">❌ 请求失败 ('+stu.name+')，请检查网络或余额。批量生成已中止。</span>'; return; }
-    }
-    document.getElementById('aiContent').innerHTML = '<div style="text-align:center; padding: 20px;"><span style="font-size:40px;">✅</span><br><br><b>批量覆盖生成完成！</b><br><br>成功生成了 '+studentsToProcess.length+' 份周评。<br>您现在可以在汇总界面秒开查阅。</div>';
-}
-
-// 🔥 多周综合 AI 诊断功能
+// 纯净多周综合分析
 async function generateMonthlyAI() {
     if(!currentMonthStudent) return; 
     var key = localStorage.getItem("DEEPSEEK_KEY") || prompt("首次使用，请输入大模型 API Key:"); 
@@ -912,9 +929,11 @@ async function generateMonthlyAI() {
             }) 
         });
         var json = await res.json(); 
-        var comment = json.choices[0].message.content.replace(/\*/g, '');
+        var comment = escapeHTML(json.choices[0].message.content.replace(/\*/g, '')); 
         box.innerHTML = comment.replace(/\n/g, '<br>');
-    } catch(e) { box.innerHTML = "生成失败，请检查网络或 Key 额度。"; }
+    } catch(e) { 
+        box.innerHTML = "生成失败，请检查网络或 Key 额度。"; 
+    }
 }
 
 /* ================= 8. 数据出入海与同步网络层 ================= */
@@ -977,7 +996,7 @@ function triggerManualSync() {
     if(c==='1') { syncBothClouds(); } else if(c==='2') { cloudSyncState.gakupoLoaded = true; cloudSyncState.seatLoaded = true; document.getElementById('reconnectBtn').style.display = "none"; triggerSaveScore(); triggerSaveSeat(); }
 }
 
-/* ================= 9. 启动引擎 (必须放在最底下) ================= */
+/* ================= 9. 启动引擎 ================= */
 document.addEventListener('DOMContentLoaded', async function() {
     try {
         scoreState.currentMonday = getMonday(new Date().toISOString().split('T')[0]);
