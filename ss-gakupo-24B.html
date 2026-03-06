@@ -118,6 +118,9 @@
         .seat.student { background: #e8f5e9; border: 2px solid #81c784; color: #2e7d32; }
         .seat.empty { background: #f5f5f5; border: 2px dashed #bdbdbd; color: #9e9e9e; cursor: pointer; justify-content: center; padding: 0;}
         
+        /* 🔥 点击选中交换状态的 UI 反馈 */
+        .seat.selected-swap { border: 3px solid var(--primary) !important; box-shadow: 0 0 15px rgba(59, 130, 246, 0.6) !important; transform: scale(1.05); z-index: 10; }
+
         .seat > span:not(.absent-toggle) { font-size: clamp(14px, 2.2vh, 18px); font-weight: 800; margin-top: 2px; margin-bottom: 4px; letter-spacing: 1px; flex-shrink: 0;}
         
         .avatar-wrapper { width: 6.5vh; height: 6.5vh; min-width: 42px; min-height: 42px; border-radius: 50%; background-color: #fff; border: 2px solid #a5d6a7; display: flex; align-items: center; justify-content: center; overflow: hidden; cursor: pointer; z-index: 5; margin-bottom: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); flex-shrink: 1;}
@@ -318,6 +321,7 @@ var currentSelectingStudent = null;
 var syncTimeouts = { gakupo: null, seat: null };
 var isOfflineLocked = false;
 var draggedItem = null, isDragging = false, clone = null, startX, startY;
+var clickedSeat = null; // 核心修复：用于判定单机选中座位的变量
 var radarChart, compareChart, c_monthLine, c_monthRadar;
 var g_monthData = {}, g_monthWeeks = [], currentMonthStudent = null;
 
@@ -342,8 +346,7 @@ var synAudioEngine = {
     }
 };
 
-/* ================= 2. 底层数据处理与安全防护 ================= */
-// 防御 XSS 注入，避免 AI 返回异常脚本
+/* ================= 2. 底层防注入与数据初始化 ================= */
 function escapeHTML(str) {
     if (!str) return '';
     var div = document.createElement('div');
@@ -399,6 +402,9 @@ function switchGlobalView(view) {
     document.getElementById('btnNavSeat').classList.toggle('active', view === 'seat');
     document.getElementById('gakupoView').style.display = view === 'gakupo' ? 'flex' : 'none';
     document.getElementById('seatView').style.display = view === 'seat' ? 'flex' : 'none';
+    
+    // 切换视图时清空选中的座位状态
+    if (clickedSeat) { clickedSeat.classList.remove('selected-swap'); clickedSeat = null; }
 }
 
 function updateGlobalUI() { renderGakupoCards(currentViewDay); renderSeatGrid(); }
@@ -425,7 +431,6 @@ function renderDayTabs() {
     html += '<button class="tab-btn ' + (currentViewDay === 7 ? 'active' : '') + '" onclick="switchDay(7)" style="color:#fcd34d;"><div style="font-weight:bold; font-size: 15px;">📊 汇总</div></button>';
     dayTabs.innerHTML = html;
     
-    // 自动将当天页签滚动至视口可见范围
     var activeBtn = dayTabs.querySelector('.active');
     if (activeBtn) { activeBtn.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' }); }
     
@@ -434,7 +439,6 @@ function renderDayTabs() {
 
 function switchDay(idx) { currentViewDay = idx; renderAll(); }
 
-// 动态计算 Grid 列数，自适应 14~50 人大班级
 function applyDynamicGridColumns(gridElement, studentCount) {
     var cols = 5;
     if (studentCount > 15 && studentCount <= 24) cols = 6;
@@ -479,6 +483,7 @@ function renderGakupoSummary() {
 }
 
 function renderSeatGrid() {
+    clickedSeat = null; // 核心修复：重新渲染网格时释放选中状态
     var grid = document.getElementById('seatingGrid'); if (!grid) return; grid.innerHTML = ''; 
     seatState.seats.forEach(function(seatData) {
         var day = currentViewDay;
@@ -565,26 +570,47 @@ function handlePointerMove(e) {
     }
     if (isDragging) { if(e.cancelable) e.preventDefault(); clone.style.left = clientX - clone.offsetWidth / 2 + 'px'; clone.style.top = clientY - clone.offsetHeight / 2 + 'px'; }
 }
+
 function handlePointerUp(e) {
     document.removeEventListener('mousemove', handlePointerMove); document.removeEventListener('mouseup', handlePointerUp);
     document.removeEventListener('touchmove', handlePointerMove); document.removeEventListener('touchend', handlePointerUp);
     var clientX = e.type === 'touchend' && e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
     var clientY = e.type === 'touchend' && e.changedTouches ? e.changedTouches[0].clientY : e.clientY;
+    
     if (isDragging) {
         if (clone) clone.parentNode.removeChild(clone);
         draggedItem.style.opacity = '1'; draggedItem.style.visibility = 'hidden';
         var target = document.elementFromPoint(clientX, clientY); draggedItem.style.visibility = 'visible';
         var targetSeat = target; while (targetSeat && targetSeat !== document && (!targetSeat.classList || !targetSeat.classList.contains('seat'))) { targetSeat = targetSeat.parentNode; }
         if (targetSeat && targetSeat !== document && targetSeat !== draggedItem) attemptSwap(draggedItem, targetSeat);
+    } else {
+        // 核心修复：点击选中与交换逻辑回归
+        if (draggedItem) {
+            if (!clickedSeat) {
+                clickedSeat = draggedItem;
+                clickedSeat.classList.add('selected-swap');
+            } else if (clickedSeat === draggedItem) {
+                clickedSeat.classList.remove('selected-swap');
+                clickedSeat = null;
+            } else {
+                attemptSwap(clickedSeat, draggedItem);
+            }
+        }
     }
     draggedItem = null;
 }
+
 function attemptSwap(seatA, seatB) {
     var isAEmpty = seatA.dataset.type === 'empty'; var isBEmpty = seatB.dataset.type === 'empty';
     var rowA = parseInt(seatA.dataset.row); var rowB = parseInt(seatB.dataset.row);
     if ((isAEmpty && rowB !== 4) || (isBEmpty && rowA !== 4)) { showToast("⚠️ 空位只能留在最后一排！"); return; }
-    var idxA = seatState.seats.findIndex(function(s){ return s.row == rowA && s.col == seatA.dataset.col; });
-    var idxB = seatState.seats.findIndex(function(s){ return s.row == rowB && s.col == seatB.dataset.col; });
+    
+    var idxA = -1, idxB = -1;
+    for(var i=0; i<seatState.seats.length; i++) {
+        if(seatState.seats[i].row == rowA && seatState.seats[i].col == seatA.dataset.col) idxA = i;
+        if(seatState.seats[i].row == rowB && seatState.seats[i].col == seatB.dataset.col) idxB = i;
+    }
+    
     var tempNode = { type: seatState.seats[idxA].type, name: seatState.seats[idxA].name, absent: seatState.seats[idxA].absent };
     seatState.seats[idxA].type = seatState.seats[idxB].type; seatState.seats[idxA].name = seatState.seats[idxB].name; seatState.seats[idxA].absent = seatState.seats[idxB].absent;
     seatState.seats[idxB].type = tempNode.type; seatState.seats[idxB].name = tempNode.name; seatState.seats[idxB].absent = tempNode.absent;
@@ -636,7 +662,7 @@ function exportLocalState() {
 function importLocalState(files) { 
     if(!files.length) return; 
     var r = new FileReader(); 
-    r.onload = async function(e) {
+    r.onload = function(e) {
         try {
             var fullData = JSON.parse(e.target.result);
             if(fullData.gakupo) scoreState = ensureScoreStateIntegrity(fullData.gakupo);
@@ -646,32 +672,26 @@ function importLocalState(files) {
             localStorage.setItem(SEAT_KEY, JSON.stringify(seatState));
             
             document.getElementById('syncGakupoStatus').innerText = "☁️ 正在推送云端...";
-            try { 
-                await Promise.all([ 
-                    fetch(GAKUPO_API, { method:"POST", headers: {'Content-Type': 'application/json'}, body:JSON.stringify(scoreState) }), 
-                    fetch(SEAT_API, { method:"POST", headers: {'Content-Type': 'application/json'}, body:JSON.stringify(seatState) }) 
-                ]); 
-            } catch(err){}
-            location.reload();
+            Promise.all([ 
+                fetch(GAKUPO_API, { method:"POST", headers: {'Content-Type': 'application/json'}, body:JSON.stringify(scoreState) }), 
+                fetch(SEAT_API, { method:"POST", headers: {'Content-Type': 'application/json'}, body:JSON.stringify(seatState) }) 
+            ]).then(function() { location.reload(); }).catch(function() { location.reload(); });
         } catch(err) { alert("文件解析失败，请检查格式！"); }
     }; 
     r.readAsText(files[0]); 
 }
 
-async function loadDefaultStudents() { 
+function loadDefaultStudents() { 
     if(confirm("确定重置为新学期内置名单吗？\n所有历史数据将被永久清空并同步至云端！")) { 
         scoreState = ensureScoreStateIntegrity({students:DEFAULT_STUDENTS, history:{}, currentMonday:getMonday(new Date().toISOString().split('T')[0])}); 
         seatState = ensureSeatStateIntegrity({avatars:{}, seats:[]});
         localStorage.setItem(GAKUPO_KEY, JSON.stringify(scoreState));
         localStorage.setItem(SEAT_KEY, JSON.stringify(seatState));
         document.getElementById('syncGakupoStatus').innerText = "☁️ 正在抹除云端...";
-        try { 
-            await Promise.all([
-                fetchWithTimeout(GAKUPO_API, { method: "POST", headers: {'Content-Type': 'application/json'}, body: JSON.stringify(scoreState) }, 3000),
-                fetchWithTimeout(SEAT_API, { method: "POST", headers: {'Content-Type': 'application/json'}, body: JSON.stringify(seatState) }, 3000)
-            ]); 
-        } catch(e){}
-        location.reload(); 
+        Promise.all([
+            fetchWithTimeout(GAKUPO_API, { method: "POST", headers: {'Content-Type': 'application/json'}, body: JSON.stringify(scoreState) }, 3000),
+            fetchWithTimeout(SEAT_API, { method: "POST", headers: {'Content-Type': 'application/json'}, body: JSON.stringify(seatState) }, 3000)
+        ]).then(function() { location.reload(); }).catch(function() { location.reload(); });
     } 
 }
 
@@ -776,7 +796,10 @@ function openMonthDashboard() {
 
 function analyzeSelectedWeeks() {
     var checkboxes = document.querySelectorAll('.week-checkbox:checked');
-    var selected = Array.from(checkboxes).map(function(cb){ return cb.value; }).sort();
+    var selected = [];
+    for(var i=0; i<checkboxes.length; i++) { selected.push(checkboxes[i].value); }
+    selected.sort();
+    
     if(selected.length === 0) { document.getElementById('monthRightPane').style.display = 'none'; return; }
     g_monthWeeks = selected; g_monthData = {};
     scoreState.students.forEach(function(stu) {
@@ -784,7 +807,12 @@ function analyzeSelectedWeeks() {
         selected.forEach(function(weekStr) { var wTotal = calcTotal(stu.name, weekStr); g_monthData[stu.name].weeks.push(wTotal); g_monthData[stu.name].total += wTotal; });
     });
     document.getElementById('monthRightPane').style.display = 'block';
-    var list = Object.values(g_monthData).sort(function(a,b){ return b.total-a.total; });
+    
+    var list = [];
+    var monthKeys = Object.keys(g_monthData);
+    for(var j=0; j<monthKeys.length; j++) { list.push(g_monthData[monthKeys[j]]); }
+    list.sort(function(a,b){ return b.total-a.total; });
+    
     document.getElementById('monthStuList').innerHTML = list.map(function(s){ return '<div class="stu-list-item" id="mlist_'+s.name+'" onclick="selectMonthStu(\''+s.name+'\')"><span><span style="color:#64748b; font-size:11px;">['+(s.class||'')+']</span> <b>'+s.name+'</b></span><span style="color:#2563eb;">'+s.total+'</span></div>'; }).join('');
     if(list.length > 0) selectMonthStu(list[0].name);
 }
@@ -805,7 +833,7 @@ function selectMonthStu(name) {
     } catch(e) { console.error("多周图表渲染失败: ", e); }
 }
 
-/* ================= 7. 附加模块 (弹窗、AI 诊断、智能点名) ================= */
+/* ================= 7. 附加模块 (弹窗、AI 诊断) ================= */
 function showToast(msg) { var toast = document.getElementById('toast'); toast.innerText = msg; toast.style.opacity = '1'; setTimeout(function(){ toast.style.opacity = '0'; }, 2000); }
 function closeAllModals() { document.querySelectorAll('.modal, .month-dashboard, .overlay').forEach(function(el){ el.style.display='none'; }); currentSelectingStudent = null; }
 function copyText(id) { navigator.clipboard.writeText(document.getElementById(id).innerText).then(function(){ alert("已成功复制到剪贴板"); }); }
@@ -813,11 +841,16 @@ function copyText(id) { navigator.clipboard.writeText(document.getElementById(id
 function openAvatarModal(name) {
     currentSelectingStudent = name; document.getElementById('currentStudentName').innerText = name;
     var gallery = document.getElementById('galleryGrid'); gallery.innerHTML = ''; 
-    var taken = Object.values(seatState.avatars).filter(function(v){ return v !== seatState.avatars[name]; });
+    var taken = [];
+    var avatarKeys = Object.keys(seatState.avatars);
+    for(var i=0; i<avatarKeys.length; i++) {
+        if(seatState.avatars[avatarKeys[i]] !== seatState.avatars[name]) taken.push(seatState.avatars[avatarKeys[i]]);
+    }
+    
     avatarFiles.forEach(function(file) {
         var item = document.createElement('div'); item.className = 'gallery-item'; 
         item.innerHTML = '<img src="./头像库/24B/'+file+'" data-filename="'+file+'" onerror="this.src=\''+CLOUD_OSS_BASE_URL+'\'+this.dataset.filename">';
-        if (taken.includes(file)) { item.classList.add('taken'); } 
+        if (taken.indexOf(file) !== -1) { item.classList.add('taken'); } 
         else { if (seatState.avatars[name] === file) item.style.borderColor = '#4CAF50'; item.onclick = function() { seatState.avatars[name] = file; triggerSaveSeat(); renderSeatGrid(); closeAllModals(); }; }
         gallery.appendChild(item);
     });
@@ -830,7 +863,7 @@ function getWeightedWinner(nodes) {
         var name = n.dataset.name;
         var r = (scoreState.history[scoreState.currentMonday] && scoreState.history[scoreState.currentMonday][name] && scoreState.history[scoreState.currentMonday][name][currentViewDay]) || {};
         var w = 10;
-        if (SPECIAL.includes(name)) w = 5;
+        if (SPECIAL.indexOf(name) !== -1) w = 5;
         if (r.att === '缺') w = 0; 
         else if (r.att === '-1') w = 5; 
         if (r.vio > 0) w = Math.max(1, w - r.vio * 3); 
@@ -842,7 +875,10 @@ function getWeightedWinner(nodes) {
 }
 
 function startRandomDraw() {
-    var studentNodes = Array.from(document.querySelectorAll('.seat.student:not(.absent)'));
+    var nodeList = document.querySelectorAll('.seat.student:not(.absent)');
+    var studentNodes = [];
+    for(var i=0; i<nodeList.length; i++) { studentNodes.push(nodeList[i]); }
+    
     if (studentNodes.length === 0) return showToast("⚠️ 当前没有可供抽选的学生！");
     synAudioEngine.init();
     var btn = document.getElementById('randomBtn'); btn.disabled = true; btn.innerText = '🔄 抽取中...';
@@ -863,8 +899,7 @@ function startRandomDraw() {
 
 function resetAllAvatars() { if(confirm("⚠️ 确定清空全班头像？")) { seatState.avatars = {}; triggerSaveSeat(); renderSeatGrid(); } }
 
-// 纯净单周评语
-async function generateWeeklyAI(name, total, force) {
+function generateWeeklyAI(name, total, force) {
     var weekData = scoreState.history[scoreState.currentMonday]; if (!weekData[name]) weekData[name] = {};
     document.getElementById('ovl').style.display='block'; document.getElementById('commentModal').style.display='flex'; document.getElementById('commentModalTitle').innerText = 'AI 智能学情诊断 - ' + name;
     var regenBtn = document.getElementById('btnRegenAI'); var copyBtn = document.getElementById('btnCopyAI');
@@ -875,19 +910,63 @@ async function generateWeeklyAI(name, total, force) {
     var perf = { att:0, attTotal:0, hw:[], dt:[], cls:0, vio:0 };
     for(var d=0; d<7; d++){ var r = (weekData[name] && weekData[name][d]) ? weekData[name][d] : {}; if(r.att !== undefined && r.att !== '') { perf.attTotal += 1; if(r.att === '1') perf.att += 1; } if(r.hw) perf.hw.push(r.hw); if(r.dt) perf.dt.push(r.dt); perf.cls += (r.cls || 0); perf.vio += (r.vio || 0); }
     
-    try {
-        var hwStatus = perf.hw.length > 0 ? perf.hw.join(', ') : '无记录'; var dtStatus = perf.dt.length > 0 ? perf.dt.join(', ') : '无记录'; var attStatus = perf.attTotal > 0 ? perf.att+'/'+perf.attTotal+' 次' : '无记录';
-        var promptMessage = "# 角色：专业日语老师\n# 任务：为学生 " + name + " 撰写周评语（约80字），发给家长。\n# 学生本周真实数据：\n- 总积分：" + total + "\n- 出勤：" + attStatus + "\n- 作业等级：[" + hwStatus + "]\n- 听写成绩：[" + dtStatus + "]\n- 课堂加分：" + perf.cls + "\n- 违纪次数：" + perf.vio + "\n# 核心约束（严格执行）：\n1. **无记录 = 未安排**：若某项整体显示“无记录”，表示本周根本没有布置该任务，评语中请【完全跳过】该项，严禁误说成学生没做。\n2. **精准点出问题**：如果数据中有迟到(-1)、作业“未”、听写“未”或“重”、违纪等，必须客观指出这些短板。\n3. **先抑后扬**：指出问题后，结合加分项或总分给予正面鼓励。\n4. **排版要求**：绝对禁止使用星号（*）等特殊符号。";
-        var res = await fetch("https://api.deepseek.com/v1/chat/completions", { method: 'POST', headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key}, body: JSON.stringify({ model: "deepseek-chat", messages: [ { role: "system", content: "你是一个严谨的教学助手，绝对不使用星号等特殊符号。" }, { role: "user", content: promptMessage } ], temperature: 0.5 }) });
-        var json = await res.json(); 
+    var hwStatus = perf.hw.length > 0 ? perf.hw.join(', ') : '无记录'; var dtStatus = perf.dt.length > 0 ? perf.dt.join(', ') : '无记录'; var attStatus = perf.attTotal > 0 ? perf.att+'/'+perf.attTotal+' 次' : '无记录';
+    var promptMessage = "# 角色：专业日语老师\n# 任务：为学生 " + name + " 撰写周评语（约80字），发给家长。\n# 学生本周真实数据：\n- 总积分：" + total + "\n- 出勤：" + attStatus + "\n- 作业等级：[" + hwStatus + "]\n- 听写成绩：[" + dtStatus + "]\n- 课堂加分：" + perf.cls + "\n- 违纪次数：" + perf.vio + "\n# 核心约束（严格执行）：\n1. **无记录 = 未安排**：若某项整体显示“无记录”，表示本周根本没有布置该任务，评语中请【完全跳过】该项，严禁误说成学生没做。\n2. **精准点出问题**：如果数据中有迟到(-1)、作业“未”、听写“未”或“重”、违纪等，必须客观指出这些短板。\n3. **先抑后扬**：指出问题后，结合加分项或总分给予正面鼓励。";
+    
+    fetch("https://api.deepseek.com/v1/chat/completions", { method: 'POST', headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key}, body: JSON.stringify({ model: "deepseek-chat", messages: [ { role: "system", content: "你是一个严谨的教学助手，绝对不使用星号等特殊符号。" }, { role: "user", content: promptMessage } ], temperature: 0.5 }) })
+    .then(function(res) { return res.json(); })
+    .then(function(json) {
         var comment = escapeHTML(json.choices[0].message.content.replace(/\*/g, ''));
         weekData[name].ai_comment = comment.replace(/\n/g, '<br>'); triggerSaveScore(); renderGakupoSummary(); 
         document.getElementById('aiContent').innerHTML = weekData[name].ai_comment; regenBtn.style.display = 'inline-block'; copyBtn.style.display = 'inline-block'; regenBtn.onclick = function() { generateWeeklyAI(name, total, true); };
-    } catch(e) { document.getElementById('aiContent').innerText = "请求失败，请检查网络或密钥额度。"; }
+    })
+    .catch(function(e) { document.getElementById('aiContent').innerText = "请求失败，请检查网络或密钥额度。"; });
 }
 
-// 纯净多周综合分析
-async function generateMonthlyAI() {
+function generateAllWeeklyAI() {
+    if(!confirm("确定要为全班重新生成智能周评吗？\n\n⚠️ 注意：这会覆盖所有已有的周评缓存，并且可能需要消耗 1~2 分钟时间。")) return;
+    var key = localStorage.getItem("DEEPSEEK_KEY") || prompt("首次使用，请输入大模型 API Key:"); if(!key) return; localStorage.setItem("DEEPSEEK_KEY", key);
+    var weekData = scoreState.history[scoreState.currentMonday]; 
+    var studentsToProcess = scoreState.students.map(function(stu) { return { name: stu.name, total: calcTotal(stu.name, scoreState.currentMonday) }; });
+    
+    document.getElementById('ovl').style.display='block'; document.getElementById('commentModal').style.display='flex'; document.getElementById('commentModalTitle').innerText = "批量生成全班周评";
+    document.getElementById('btnRegenAI').style.display = 'none'; document.getElementById('btnCopyAI').style.display = 'none';
+    
+    var currentIndex = 0;
+    
+    function processNext() {
+        if (currentIndex >= studentsToProcess.length) {
+            document.getElementById('aiContent').innerHTML = '<div style="text-align:center; padding: 20px;"><span style="font-size:40px;">✅</span><br><br><b>批量覆盖生成完成！</b><br><br>成功生成了 '+studentsToProcess.length+' 份周评。<br>您现在可以在汇总界面秒开查阅。</div>';
+            return;
+        }
+        
+        var stu = studentsToProcess[currentIndex]; 
+        if (!weekData[stu.name]) weekData[stu.name] = {};
+        document.getElementById('aiContent').innerHTML = '<div style="text-align:center; padding: 20px;">🤖 <b>正在批量生成全班周评...</b><br><br>当前进度: <b style="color:#2563eb; font-size:18px;">'+stu.name+'</b> ('+(currentIndex+1)+'/'+studentsToProcess.length+')<br><br><span style="color:#f59e0b; font-size:12px;">⚠️ 请勿关闭当前页面，整个过程可能需要几十秒。</span></div>';
+        
+        var perf = { att:0, attTotal:0, hw:[], dt:[], cls:0, vio:0 };
+        for(var d=0; d<7; d++){ var r = (weekData[stu.name] && weekData[stu.name][d]) ? weekData[stu.name][d] : {}; if(r.att !== undefined && r.att !== '') { perf.attTotal += 1; if(r.att === '1') perf.att += 1; } if(r.hw) perf.hw.push(r.hw); if(r.dt) perf.dt.push(r.dt); perf.cls += (r.cls || 0); perf.vio += (r.vio || 0); }
+        
+        var hwStatus = perf.hw.length > 0 ? perf.hw.join(', ') : '无记录'; var dtStatus = perf.dt.length > 0 ? perf.dt.join(', ') : '无记录'; var attStatus = perf.attTotal > 0 ? perf.att+'/'+perf.attTotal+' 次' : '无记录';
+        var promptMessage = "# 角色：专业日语老师\n# 任务：为学生 " + stu.name + " 撰写周评语（约60字）。\n# 学生本周真实数据：\n- 总积分：" + stu.total + "\n- 出勤：" + attStatus + "\n- 作业等级：[" + hwStatus + "]\n- 听写成绩：[" + dtStatus + "]\n- 课堂加分：" + perf.cls + "\n- 违纪次数：" + perf.vio + "\n# 核心约束（严格执行）：\n1. **无记录 = 未安排**：若某项整体显示“无记录”，请【完全跳过】该项。\n2. **精准点出问题**：如果数据中有迟到(-1)、作业“未”、听写“未”或“重”、违纪等，必须客观指出这些短板。\n3. **先抑后扬**：指出问题后，结合加分项或总分给予正面鼓励。\n4. **排版要求**：绝对禁止使用星号（*）等特殊符号。";
+        
+        fetch("https://api.deepseek.com/v1/chat/completions", { method: 'POST', headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key}, body: JSON.stringify({ model: "deepseek-chat", messages: [ { role: "system", content: "你是一个严谨的教学助手，绝对不使用星号等特殊符号。" }, { role: "user", content: promptMessage } ], temperature: 0.5 }) })
+        .then(function(res) { return res.json(); })
+        .then(function(json) {
+            var comment = escapeHTML(json.choices[0].message.content.replace(/\*/g, ''));
+            weekData[stu.name].ai_comment = comment.replace(/\n/g, '<br>'); triggerSaveScore(); renderGakupoSummary();
+            currentIndex++;
+            processNext();
+        })
+        .catch(function(e) {
+            document.getElementById('aiContent').innerHTML += '<br><br><span style="color:red">❌ 请求失败 ('+stu.name+')，请检查网络或余额。批量生成已中止。</span>';
+        });
+    }
+    
+    processNext();
+}
+
+function generateMonthlyAI() {
     if(!currentMonthStudent) return; 
     var key = localStorage.getItem("DEEPSEEK_KEY") || prompt("首次使用，请输入大模型 API Key:"); 
     if(!key) return; localStorage.setItem("DEEPSEEK_KEY", key);
@@ -918,22 +997,21 @@ async function generateMonthlyAI() {
 
     var promptMessage = "# 角色：专业日语老师\n# 任务：为学生 " + currentMonthStudent + " 撰写多周综合学情诊断（约100字）。\n# 核心设定（绝对遵守）：积分是【无限累加制】，【绝对没有满分概念】，严禁在评语中提及“满分”或“未达满分”等字眼！\n# 多周真实数据明细（无记录代表未布置，请忽略）：\n" + detailLogs.join(" | ") + "\n# 选定周期总积分：" + data.total + "分\n# 要求：\n1. 结合各项数据的多周变化趋势（如作业、违纪、出勤等）进行具体分析，不要只看总分。\n2. 无记录的项目直接跳过，切勿评价。\n3. 语气温和、专业，先指出具体长处或短板，最后鼓励。\n4. 【重要】禁止使用 markdown 的星号（*）加粗或列表，使用纯文本排版。";
     
-    try {
-        var res = await fetch("https://api.deepseek.com/v1/chat/completions", { 
-            method: 'POST', 
-            headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key}, 
-            body: JSON.stringify({ 
-                model: "deepseek-chat", 
-                messages: [{role:"system", content: "你是一个严谨的教学助手，绝对不使用星号等特殊符号。"}, {role:"user", content: promptMessage}], 
-                temperature: 0.6 
-            }) 
-        });
-        var json = await res.json(); 
+    fetch("https://api.deepseek.com/v1/chat/completions", { 
+        method: 'POST', 
+        headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key}, 
+        body: JSON.stringify({ 
+            model: "deepseek-chat", 
+            messages: [{role:"system", content: "你是一个严谨的教学助手，绝对不使用星号等特殊符号。"}, {role:"user", content: promptMessage}], 
+            temperature: 0.6 
+        }) 
+    })
+    .then(function(res) { return res.json(); })
+    .then(function(json) {
         var comment = escapeHTML(json.choices[0].message.content.replace(/\*/g, '')); 
         box.innerHTML = comment.replace(/\n/g, '<br>');
-    } catch(e) { 
-        box.innerHTML = "生成失败，请检查网络或 Key 额度。"; 
-    }
+    })
+    .catch(function(e) { box.innerHTML = "生成失败，请检查网络或 Key 额度。"; });
 }
 
 /* ================= 8. 数据出入海与同步网络层 ================= */
@@ -942,42 +1020,47 @@ function fetchWithTimeout(url, options, timeout) {
     return Promise.race([ fetch(url, options), new Promise(function(_, reject){ setTimeout(function(){ reject(new Error('timeout')); }, timeout); }) ]);
 }
 
-async function syncBothClouds() {
+function syncBothClouds() {
     var btn = document.getElementById('reconnectBtn'); btn.style.display = "none";
-    await Promise.all([syncCloudGakupo(), syncCloudSeat()]);
+    Promise.all([syncCloudGakupo(), syncCloudSeat()]);
 }
 
-async function syncCloudGakupo() {
+function syncCloudGakupo() {
     var st = document.getElementById('syncGakupoStatus');
-    try {
-        var res = await fetchWithTimeout(GAKUPO_API, { cache: "no-store" }, 5000); if(!res.ok) throw new Error("HTTP Error");
-        var text = await res.text(); var data = text ? JSON.parse(text) : null;
+    return fetchWithTimeout(GAKUPO_API, { cache: "no-store" }, 5000)
+    .then(function(res) { if(!res.ok) throw new Error("HTTP Error"); return res.text(); })
+    .then(function(text) {
+        var data = text ? JSON.parse(text) : null;
         if (data && data.students && data.students.length > 0) {
             scoreState = ensureScoreStateIntegrity(data); localStorage.setItem(GAKUPO_KEY, JSON.stringify(scoreState)); document.getElementById('mondayDate').value = scoreState.currentMonday; updateGlobalUI(); 
             st.innerText = "积分: ☁️已同步"; st.style.color = "#10b981"; cloudSyncState.gakupoLoaded = true; document.getElementById('reconnectBtn').style.display = "none";
         } else { cloudSyncState.gakupoLoaded = true; triggerSaveScore(); }
-    } catch(e) { cloudSyncState.gakupoLoaded = false; document.getElementById('reconnectBtn').style.display = "flex"; st.innerText = "积分: ⚠️离线/冲突"; st.style.color = "#f59e0b"; }
+    })
+    .catch(function(e) { cloudSyncState.gakupoLoaded = false; document.getElementById('reconnectBtn').style.display = "flex"; st.innerText = "积分: ⚠️离线/冲突"; st.style.color = "#f59e0b"; });
 }
 
-async function syncCloudSeat() {
+function syncCloudSeat() {
     var st = document.getElementById('syncSeatStatus');
-    try {
-        var res = await fetchWithTimeout(SEAT_API, { cache: "no-store" }, 5000); if(!res.ok) throw new Error("HTTP Error");
-        var text = await res.text(); var data = text ? JSON.parse(text) : null;
+    return fetchWithTimeout(SEAT_API, { cache: "no-store" }, 5000)
+    .then(function(res) { if(!res.ok) throw new Error("HTTP Error"); return res.text(); })
+    .then(function(text) {
+        var data = text ? JSON.parse(text) : null;
         if (data && data.seats && data.seats.length > 0) {
             seatState = ensureSeatStateIntegrity(data); localStorage.setItem(SEAT_KEY, JSON.stringify(seatState)); renderSeatGrid(); 
             st.innerText = "座位: ☁️已同步"; st.style.color = "#10b981"; cloudSyncState.seatLoaded = true;
         } else { cloudSyncState.seatLoaded = true; triggerSaveSeat(); }
-    } catch(e) { cloudSyncState.seatLoaded = false; document.getElementById('reconnectBtn').style.display = "flex"; st.innerText = "座位: ⚠️离线"; st.style.color = "#f59e0b"; }
+    })
+    .catch(function(e) { cloudSyncState.seatLoaded = false; document.getElementById('reconnectBtn').style.display = "flex"; st.innerText = "座位: ⚠️离线"; st.style.color = "#f59e0b"; });
 }
 
 function triggerSaveScore() {
     localStorage.setItem(GAKUPO_KEY, JSON.stringify(scoreState)); if(!cloudSyncState.gakupoLoaded) return; 
     var st = document.getElementById('syncGakupoStatus'); st.innerText = "积分: 🔄保存中"; st.style.color = "#3b82f6";
     if(syncTimeouts.gakupo) clearTimeout(syncTimeouts.gakupo);
-    syncTimeouts.gakupo = setTimeout(async function() {
-        try { var res = await fetchWithTimeout(GAKUPO_API, { method: "POST", headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(scoreState) }, 4000); if(!res.ok) throw new Error("HTTP Error"); st.innerText = "积分: ☁️已同步"; st.style.color = "#10b981"; cloudSyncState.gakupoLoaded = true; document.getElementById('reconnectBtn').style.display = "none"; } 
-        catch(e) { st.innerText = "积分: ⚠️网络波动"; st.style.color = "#f59e0b"; }
+    syncTimeouts.gakupo = setTimeout(function() {
+        fetchWithTimeout(GAKUPO_API, { method: "POST", headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(scoreState) }, 4000)
+        .then(function(res) { if(!res.ok) throw new Error("HTTP Error"); st.innerText = "积分: ☁️已同步"; st.style.color = "#10b981"; cloudSyncState.gakupoLoaded = true; document.getElementById('reconnectBtn').style.display = "none"; })
+        .catch(function(e) { st.innerText = "积分: ⚠️网络波动"; st.style.color = "#f59e0b"; });
     }, 800);
 }
 
@@ -985,9 +1068,10 @@ function triggerSaveSeat() {
     seatState.lastModified = new Date().getTime(); localStorage.setItem(SEAT_KEY, JSON.stringify(seatState)); if(!cloudSyncState.seatLoaded) return; 
     var st = document.getElementById('syncSeatStatus'); st.innerText = "座位: 🔄保存中"; st.style.color = "#3b82f6";
     if(syncTimeouts.seat) clearTimeout(syncTimeouts.seat);
-    syncTimeouts.seat = setTimeout(async function() {
-        try { var res = await fetchWithTimeout(SEAT_API, { method: "POST", headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(seatState) }, 4000); if(!res.ok) throw new Error("HTTP Error"); st.innerText = "座位: ☁️已同步"; st.style.color = "#10b981"; cloudSyncState.seatLoaded = true;} 
-        catch(e) { st.innerText = "座位: ⚠️网络波动"; st.style.color = "#f59e0b"; }
+    syncTimeouts.seat = setTimeout(function() {
+        fetchWithTimeout(SEAT_API, { method: "POST", headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(seatState) }, 4000)
+        .then(function(res) { if(!res.ok) throw new Error("HTTP Error"); st.innerText = "座位: ☁️已同步"; st.style.color = "#10b981"; cloudSyncState.seatLoaded = true; })
+        .catch(function(e) { st.innerText = "座位: ⚠️网络波动"; st.style.color = "#f59e0b"; });
     }, 800);
 }
 
@@ -996,14 +1080,14 @@ function triggerManualSync() {
     if(c==='1') { syncBothClouds(); } else if(c==='2') { cloudSyncState.gakupoLoaded = true; cloudSyncState.seatLoaded = true; document.getElementById('reconnectBtn').style.display = "none"; triggerSaveScore(); triggerSaveSeat(); }
 }
 
-/* ================= 9. 启动引擎 ================= */
-document.addEventListener('DOMContentLoaded', async function() {
+/* ================= 9. 启动引擎 (物理防御机制) ================= */
+document.addEventListener('DOMContentLoaded', function() {
     try {
         scoreState.currentMonday = getMonday(new Date().toISOString().split('T')[0]);
         loadLocalFallback();
         bindGlobalEvents();
         renderAll();
-        await syncBothClouds();
+        syncBothClouds();
     } catch(e) {
         alert("⚠️ 页面初始化安全拦截，请检查网络或刷新重试。\n详情: " + e.message);
     }
