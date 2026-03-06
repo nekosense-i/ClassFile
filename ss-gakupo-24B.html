@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>智能班级管家</title>
-    <script defer src="https://cdn.staticfile.net/Chart.js/2.9.4/Chart.min.js"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.4/Chart.min.js"></script>
+    <script defer src="https://unpkg.com/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
     <style>
         /* ================= 全局公共与重置变量 ================= */
         :root {
@@ -33,12 +33,18 @@
 
         /* ================= 积分卡 (Gakupo) 样式 ================= */
         .header { height: 60px; flex-shrink: 0; background: #1e293b; color: white; padding: 0 15px; display: flex; justify-content: space-between; align-items: center; z-index: 10; border-top: 1px solid #334155;}
-        .tabs { display: flex; background: #334155; padding: 4px; border-radius: 8px; gap: 5px; }
-        .tab-btn { background: transparent; color: #cbd5e1; border: none; padding: 6px 15px; border-radius: 6px; cursor: pointer; transition: 0.2s; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.2; min-width: 65px; }
+        
+        /* 页签栏增加弹性滚动，防止增加周末后挤爆小屏幕 */
+        .tabs { display: flex; background: #334155; padding: 4px; border-radius: 8px; gap: 5px; overflow-x: auto; scrollbar-width: none; max-width: 55vw; }
+        .tabs::-webkit-scrollbar { display: none; }
+        
+        .tab-btn { background: transparent; color: #cbd5e1; border: none; padding: 6px 10px; border-radius: 6px; cursor: pointer; transition: 0.2s; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.2; min-width: 55px; flex-shrink: 0;}
         .tab-btn.active { background: var(--primary); color: white; box-shadow: 0 2px 6px rgba(0,0,0,0.3); transform: scale(1.05); }
         .date-label { font-size: 10px; font-weight: normal; opacity: 0.8; margin-top: 3px; }
         
-        .toolbar-actions { display: flex; align-items: center; gap: 5px; overflow-x: auto; white-space: nowrap; padding-bottom: 2px;}
+        .toolbar-actions { display: flex; align-items: center; gap: 5px; overflow-x: auto; white-space: nowrap; padding-bottom: 2px; scrollbar-width: none;}
+        .toolbar-actions::-webkit-scrollbar { display: none; }
+        
         button.tool-btn { background: #475569; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px; transition: 0.1s; display: flex; align-items: center;}
         button.tool-btn:active { transform: scale(0.95); }
         .main-content { flex: 1; min-height: 0; padding: 6px; width: 100%; display: flex; flex-direction: column; overflow: hidden; }
@@ -174,8 +180,8 @@
                 </div>
             </div>
             <div style="overflow-x: auto;">
-                <table class="sum-table" style="min-width: 800px;">
-                    <thead><tr><th style="width:40px;">班级</th><th style="width:60px;">姓名</th><th>周一</th><th>周二</th><th>周三</th><th>周四</th><th>周五</th><th style="width:60px;">总分</th><th style="width:70px;">操作</th></tr></thead>
+                <table class="sum-table" style="min-width: 1000px;">
+                    <thead><tr><th style="width:40px;">班级</th><th style="width:60px;">姓名</th><th>周一</th><th>周二</th><th>周三</th><th>周四</th><th>周五</th><th>周六</th><th>周日</th><th style="width:60px;">总分</th><th style="width:70px;">操作</th></tr></thead>
                     <tbody id="sumTBody"></tbody>
                 </table>
             </div>
@@ -256,7 +262,10 @@
              <div style="background:white; border:1px dashed #cbd5e1; border-radius:12px; padding:15px;">
                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
                      <h4 style="margin:0;">🤖 AI 多周综合分析</h4>
-                     <button class="tool-btn" onclick="generateMonthlyAI()" style="background:#8b5cf6;">✨ 诊断所选周期</button>
+                     <div style="display:flex; gap:8px;">
+                         <button class="tool-btn" onclick="copyText('aiMonthContent')" style="background:#3b82f6;">📋 复制分析</button>
+                         <button class="tool-btn" onclick="generateMonthlyAI()" style="background:#8b5cf6;">✨ 诊断所选周期</button>
+                     </div>
                  </div>
                  <div id="aiMonthContent" style="background:#f1f5f9; padding:15px; border-radius:8px; min-height:60px; font-size:14px; line-height:1.6; color:#334155;">选取上方周期后，点击按钮生成跨周期综合报告。</div>
              </div>
@@ -265,7 +274,7 @@
 </div>
 
 <script>
-/* ================= 全局核心配置 ================= */
+/* ================= 1. 全局配置与变量声明 ================= */
 var DEFAULT_STUDENTS = [
     { class: "9班", name: "杨桓" }, { class: "9班", name: "李妮蔓" }, { class: "9班", name: "刘睿举" },
     { class: "9班", name: "都沐篱" }, { class: "9班", name: "王子珂" }, { class: "9班", name: "黄浩宇" },
@@ -281,18 +290,20 @@ var SEAT_KEY = "JP_SEAT_24B_V1";
 var SEAT_API = "https://sync.nekosensei.cn/seat24B"; 
 
 var SCORE_MAP = { hw: { 'A':3, 'B':2, 'C':1, 'D':-1, '未':-1 }, dt: { '满':3, '过':2, '重':1, '未':-1 }, att: { '1':1, '-1':-1, '缺':0 } };
-var DAYS = ['周一', '周二', '周三', '周四', '周五'];
+var DAYS = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
 var CLOUD_OSS_BASE_URL = "https://jp-game-assets-2026.oss-cn-chengdu.aliyuncs.com/头像库/24B/";
 var avatarFiles = [ "头像1.gif", "头像2.gif", "头像3.gif", "头像4.gif", "头像5.gif", "头像6.gif", "头像7.gif", "头像8.gif", "头像9.gif", "头像10.gif", "头像11.gif", "头像12.gif", "头像13.gif", "头像14.gif" ];
 
 var scoreState = { students: DEFAULT_STUDENTS, history: {}, currentMonday: "" };
 var seatState = { lastModified: 0, avatars: {}, seats: [] };
 
-// 核心云端状态器：分离读锁与写状态，防止同步假死
 var cloudSyncState = { gakupoLoaded: false, seatLoaded: false };
 
-var currentViewDay = 0, currentSelectingStudent = null;
+// 核心定位：获取打开系统当天的周索引 (周日=6, 周一=0)
+var currentViewDay = (new Date().getDay() + 6) % 7; 
+var currentSelectingStudent = null;
 var syncTimeouts = { gakupo: null, seat: null };
+var isOfflineLocked = false;
 var draggedItem = null, isDragging = false, clone = null, startX, startY;
 var radarChart, compareChart, c_monthLine, c_monthRadar;
 var g_monthData = {}, g_monthWeeks = [], currentMonthStudent = null;
@@ -318,7 +329,7 @@ var synAudioEngine = {
     }
 };
 
-/* ================= 1. 防御性数据清洗与启动层 ================= */
+/* ================= 2. 底层数据处理与初始化工具 ================= */
 function getMonday(dateString) {
     var parts = dateString.split('-'); var d = new Date(parts[0], parts[1] - 1, parts[2]);
     var day = d.getDay() || 7; if(day !== 1) d.setDate(d.getDate() - (day - 1));
@@ -346,18 +357,22 @@ function ensureSeatStateIntegrity(data) {
     return data;
 }
 
-document.addEventListener('DOMContentLoaded', async () => {
-    try {
-        scoreState.currentMonday = getMonday(new Date().toISOString().split('T')[0]);
-        loadLocalFallback();
-        bindGlobalEvents();
-        renderAll();
-        await syncBothClouds();
-    } catch(e) {
-        alert("⚠️ 页面初始化异常，请检查网络或清空浏览器缓存重试。\n详情: " + e.message);
-    }
-});
+function loadLocalFallback() {
+    var savedG = localStorage.getItem(GAKUPO_KEY); if(savedG) { try { scoreState = ensureScoreStateIntegrity(JSON.parse(savedG)); } catch(e){ scoreState = ensureScoreStateIntegrity({}); } } else { scoreState = ensureScoreStateIntegrity({}); }
+    var savedS = localStorage.getItem(SEAT_KEY); if(savedS) { try { seatState = ensureSeatStateIntegrity(JSON.parse(savedS)); } catch(e){ seatState = ensureSeatStateIntegrity({}); } } else { seatState = ensureSeatStateIntegrity({}); }
+}
 
+function bindGlobalEvents() {
+    var md = document.getElementById('mondayDate'); md.value = scoreState.currentMonday;
+    md.onchange = function(e) { 
+        var correct = getMonday(e.target.value); 
+        if(correct !== e.target.value) { alert("自动校准为所在周一: "+correct); e.target.value = correct; }
+        scoreState.currentMonday = correct; if(!scoreState.history[scoreState.currentMonday]) scoreState.history[scoreState.currentMonday] = {};
+        triggerSaveScore(); renderAll(); 
+    };
+}
+
+/* ================= 3. 视图调度与渲染层 ================= */
 function switchGlobalView(view) {
     document.getElementById('btnNavGakupo').classList.toggle('active', view === 'gakupo');
     document.getElementById('btnNavSeat').classList.toggle('active', view === 'seat');
@@ -369,7 +384,7 @@ function updateGlobalUI() { renderGakupoCards(currentViewDay); renderSeatGrid();
 
 function renderAll() {
     renderDayTabs();
-    if(currentViewDay === 5) {
+    if(currentViewDay === 7) {
         document.getElementById('cardGrid').style.display = 'none'; document.getElementById('summaryView').style.display = 'block'; 
         document.getElementById('summaryWeekText').innerText = scoreState.currentMonday + " 周期"; renderGakupoSummary();
     } else {
@@ -377,7 +392,97 @@ function renderAll() {
     }
 }
 
-/* ================= 2. 积分逻辑 ================= */
+function renderDayTabs() {
+    var dayTabs = document.getElementById('dayTabs'); var parts = scoreState.currentMonday.split('-');
+    var monday = new Date(parts[0], parts[1] - 1, parts[2]);
+    var html = DAYS.map(function(day, i) {
+        var d = new Date(monday); d.setDate(monday.getDate() + i);
+        var activeClass = currentViewDay === i ? 'active' : '';
+        var dateStr = (d.getMonth() + 1) + '/' + (d.getDate() < 10 ? '0'+d.getDate() : d.getDate());
+        return '<button class="tab-btn ' + activeClass + '" onclick="switchDay(' + i + ')"><div style="font-weight:bold; font-size: 15px;">' + day + '</div><div class="date-label">' + dateStr + '</div></button>';
+    }).join('');
+    html += '<button class="tab-btn ' + (currentViewDay === 7 ? 'active' : '') + '" onclick="switchDay(7)" style="color:#fcd34d;"><div style="font-weight:bold; font-size: 15px;">📊 汇总</div></button>';
+    dayTabs.innerHTML = html;
+    
+    // 自动将当天页签滚动至视口可见范围
+    var activeBtn = dayTabs.querySelector('.active');
+    if (activeBtn) { activeBtn.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' }); }
+    
+    if(currentViewDay < 7) { document.getElementById('seatDayIndicator').innerText = DAYS[currentViewDay]; } else { document.getElementById('seatDayIndicator').innerText = "本周汇总(不可计分)"; }
+}
+
+function switchDay(idx) { currentViewDay = idx; renderAll(); }
+
+function renderGakupoCards(day) {
+    var grid = document.getElementById('cardGrid'); grid.innerHTML = '';
+    var weekData = scoreState.history[scoreState.currentMonday] || {};
+    scoreState.students.forEach(function(stu) {
+        if(!weekData[stu.name]) weekData[stu.name] = {};
+        if(!weekData[stu.name][day]) weekData[stu.name][day] = {att:'', hw:'', dt:'', cls:0, vio:0};
+        var r = weekData[stu.name][day];
+        var clsTag = stu.class === "9班" ? "tag-9" : "tag-10"; var vioClass = (r.vio > 0) ? 'act-vio' : 'vio-btn-off';
+        var card = document.createElement('div'); card.className = 'student-card';
+        card.innerHTML = '<div class="card-header"><span class="student-name" onclick="showRadar(\''+stu.name+'\')"><span class="class-tag '+clsTag+'">'+(stu.class||'')+'</span>'+stu.name+'</span><span class="week-total">'+calcTotal(stu.name, scoreState.currentMonday)+'分</span></div><div class="row-group"><div class="row-label">出勤</div><div class="btn-group">'+['1','-1','缺'].map(function(v){ return '<div class="opt '+(r.att==v?'act-att-'+v:'')+'" onclick="setScore(\''+stu.name+'\','+day+',\'att\',\''+v+'\')">'+(v=='1'?'出':v)+'</div>'; }).join('')+'</div></div><div class="row-group"><div class="row-label">作业</div><div class="btn-group">'+['A','B','C','D','未'].map(function(v){ return '<div class="opt '+(r.hw==v?'act-hw-'+v:'')+'" onclick="setScore(\''+stu.name+'\','+day+',\'hw\',\''+v+'\')">'+v+'</div>'; }).join('')+'</div></div><div class="row-group"><div class="row-label">听写</div><div class="btn-group">'+['满','过','重','未'].map(function(v){ return '<div class="opt '+(r.dt==v?'act-dt-'+v:'')+'" onclick="setScore(\''+stu.name+'\','+day+',\'dt\',\''+v+'\')">'+v+'</div>'; }).join('')+'</div></div><div class="row-group"><div class="row-label">课堂</div><div class="class-action-bar"><button class="opt-btn '+vioClass+'" onclick="toggleVio(\''+stu.name+'\','+day+')">违'+(r.vio>1?'('+r.vio+')':'')+'</button><button class="opt-btn success-btn" onclick="updCls(\''+stu.name+'\','+day+',1)">答1</button><button class="opt-btn success-btn" onclick="updCls(\''+stu.name+'\','+day+',2)">答2</button><button class="opt-btn success-btn" onclick="updCls(\''+stu.name+'\','+day+',3)">答3</button><div class="divider"></div><button class="opt-btn" onclick="updCls(\''+stu.name+'\','+day+',-1)">-</button><div class="cls-score-val">'+(r.cls||0)+'</div><button class="opt-btn" onclick="updCls(\''+stu.name+'\','+day+',1)">+</button></div></div>';
+        grid.appendChild(card);
+    });
+}
+
+function renderGakupoSummary() {
+    var tbody = document.getElementById('sumTBody'); tbody.innerHTML = '';
+    var weekData = scoreState.history[scoreState.currentMonday] || {};
+    scoreState.students.forEach(function(stu) {
+        var wt = calcTotal(stu.name, scoreState.currentMonday);
+        var row = '<tr><td style="color:#64748b; font-size:11px;">'+(stu.class||'')+'</td><td><b style="color:#0f172a;">'+stu.name+'</b></td>';
+        for(var i=0; i<7; i++){
+            var r = (weekData[stu.name] && weekData[stu.name][i]) ? weekData[stu.name][i] : {};
+            var attStr = r.att === '1' ? '出勤' : (r.att === '-1' ? '迟/退' : (r.att === '缺' ? '缺勤' : '-'));
+            row += '<td style="text-align:left; font-size:11px; padding:6px; line-height:1.5; white-space:nowrap;"><div style="color:#475569;">出勤：<b style="'+(r.att=='缺'?'color:#ef4444;':'color:#0f172a')+'">'+attStr+'</b></div><div style="color:#475569;">作业：<b style="color:#0f172a">'+(r.hw || '-')+'</b></div><div style="color:#475569;">听写：<b style="color:#0f172a">'+(r.dt || '-')+'</b></div><div style="color:#475569;">加分：<b style="color:#2563eb">+'+(r.cls || 0)+'</b></div><div style="display:flex; align-items:center; gap:3px; margin-top:2px;"><span style="color:#ef4444;">违纪：</span><button class="opt-btn" onclick="updVio(\''+stu.name+'\','+i+',-1)" style="width:14px; height:14px; font-size:10px; line-height:1; border-color:#ccc;">-</button><b style="color:#ef4444; width:10px; text-align:center;">'+(r.vio || 0)+'</b><button class="opt-btn" onclick="updVio(\''+stu.name+'\','+i+',1)" style="width:14px; height:14px; font-size:10px; line-height:1; border-color:#ccc;">+</button></div></td>';
+        }
+        var stuWeek = weekData[stu.name] || {};
+        var cachedComment = stuWeek.ai_comment;
+        var btnText = cachedComment ? "✅ 查周评" : "✨ 周评";
+        var btnColor = cachedComment ? "#10b981" : "#2563eb";
+        row += '<td style="color:#2563eb; font-weight:900; font-size:18px; vertical-align:middle;">'+wt+'</td><td style="vertical-align:middle;"><span class="action-link" style="color:'+btnColor+';" onclick="generateWeeklyAI(\''+stu.name+'\', '+wt+')">'+btnText+'</span></td></tr>';
+        tbody.innerHTML += row;
+    });
+}
+
+function renderSeatGrid() {
+    var grid = document.getElementById('seatingGrid'); if (!grid) return; grid.innerHTML = ''; 
+    seatState.seats.forEach(function(seatData) {
+        var day = currentViewDay;
+        var weekData = scoreState.history[scoreState.currentMonday] || {};
+        var r = (weekData[seatData.name] && weekData[seatData.name][day]) ? weekData[seatData.name][day] : {cls: 0, vio: 0};
+        var isAbsent = (day < 7) ? (r.att === '缺') : false; 
+        var seat = document.createElement('div');
+        seat.className = 'seat ' + seatData.type + (isAbsent ? ' absent' : '');
+        seat.dataset.row = seatData.row; seat.dataset.col = seatData.col; seat.dataset.type = seatData.type; seat.dataset.name = seatData.name;
+        if (seatData.type === 'student') {
+            var absentBtn = document.createElement('button'); absentBtn.className = 'absent-toggle'; absentBtn.innerText = isAbsent ? '缺勤' : '在位';
+            var handleAbs = function(e) { e.stopPropagation(); e.preventDefault(); if(day >= 7) return showToast("⚠️ 汇总页不可修改出勤记录"); var newState = isAbsent ? '1' : '缺'; setScore(seatData.name, day, 'att', newState); };
+            absentBtn.onmousedown = handleAbs; absentBtn.ontouchstart = handleAbs; seat.appendChild(absentBtn);
+            var avatarDiv = document.createElement('div'); avatarDiv.className = 'avatar-wrapper';
+            var aFile = seatState.avatars[seatData.name];
+            if (aFile) avatarDiv.innerHTML = '<img src="./头像库/24B/'+aFile+'" data-filename="'+aFile+'" draggable="false" onerror="this.src=\''+CLOUD_OSS_BASE_URL+'\'+this.dataset.filename">';
+            else avatarDiv.innerHTML = '<div class="avatar-placeholder">选头像</div>';
+            var handleAva = function(e) { e.stopPropagation(); e.preventDefault(); openAvatarModal(seatData.name); };
+            avatarDiv.onmousedown = handleAva; avatarDiv.ontouchstart = handleAva; seat.appendChild(avatarDiv);
+            var nameSpan = document.createElement('span'); nameSpan.innerText = seatData.name; seat.appendChild(nameSpan);
+            if(day < 7) {
+                var vioClass = (r.vio > 0) ? 'act-vio' : 'vio-btn-off';
+                var scoreBar = document.createElement('div'); scoreBar.className = 'class-action-bar';
+                scoreBar.style.cssText = 'margin-top:auto; width:100%; flex-shrink:0; min-height:24px;'; 
+                var stopProp = function(e) { e.stopPropagation(); }; scoreBar.onmousedown = stopProp; scoreBar.ontouchstart = stopProp;
+                scoreBar.innerHTML = '<button class="opt-btn '+vioClass+'" onclick="toggleVio(\''+seatData.name+'\','+day+')">违</button><button class="opt-btn success-btn" onclick="updCls(\''+seatData.name+'\','+day+',1)">答1</button><button class="opt-btn success-btn" onclick="updCls(\''+seatData.name+'\','+day+',2)">答2</button><button class="opt-btn success-btn" onclick="updCls(\''+seatData.name+'\','+day+',3)">答3</button><div class="divider"></div><button class="opt-btn" onclick="updCls(\''+seatData.name+'\','+day+',-1)">-</button><div class="cls-score-val" style="font-size:11px;">'+(r.cls||0)+'</div><button class="opt-btn" onclick="updCls(\''+seatData.name+'\','+day+',1)">+</button>';
+                seat.appendChild(scoreBar);
+            }
+        } else { seat.innerText = '空位'; }
+        seat.addEventListener('mousedown', handlePointerDown); seat.addEventListener('touchstart', handlePointerDown, {passive: false});
+        grid.appendChild(seat);
+    });
+}
+
+/* ================= 4. 交互记录与逻辑处理 ================= */
 function setScore(name, day, type, val) { 
     if(!scoreState.history[scoreState.currentMonday][name]) scoreState.history[scoreState.currentMonday][name] = {};
     if(!scoreState.history[scoreState.currentMonday][name][day]) scoreState.history[scoreState.currentMonday][name][day] = {att:'', hw:'', dt:'', cls:0, vio:0};
@@ -409,112 +514,8 @@ function updVio(name, day, delta) {
 function calcTotal(name, weekStr) {
     var t = 0; var weekData = scoreState.history[weekStr];
     if(!weekData || !weekData[name]) return 0;
-    for(var i=0; i<5; i++){ var r = weekData[name][i] || {}; t += (SCORE_MAP.att[r.att]||0) + (SCORE_MAP.hw[r.hw]||0) + (SCORE_MAP.dt[r.dt]||0) + (r.cls||0) - ((r.vio||0) * 3); }
+    for(var i=0; i<7; i++){ var r = weekData[name][i] || {}; t += (SCORE_MAP.att[r.att]||0) + (SCORE_MAP.hw[r.hw]||0) + (SCORE_MAP.dt[r.dt]||0) + (r.cls||0) - ((r.vio||0) * 3); }
     return t;
-}
-
-/* ================= 3. 积分卡渲染 ================= */
-function renderDayTabs() {
-    const dayTabs = document.getElementById('dayTabs'); const parts = scoreState.currentMonday.split('-');
-    const monday = new Date(parts[0], parts[1] - 1, parts[2]);
-    let html = DAYS.map((day, i) => {
-        const d = new Date(monday); d.setDate(monday.getDate() + i);
-        return `<button class="tab-btn ${currentViewDay === i ? 'active' : ''}" onclick="switchDay(${i})"><div style="font-weight:bold; font-size: 15px;">${day}</div><div class="date-label">${(d.getMonth() + 1)}/${(d.getDate() < 10 ? '0'+d.getDate() : d.getDate())}</div></button>`;
-    }).join('');
-    html += `<button class="tab-btn ${currentViewDay === 5 ? 'active' : ''}" onclick="switchDay(5)" style="color:#fcd34d;"><div style="font-weight:bold; font-size: 15px;">📊 汇总</div></button>`;
-    dayTabs.innerHTML = html;
-    if(currentViewDay < 5) { document.getElementById('seatDayIndicator').innerText = DAYS[currentViewDay]; } else { document.getElementById('seatDayIndicator').innerText = "本周汇总(不可计分)"; }
-}
-
-function switchDay(idx) { currentViewDay = idx; renderAll(); }
-
-function renderGakupoCards(day) {
-    var grid = document.getElementById('cardGrid'); grid.innerHTML = '';
-    var weekData = scoreState.history[scoreState.currentMonday] || {};
-    scoreState.students.forEach(stu => {
-        if(!weekData[stu.name]) weekData[stu.name] = {};
-        if(!weekData[stu.name][day]) weekData[stu.name][day] = {att:'', hw:'', dt:'', cls:0, vio:0};
-        var r = weekData[stu.name][day];
-        var clsTag = stu.class === "9班" ? "tag-9" : "tag-10"; var vioClass = (r.vio > 0) ? 'act-vio' : 'vio-btn-off';
-        var card = document.createElement('div'); card.className = 'student-card';
-        card.innerHTML = `<div class="card-header"><span class="student-name" onclick="showRadar('${stu.name}')"><span class="class-tag ${clsTag}">${stu.class||''}</span>${stu.name}</span><span class="week-total">${calcTotal(stu.name, scoreState.currentMonday)}分</span></div><div class="row-group"><div class="row-label">出勤</div><div class="btn-group">${['1','-1','缺'].map(v => `<div class="opt ${r.att==v?'act-att-'+v:''}" onclick="setScore('${stu.name}',${day},'att','${v}')">${v=='1'?'出':v}</div>`).join('')}</div></div><div class="row-group"><div class="row-label">作业</div><div class="btn-group">${['A','B','C','D','未'].map(v => `<div class="opt ${r.hw==v?'act-hw-'+v:''}" onclick="setScore('${stu.name}',${day},'hw','${v}')">${v}</div>`).join('')}</div></div><div class="row-group"><div class="row-label">听写</div><div class="btn-group">${['满','过','重','未'].map(v => `<div class="opt ${r.dt==v?'act-dt-'+v:''}" onclick="setScore('${stu.name}',${day},'dt','${v}')">${v}</div>`).join('')}</div></div><div class="row-group"><div class="row-label">课堂</div><div class="class-action-bar"><button class="opt-btn ${vioClass}" onclick="toggleVio('${stu.name}',${day})">违</button><button class="opt-btn success-btn" onclick="updCls('${stu.name}',${day},1)">答1</button><button class="opt-btn success-btn" onclick="updCls('${stu.name}',${day},2)">答2</button><button class="opt-btn success-btn" onclick="updCls('${stu.name}',${day},3)">答3</button><div class="divider"></div><button class="opt-btn" onclick="updCls('${stu.name}',${day},-1)">-</button><div class="cls-score-val">${r.cls||0}</div><button class="opt-btn" onclick="updCls('${stu.name}',${day},1)">+</button></div></div>`;
-        grid.appendChild(card);
-    });
-}
-
-function renderGakupoSummary() {
-    var tbody = document.getElementById('sumTBody'); tbody.innerHTML = '';
-    var weekData = scoreState.history[scoreState.currentMonday] || {};
-    scoreState.students.forEach(stu => {
-        var wt = calcTotal(stu.name, scoreState.currentMonday);
-        var row = `<tr><td style="color:#64748b; font-size:11px;">${stu.class||''}</td><td><b style="color:#0f172a;">${stu.name}</b></td>`;
-        for(var i=0; i<5; i++){
-            var r = (weekData[stu.name] && weekData[stu.name][i]) ? weekData[stu.name][i] : {};
-            var attStr = r.att === '1' ? '出勤' : (r.att === '-1' ? '迟/退' : (r.att === '缺' ? '缺勤' : '-'));
-            row += `<td style="text-align:left; font-size:11px; padding:6px; line-height:1.5; white-space:nowrap;">
-                <div style="color:#475569;">出勤：<b style="${r.att=='缺'?'color:#ef4444;':'color:#0f172a'}">${attStr}</b></div>
-                <div style="color:#475569;">作业：<b style="color:#0f172a">${r.hw || '-'}</b></div>
-                <div style="color:#475569;">听写：<b style="color:#0f172a">${r.dt || '-'}</b></div>
-                <div style="color:#475569;">加分：<b style="color:#2563eb">+${r.cls || 0}</b></div>
-                <div style="display:flex; align-items:center; gap:3px; margin-top:2px;">
-                    <span style="color:#ef4444;">违纪：</span>
-                    <button class="opt-btn" onclick="updVio('${stu.name}',${i},-1)" style="width:14px; height:14px; font-size:10px; line-height:1; border-color:#ccc;">-</button>
-                    <b style="color:#ef4444; width:10px; text-align:center;">${r.vio || 0}</b>
-                    <button class="opt-btn" onclick="updVio('${stu.name}',${i},1)" style="width:14px; height:14px; font-size:10px; line-height:1; border-color:#ccc;">+</button>
-                </div>
-            </td>`;
-        }
-        
-        var stuWeek = weekData[stu.name] || {};
-        var cachedComment = stuWeek.ai_comment;
-        var btnText = cachedComment ? "✅ 查周评" : "✨ 周评";
-        var btnColor = cachedComment ? "#10b981" : "#2563eb";
-
-        row += `<td style="color:#2563eb; font-weight:900; font-size:18px; vertical-align:middle;">${wt}</td>
-                <td style="vertical-align:middle;"><span class="action-link" style="color:${btnColor};" onclick="generateWeeklyAI('${stu.name}', ${wt})">${btnText}</span></td></tr>`;
-        tbody.innerHTML += row;
-    });
-}
-
-/* ================= 4. 座位表融合渲染逻辑 ================= */
-function renderSeatGrid() {
-    var grid = document.getElementById('seatingGrid'); if (!grid) return; grid.innerHTML = ''; 
-    seatState.seats.forEach(seatData => {
-        var day = currentViewDay;
-        var weekData = scoreState.history[scoreState.currentMonday] || {};
-        var r = (weekData[seatData.name] && weekData[seatData.name][day]) ? weekData[seatData.name][day] : {cls: 0, vio: 0};
-        var isAbsent = (day < 5) ? (r.att === '缺') : false; 
-
-        var seat = document.createElement('div');
-        seat.className = 'seat ' + seatData.type + (isAbsent ? ' absent' : '');
-        seat.dataset.row = seatData.row; seat.dataset.col = seatData.col; seat.dataset.type = seatData.type; seat.dataset.name = seatData.name;
-        
-        if (seatData.type === 'student') {
-            var absentBtn = document.createElement('button'); absentBtn.className = 'absent-toggle'; absentBtn.innerText = isAbsent ? '缺勤' : '在位';
-            var handleAbs = (e) => { e.stopPropagation(); e.preventDefault(); if(day >= 5) return showToast("⚠️ 汇总页不可修改出勤记录"); var newState = isAbsent ? '1' : '缺'; setScore(seatData.name, day, 'att', newState); };
-            absentBtn.onmousedown = handleAbs; absentBtn.ontouchstart = handleAbs; seat.appendChild(absentBtn);
-
-            var avatarDiv = document.createElement('div'); avatarDiv.className = 'avatar-wrapper';
-            var aFile = seatState.avatars[seatData.name];
-            if (aFile) avatarDiv.innerHTML = `<img src="./头像库/24B/${aFile}" data-filename="${aFile}" draggable="false" onerror="this.src='${CLOUD_OSS_BASE_URL}'+this.dataset.filename">`;
-            else avatarDiv.innerHTML = '<div class="avatar-placeholder">选头像</div>';
-            var handleAva = (e) => { e.stopPropagation(); e.preventDefault(); openAvatarModal(seatData.name); };
-            avatarDiv.onmousedown = handleAva; avatarDiv.ontouchstart = handleAva; seat.appendChild(avatarDiv);
-
-            var nameSpan = document.createElement('span'); nameSpan.innerText = seatData.name; seat.appendChild(nameSpan);
-
-            if(day < 5) {
-                var vioClass = (r.vio > 0) ? 'act-vio' : 'vio-btn-off';
-                var scoreBar = document.createElement('div'); scoreBar.className = 'class-action-bar';
-                scoreBar.style.cssText = 'margin-top:auto; width:100%; flex-shrink:0; min-height:24px;'; 
-                var stopProp = (e) => { e.stopPropagation(); }; scoreBar.onmousedown = stopProp; scoreBar.ontouchstart = stopProp;
-                scoreBar.innerHTML = `<button class="opt-btn ${vioClass}" onclick="toggleVio('${seatData.name}',${day})">违</button><button class="opt-btn success-btn" onclick="updCls('${seatData.name}',${day},1)">答1</button><button class="opt-btn success-btn" onclick="updCls('${seatData.name}',${day},2)">答2</button><button class="opt-btn success-btn" onclick="updCls('${seatData.name}',${day},3)">答3</button><div class="divider"></div><button class="opt-btn" onclick="updCls('${seatData.name}',${day},-1)">-</button><div class="cls-score-val" style="font-size:11px;">${r.cls||0}</div><button class="opt-btn" onclick="updCls('${seatData.name}',${day},1)">+</button>`;
-                seat.appendChild(scoreBar);
-            }
-        } else { seat.innerText = '空位'; }
-        seat.addEventListener('mousedown', handlePointerDown); seat.addEventListener('touchstart', handlePointerDown, {passive: false});
-        grid.appendChild(seat);
-    });
 }
 
 function handlePointerDown(e) {
@@ -528,7 +529,7 @@ function handlePointerMove(e) {
     var clientX = e.type === 'touchmove' ? e.touches[0].pageX : e.pageX; var clientY = e.type === 'touchmove' ? e.touches[0].pageY : e.pageY;
     if (!isDragging && (Math.abs(clientX - startX) > 10 || Math.abs(clientY - startY) > 10)) {
         isDragging = true; clone = draggedItem.cloneNode(true);
-        clone.style.cssText = `width:${draggedItem.offsetWidth}px; height:${draggedItem.offsetHeight}px; position:absolute; z-index:2000; pointer-events:none; opacity:0.85; box-shadow:0 10px 20px rgba(0,0,0,0.2);`;
+        clone.style.cssText = 'width:'+draggedItem.offsetWidth+'px; height:'+draggedItem.offsetHeight+'px; position:absolute; z-index:2000; pointer-events:none; opacity:0.85; box-shadow:0 10px 20px rgba(0,0,0,0.2);';
         document.body.appendChild(clone); draggedItem.style.opacity = '0.3';
     }
     if (isDragging) { if(e.cancelable) e.preventDefault(); clone.style.left = clientX - clone.offsetWidth / 2 + 'px'; clone.style.top = clientY - clone.offsetHeight / 2 + 'px'; }
@@ -551,370 +552,54 @@ function attemptSwap(seatA, seatB) {
     var isAEmpty = seatA.dataset.type === 'empty'; var isBEmpty = seatB.dataset.type === 'empty';
     var rowA = parseInt(seatA.dataset.row); var rowB = parseInt(seatB.dataset.row);
     if ((isAEmpty && rowB !== 4) || (isBEmpty && rowA !== 4)) { showToast("⚠️ 空位只能留在最后一排！"); return; }
-    var idxA = seatState.seats.findIndex(s => s.row == rowA && s.col == seatA.dataset.col);
-    var idxB = seatState.seats.findIndex(s => s.row == rowB && s.col == seatB.dataset.col);
+    var idxA = seatState.seats.findIndex(function(s){ return s.row == rowA && s.col == seatA.dataset.col; });
+    var idxB = seatState.seats.findIndex(function(s){ return s.row == rowB && s.col == seatB.dataset.col; });
     var tempNode = { type: seatState.seats[idxA].type, name: seatState.seats[idxA].name, absent: seatState.seats[idxA].absent };
     seatState.seats[idxA].type = seatState.seats[idxB].type; seatState.seats[idxA].name = seatState.seats[idxB].name; seatState.seats[idxA].absent = seatState.seats[idxB].absent;
     seatState.seats[idxB].type = tempNode.type; seatState.seats[idxB].name = tempNode.name; seatState.seats[idxB].absent = tempNode.absent;
     triggerSaveSeat(); renderSeatGrid();
 }
 
-/* ================= 5. 模态框与随机抽选 ================= */
-function showToast(msg) { var toast = document.getElementById('toast'); toast.innerText = msg; toast.style.opacity = '1'; setTimeout(() => toast.style.opacity = '0', 2000); }
-function closeAllModals() { document.querySelectorAll('.modal, .month-dashboard, .overlay').forEach(el => el.style.display='none'); currentSelectingStudent = null; }
-function copyText(id) { navigator.clipboard.writeText(document.getElementById(id).innerText).then(()=>alert("已成功复制到剪贴板")); }
-
-function openAvatarModal(name) {
-    currentSelectingStudent = name; document.getElementById('currentStudentName').innerText = name;
-    var gallery = document.getElementById('galleryGrid'); gallery.innerHTML = ''; 
-    var taken = Object.values(seatState.avatars).filter(v => v !== seatState.avatars[name]);
-    avatarFiles.forEach(file => {
-        var item = document.createElement('div'); item.className = 'gallery-item'; 
-        item.innerHTML = `<img src="./头像库/24B/${file}" data-filename="${file}" onerror="this.src='${CLOUD_OSS_BASE_URL}'+this.dataset.filename">`;
-        if (taken.includes(file)) { item.classList.add('taken'); } 
-        else { 
-            if (seatState.avatars[name] === file) item.style.borderColor = '#4CAF50'; 
-            item.onclick = () => { seatState.avatars[name] = file; triggerSaveSeat(); renderSeatGrid(); closeAllModals(); }; 
-        }
-        gallery.appendChild(item);
-    });
-    document.getElementById('ovl').style.display='block'; document.getElementById('avatarModal').style.display='flex';
-}
-
-function getWeightedWinner(nodes) {
-    var SPECIAL = ['钟菲儿', '刘澄橙', '李妮蔓']; var tot = 0, ws = [];
-    nodes.forEach(n => { var w = SPECIAL.includes(n.dataset.name) ? 1 : 2; ws.push(w); tot += w; });
-    var rand = Math.random() * tot; var sum = 0;
-    for(var i = 0; i < nodes.length; i++) { sum += ws[i]; if(rand < sum) return nodes[i]; }
-    return nodes[nodes.length - 1];
-}
-
-function startRandomDraw() {
-    var studentNodes = Array.from(document.querySelectorAll('.seat.student:not(.absent)'));
-    if (studentNodes.length === 0) return showToast("⚠️ 当前没有可供抽选的学生！");
-    synAudioEngine.init();
-    var btn = document.getElementById('randomBtn'); btn.disabled = true; btn.innerText = '🔄 抽取中...';
-    var finalWinner = getWeightedWinner(studentNodes);
-    var jumps = 0, totalJumps = 20, lastNode = null;
-    var drawInterval = setInterval(() => {
-        if (lastNode) lastNode.classList.remove('lucky-student');
-        var currentNode = (jumps >= totalJumps - 1) ? finalWinner : studentNodes[Math.floor(Math.random() * studentNodes.length)];
-        currentNode.classList.add('lucky-student'); lastNode = currentNode; jumps++;
-        if (jumps >= totalJumps) {
-            clearInterval(drawInterval); synAudioEngine.playTada();
-            showToast("🎉 恭喜 " + currentNode.dataset.name + " 同学！");
-            currentNode.classList.add('winner-highlight'); btn.disabled = false; btn.innerText = '🎲 随机点名';
-            setTimeout(() => { currentNode.classList.remove('lucky-student', 'winner-highlight'); }, 3000);
-        }
-    }, 75);
-}
-
-function resetAllAvatars() { if(confirm("⚠️ 确定清空全班头像？")) { seatState.avatars = {}; triggerSaveSeat(); renderSeatGrid(); } }
-function batchAttendance() { scoreState.students.forEach(s => { if(!scoreState.history[scoreState.currentMonday][s.name]) scoreState.history[scoreState.currentMonday][s.name]={}; if(!scoreState.history[scoreState.currentMonday][s.name][currentViewDay]) scoreState.history[scoreState.currentMonday][s.name][currentViewDay]={cls:0, vio:0}; scoreState.history[scoreState.currentMonday][s.name][currentViewDay].att = '1'; }); triggerSaveScore(); updateGlobalUI(); showToast("✅ 今日全勤已录入！"); }
-
-/* ================= 6. 图表引擎与 API 兼容层 ================= */
-
-// 雷达图等比映射逻辑（突破绝对分值不统一难题）
-function showRadar(name) {
-    var s = { att:0, hw:0, dt:0, cls:0 };
-    var weekData = scoreState.history[scoreState.currentMonday];
-    for(var d=0; d<5; d++){ 
-        var r = (weekData[name] && weekData[name][d]) ? weekData[name][d] : {}; 
-        s.att += SCORE_MAP.att[r.att]||0; 
-        s.hw += SCORE_MAP.hw[r.hw]||0; 
-        s.dt += SCORE_MAP.dt[r.dt]||0; 
-        s.cls += (r.cls||0) - (r.vio||0)*3; 
-    }
-    
-    // 底层数据真实记录
-    var rawValues = [
-        Math.max(0, s.att), 
-        Math.max(0, s.hw), 
-        Math.max(0, s.dt), 
-        Math.max(0, s.cls)
-    ];
-
-    // 引擎层截断与 100% 满分等比转换计算
-    var calcData = [
-        (Math.min(5, rawValues[0]) / 5) * 100,
-        (Math.min(15, rawValues[1]) / 15) * 100,
-        (Math.min(15, rawValues[2]) / 15) * 100,
-        (Math.min(15, rawValues[3]) / 15) * 100
-    ];
-    
-    document.getElementById('ovl').style.display='block'; 
-    document.getElementById('radarModal').style.display='flex';
-    
-    setTimeout(() => {
-        if(radarChart) radarChart.destroy();
-        radarChart = new Chart(document.getElementById('radarChart').getContext('2d'), { 
-            type:'radar', 
-            data:{ 
-                labels:["出勤(满分5)", "作业(满分15)", "听写(满分15)", "课堂表现(满分15)"], 
-                datasets:[{
-                    label:'能力雷达', 
-                    data: calcData, 
-                    rawVals: rawValues, // 将真实数据暗藏入对象内
-                    backgroundColor:'rgba(59,130,246,0.2)', 
-                    borderColor:'#3b82f6',
-                    pointBackgroundColor: '#1e40af'
-                }] 
-            }, 
-            options:{ 
-                responsive: true, 
-                maintainAspectRatio: false, 
-                scale:{ 
-                    ticks:{ min:0, max:100, display: false }, 
-                    pointLabels: { fontSize: 12, fontStyle: 'bold', fontColor: '#334155' } 
-                }, 
-                legend: { display: false },
-                tooltips: {
-                    callbacks: {
-                        // 劫持渲染，显示最真实的绝对分值
-                        label: function(tooltipItem, data) {
-                            var idx = tooltipItem.index;
-                            var raw = data.datasets[tooltipItem.datasetIndex].rawVals[idx];
-                            var maxes = [5, 15, 15, "15 (上限)"];
-                            var dim = ["出勤", "作业", "听写", "课堂"][idx];
-                            return dim + '实际得分: ' + raw + ' / ' + maxes[idx];
-                        }
-                    }
-                }
-            } 
-        });
-    }, 50);
-}
-
-function showWeeklyComparison() {
-    var ds = scoreState.students.map(s => ({ name:s.name, total:calcTotal(s.name, scoreState.currentMonday) })).sort((a,b)=>b.total-a.total);
-    document.getElementById('ovl').style.display='block'; document.getElementById('compareModal').style.display='flex';
-    
-    setTimeout(() => {
-        if(compareChart) compareChart.destroy();
-        compareChart = new Chart(document.getElementById('compareChart').getContext('2d'), { 
-            type:'bar', 
-            data:{ 
-                labels:ds.map(d=>d.name), 
-                datasets:[{ 
-                    label:'总积分', 
-                    data:ds.map(d=>d.total), 
-                    backgroundColor: ds.map(d => { if (d.total >= 40) return '#f59e0b'; if (d.total >= 30) return '#8b5cf6'; if (d.total >= 20) return '#3b82f6'; return '#94a3b8'; })
-                }] 
-            }, 
-            options: { 
-                responsive: true, 
-                maintainAspectRatio: false, 
-                legend: { display: false },
-                scales: { yAxes: [{ ticks: { beginAtZero: true } }] },
-                tooltips: { callbacks: { label: function(t, d) { return '总积分: ' + t.yLabel + ' 分'; } } }
-            } 
-        });
-    }, 50);
-}
-
-function openMonthDashboard() { 
-    document.getElementById('ovl').style.display='block'; 
-    document.getElementById('monthDashboard').style.display='flex'; 
-    var weeks = Object.keys(scoreState.history).sort();
-    if(weeks.length === 0) { document.getElementById('weekSelector').innerHTML = "<span style='color:#ef4444;'>暂无历史记录</span>"; return; }
-    var html = '<span style="font-weight:bold; margin-right:10px; color:#1e293b; font-size:14px; white-space:nowrap;">选择对比周：</span>';
-    weeks.forEach(w => { html += `<label class="week-chk-label"><input type="checkbox" class="week-checkbox" value="${w}" checked onchange="analyzeSelectedWeeks()"> ${w}</label>`; });
-    document.getElementById('weekSelector').innerHTML = html; 
-    analyzeSelectedWeeks();
-}
-
-function analyzeSelectedWeeks() {
-    var checkboxes = document.querySelectorAll('.week-checkbox:checked');
-    var selected = Array.from(checkboxes).map(cb => cb.value).sort();
-    if(selected.length === 0) { document.getElementById('monthRightPane').style.display = 'none'; return; }
-    g_monthWeeks = selected; g_monthData = {};
-    scoreState.students.forEach(stu => {
-        g_monthData[stu.name] = { class: stu.class, name: stu.name, weeks: [], total: 0 };
-        selected.forEach(weekStr => { var wTotal = calcTotal(stu.name, weekStr); g_monthData[stu.name].weeks.push(wTotal); g_monthData[stu.name].total += wTotal; });
-    });
-    document.getElementById('monthRightPane').style.display = 'block';
-    var list = Object.values(g_monthData).sort((a,b)=>b.total-a.total);
-    document.getElementById('monthStuList').innerHTML = list.map(s => `<div class="stu-list-item" id="mlist_${s.name}" onclick="selectMonthStu('${s.name}')"><span><span style="color:#64748b; font-size:11px;">[${s.class}]</span> <b>${s.name}</b></span><span style="color:#2563eb;">${s.total}</span></div>`).join('');
-    if(list.length > 0) selectMonthStu(list[0].name);
-}
-
-function selectMonthStu(name) {
-    currentMonthStudent = name; document.querySelectorAll('.stu-list-item').forEach(el => el.classList.remove('active')); document.getElementById('mlist_'+name).classList.add('active');
-    var data = g_monthData[name]; document.getElementById('mStuName').innerText = name; document.getElementById('mStuClass').innerText = data.class; document.getElementById('mStuTotal').innerText = data.total;
-    var chartLabels = g_monthWeeks.map(d => d.substring(5).replace('-', '/'));
-    
-    setTimeout(() => {
-        if(c_monthLine) c_monthLine.destroy(); 
-        c_monthLine = new Chart(document.getElementById('monthLineChart').getContext('2d'), { 
-            type:'line', 
-            data:{ 
-                labels:chartLabels, 
-                datasets:[{
-                    label:'历史积分走势', 
-                    data:data.weeks, 
-                    borderColor:'#3b82f6', 
-                    lineTension:0.2, 
-                    borderWidth:3, 
-                    pointBackgroundColor:'#1e40af', 
-                    pointRadius:4,
-                    fill: false
-                }] 
-            }, 
-            options: { 
-                responsive:true, 
-                maintainAspectRatio: false,
-                legend: { display: false },
-                scales: { yAxes: [{ ticks: { beginAtZero: true } }] },
-                tooltips: { callbacks: { label: function(t, d) { return '积分: ' + t.yLabel + ' 分'; } } }
-            } 
-        });
-        
-        if(c_monthRadar) c_monthRadar.destroy();
-        c_monthRadar = new Chart(document.getElementById('monthRadarChart').getContext('2d'), { 
-            type:'bar', 
-            data:{ 
-                labels:chartLabels, 
-                datasets:[{
-                    label:'单周总分', 
-                    data:data.weeks, 
-                    backgroundColor: data.weeks.map(w => { if (w >= 40) return '#f59e0b'; if (w >= 30) return '#8b5cf6'; if (w >= 20) return '#3b82f6'; return '#94a3b8'; })
-                }] 
-            }, 
-            options: { 
-                responsive:true, 
-                maintainAspectRatio: false, 
-                legend:{ display: false },
-                scales: { yAxes: [{ ticks: { beginAtZero: true } }] },
-                tooltips: { callbacks: { label: function(t, d) { return '积分: ' + t.yLabel + ' 分'; } } }
-            } 
-        });
-    }, 50);
-}
-
-/* ================= 7. 安全数据双向同步 (防锁死核心修复) ================= */
-function fetchWithTimeout(url, options, timeout = 2500) {
-    return Promise.race([ fetch(url, options), new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), timeout)) ]);
-}
-
-async function syncBothClouds() {
-    var btn = document.getElementById('reconnectBtn');
-    btn.style.display = "none";
-    await Promise.all([syncCloudGakupo(), syncCloudSeat()]);
-}
-
-async function syncCloudGakupo() {
-    var st = document.getElementById('syncGakupoStatus');
+/* ================= 5. 数据导出与重置操作 ================= */
+function exportDetailedWeek() {
     try {
-        var res = await fetchWithTimeout(GAKUPO_API, { cache: "no-store" }, 5000);
-        if(!res.ok) throw new Error("HTTP Error");
-        var text = await res.text(); var data = text ? JSON.parse(text) : null;
+        if (typeof XLSX === 'undefined') { alert("❌ Excel 导出组件尚未加载完成，请等待几秒或检查网络。"); return; }
+        var headers = ["班级", "姓名", "周一", "周二", "周三", "周四", "周五", "周六", "周日", "周总计积分"];
+        var rows = [headers];
+        var weekData = scoreState.history[scoreState.currentMonday] || {};
         
-        if (data && data.students && data.students.length > 0) {
-            scoreState = ensureScoreStateIntegrity(data); 
-            localStorage.setItem(GAKUPO_KEY, JSON.stringify(scoreState)); 
-            document.getElementById('mondayDate').value = scoreState.currentMonday; 
-            updateGlobalUI(); 
-            st.innerText = "积分: ☁️已同步"; st.style.color = "#10b981";
-            cloudSyncState.gakupoLoaded = true; // 读锁解除
-            document.getElementById('reconnectBtn').style.display = "none";
-        } else {
-            // 云端为空白，初始化推流
-            cloudSyncState.gakupoLoaded = true;
-            triggerSaveScore(); 
+        scoreState.students.forEach(function(s) {
+            var row = [s.class || '', s.name];
+            for(var i=0; i<7; i++) {
+                var r = (weekData[s.name] && weekData[s.name][i]) ? weekData[s.name][i] : {};
+                var attStr = r.att === '1' ? '出勤' : (r.att === '-1' ? '迟/退' : (r.att === '缺' ? '缺勤' : '未记录'));
+                row.push('出勤：'+attStr+'\n作业：'+(r.hw||'未记录')+'\n听写：'+(r.dt||'未记录')+'\n课堂加分：+'+(r.cls||0)+'\n违纪次数：'+(r.vio||0)+'次');
+            }
+            row.push(calcTotal(s.name, scoreState.currentMonday)); rows.push(row);
+        });
+        
+        var ws = XLSX.utils.aoa_to_sheet(rows);
+        for(var R = 1; R < rows.length; ++R) {
+            for(var C = 2; C <= 8; ++C) {
+                var ref = XLSX.utils.encode_cell({c:C, r:R});
+                if(ws[ref]) ws[ref].s = { alignment: { wrapText: true, vertical: 'center' } };
+            }
         }
-    } catch(e) { 
-        // 读取失败，上读锁，防止后续的保存动作意外覆盖云端好数据
-        cloudSyncState.gakupoLoaded = false; 
-        document.getElementById('reconnectBtn').style.display = "flex"; 
-        st.innerText = "积分: ⚠️离线/冲突"; st.style.color = "#f59e0b"; 
+        var wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "学情周报");
+        XLSX.writeFile(wb, "智能学情周报_" + scoreState.currentMonday + ".xlsx");
+    } catch(e) {
+        alert("⚠️ 导出发生错误：\n" + e.message);
     }
 }
 
-async function syncCloudSeat() {
-    var st = document.getElementById('syncSeatStatus');
+function exportLocalState() { 
     try {
-        var res = await fetchWithTimeout(SEAT_API, { cache: "no-store" }, 5000);
-        if(!res.ok) throw new Error("HTTP Error");
-        var text = await res.text(); var data = text ? JSON.parse(text) : null;
-        
-        if (data && data.seats && data.seats.length > 0) {
-            seatState = ensureSeatStateIntegrity(data); 
-            localStorage.setItem(SEAT_KEY, JSON.stringify(seatState)); 
-            renderSeatGrid(); 
-            st.innerText = "座位: ☁️已同步"; st.style.color = "#10b981";
-            cloudSyncState.seatLoaded = true; // 读锁解除
-        } else {
-            cloudSyncState.seatLoaded = true;
-            triggerSaveSeat();
-        }
-    } catch(e) { 
-        cloudSyncState.seatLoaded = false; 
-        document.getElementById('reconnectBtn').style.display = "flex"; 
-        st.innerText = "座位: ⚠️离线"; st.style.color = "#f59e0b"; 
+        var fullBackup = { gakupo: scoreState, seat: seatState };
+        var b = new Blob([JSON.stringify(fullBackup)], {type:"application/json"}); 
+        var a = document.createElement("a"); a.href=URL.createObjectURL(b); a.download="智能管家_双擎备份.json"; a.click(); 
+    } catch(e) {
+        alert("⚠️ 备份发生错误：\n" + e.message);
     }
-}
-
-function triggerSaveScore() {
-    localStorage.setItem(GAKUPO_KEY, JSON.stringify(scoreState)); 
-    if(!cloudSyncState.gakupoLoaded) return; // 如果启动时没读到云端，禁止盲目推送覆盖
-    
-    var st = document.getElementById('syncGakupoStatus'); st.innerText = "积分: 🔄保存中"; st.style.color = "#3b82f6";
-    if(syncTimeouts.gakupo) clearTimeout(syncTimeouts.gakupo);
-    syncTimeouts.gakupo = setTimeout(async () => {
-        try { 
-            var res = await fetchWithTimeout(GAKUPO_API, { method: "POST", headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(scoreState) }, 4000); 
-            if(!res.ok) throw new Error("HTTP Error"); 
-            st.innerText = "积分: ☁️已同步"; st.style.color = "#10b981"; 
-        } catch(e) { 
-            // 核心修复：仅提示警告，不改变读锁状态，下次点击积分时会再次尝试自动同步！
-            st.innerText = "积分: ⚠️网络波动"; st.style.color = "#f59e0b"; 
-        }
-    }, 800);
-}
-
-function triggerSaveSeat() {
-    seatState.lastModified = new Date().getTime(); localStorage.setItem(SEAT_KEY, JSON.stringify(seatState)); 
-    if(!cloudSyncState.seatLoaded) return; 
-    
-    var st = document.getElementById('syncSeatStatus'); st.innerText = "座位: 🔄保存中"; st.style.color = "#3b82f6";
-    if(syncTimeouts.seat) clearTimeout(syncTimeouts.seat);
-    syncTimeouts.seat = setTimeout(async () => {
-        try { 
-            var res = await fetchWithTimeout(SEAT_API, { method: "POST", headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(seatState) }, 4000); 
-            if(!res.ok) throw new Error("HTTP Error"); 
-            st.innerText = "座位: ☁️已同步"; st.style.color = "#10b981"; 
-        } catch(e) { st.innerText = "座位: ⚠️网络波动"; st.style.color = "#f59e0b"; }
-    }, 800);
-}
-
-function triggerManualSync() {
-    var c = prompt("🔌 网络同步冲突解决\n\n【1】以云端为准（拉取云端覆盖本地）\n【2】以本地为准（强制推送覆盖云端）\n\n请输入 1 或 2：");
-    if(c==='1') { syncBothClouds(); } 
-    else if(c==='2') { 
-        cloudSyncState.gakupoLoaded = true; cloudSyncState.seatLoaded = true; // 手动解除封锁
-        document.getElementById('reconnectBtn').style.display = "none"; 
-        triggerSaveScore(); triggerSaveSeat(); 
-    }
-}
-
-/* ================= 8. 数据拦截刷新机制 ================= */
-async function loadDefaultStudents() { 
-    if(confirm("确定重置为新学期内置名单吗？\n所有历史数据将被永久清空！")) { 
-        scoreState = ensureScoreStateIntegrity({students:DEFAULT_STUDENTS, history:{}, currentMonday:getMonday(new Date().toISOString().split('T')[0])}); 
-        seatState = ensureSeatStateIntegrity({avatars:{}, seats:[]});
-        
-        localStorage.setItem(GAKUPO_KEY, JSON.stringify(scoreState));
-        localStorage.setItem(SEAT_KEY, JSON.stringify(seatState));
-        
-        document.getElementById('syncGakupoStatus').innerText = "☁️ 正在抹除云端...";
-        try { 
-            await Promise.all([
-                fetchWithTimeout(GAKUPO_API, { method: "POST", headers: {'Content-Type': 'application/json'}, body: JSON.stringify(scoreState) }, 3000),
-                fetchWithTimeout(SEAT_API, { method: "POST", headers: {'Content-Type': 'application/json'}, body: JSON.stringify(seatState) }, 3000)
-            ]); 
-        } catch(e){}
-        location.reload(); 
-    } 
 }
 
 function importLocalState(files) { 
@@ -936,11 +621,27 @@ function importLocalState(files) {
                     fetch(SEAT_API, { method:"POST", headers: {'Content-Type': 'application/json'}, body:JSON.stringify(seatState) }) 
                 ]); 
             } catch(err){}
-            
             location.reload();
         } catch(err) { alert("文件解析失败，请检查格式！"); }
     }; 
     r.readAsText(files[0]); 
+}
+
+async function loadDefaultStudents() { 
+    if(confirm("确定重置为新学期内置名单吗？\n所有历史数据将被永久清空并同步至云端！")) { 
+        scoreState = ensureScoreStateIntegrity({students:DEFAULT_STUDENTS, history:{}, currentMonday:getMonday(new Date().toISOString().split('T')[0])}); 
+        seatState = ensureSeatStateIntegrity({avatars:{}, seats:[]});
+        localStorage.setItem(GAKUPO_KEY, JSON.stringify(scoreState));
+        localStorage.setItem(SEAT_KEY, JSON.stringify(seatState));
+        document.getElementById('syncGakupoStatus').innerText = "☁️ 正在抹除云端...";
+        try { 
+            await Promise.all([
+                fetchWithTimeout(GAKUPO_API, { method: "POST", headers: {'Content-Type': 'application/json'}, body: JSON.stringify(scoreState) }, 3000),
+                fetchWithTimeout(SEAT_API, { method: "POST", headers: {'Content-Type': 'application/json'}, body: JSON.stringify(seatState) }, 3000)
+            ]); 
+        } catch(e){}
+        location.reload(); 
+    } 
 }
 
 function clearAllRecords() { 
@@ -951,213 +652,343 @@ function clearAllRecords() {
     } 
 }
 
-/* ================= 9. AI 模型接入 ================= */
-async function generateWeeklyAI(name, total, force = false) {
-    var weekData = scoreState.history[scoreState.currentMonday];
-    if (!weekData[name]) weekData[name] = {};
-    
-    document.getElementById('ovl').style.display='block'; 
-    document.getElementById('commentModal').style.display='flex';
-    document.getElementById('commentModalTitle').innerText = `AI 智能学情诊断 - ${name}`;
-    
-    var regenBtn = document.getElementById('btnRegenAI');
-    var copyBtn = document.getElementById('btnCopyAI');
-    
-    if (!force && weekData[name].ai_comment) {
-        document.getElementById('aiContent').innerHTML = weekData[name].ai_comment;
-        regenBtn.style.display = 'inline-block';
-        copyBtn.style.display = 'inline-block'; 
-        regenBtn.onclick = () => generateWeeklyAI(name, total, true);
-        return;
-    }
+function batchAttendance() { 
+    scoreState.students.forEach(function(s) { 
+        if(!scoreState.history[scoreState.currentMonday][s.name]) scoreState.history[scoreState.currentMonday][s.name]={}; 
+        if(!scoreState.history[scoreState.currentMonday][s.name][currentViewDay]) scoreState.history[scoreState.currentMonday][s.name][currentViewDay]={cls:0, vio:0}; 
+        scoreState.history[scoreState.currentMonday][s.name][currentViewDay].att = '1'; 
+    }); 
+    triggerSaveScore(); updateGlobalUI(); showToast("✅ 今日全勤已录入！"); 
+}
 
-    var key = localStorage.getItem("DEEPSEEK_KEY") || prompt("首次使用，请输入大模型 API Key:"); 
-    if(!key) { closeAllModals(); return; }
-    localStorage.setItem("DEEPSEEK_KEY", key);
-    
-    regenBtn.style.display = 'none'; 
-    copyBtn.style.display = 'none';  
-    document.getElementById('aiContent').innerText = "🤖 正在抓取本周详细学情并进行诊断分析...";
+/* ================= 6. 图表引擎与多周看板 ================= */
+function showRadar(name) {
+    try {
+        if(typeof Chart === 'undefined') return alert("❌ 图表组件未能成功加载，请检查网络或使用热点。");
+        
+        var s = { att:0, hw:0, dt:0, cls:0 };
+        var weekData = scoreState.history[scoreState.currentMonday];
+        for(var d=0; d<7; d++){ 
+            var r = (weekData[name] && weekData[name][d]) ? weekData[name][d] : {}; 
+            s.att += SCORE_MAP.att[r.att]||0; 
+            s.hw += SCORE_MAP.hw[r.hw]||0; 
+            s.dt += SCORE_MAP.dt[r.dt]||0; 
+            s.cls += (r.cls||0) - (r.vio||0)*3; 
+        }
+        
+        var rawValues = [ Math.max(0, s.att), Math.max(0, s.hw), Math.max(0, s.dt), Math.max(0, s.cls) ];
+        var calcData = [
+            (Math.min(5, rawValues[0]) / 5) * 100,
+            (Math.min(15, rawValues[1]) / 15) * 100,
+            (Math.min(15, rawValues[2]) / 15) * 100,
+            (Math.min(15, rawValues[3]) / 15) * 100
+        ];
+        
+        document.getElementById('ovl').style.display='block'; document.getElementById('radarModal').style.display='flex';
+        
+        setTimeout(function() {
+            if(radarChart) radarChart.destroy();
+            radarChart = new Chart(document.getElementById('radarChart').getContext('2d'), { 
+                type:'radar', 
+                data:{ 
+                    labels:["出勤(满分5)", "作业(满分15)", "听写(满分15)", "课堂表现(满分15)"], 
+                    datasets:[{ label:'能力雷达', data: calcData, rawVals: rawValues, backgroundColor:'rgba(59,130,246,0.2)', borderColor:'#3b82f6', pointBackgroundColor: '#1e40af' }] 
+                }, 
+                options:{ 
+                    responsive: true, maintainAspectRatio: false, 
+                    scale:{ ticks:{ min:0, max:100, display: false }, pointLabels: { fontSize: 12, fontStyle: 'bold', fontColor: '#334155' } }, 
+                    legend: { display: false },
+                    tooltips: { callbacks: { label: function(tooltipItem, data) { var idx = tooltipItem.index; var raw = data.datasets[tooltipItem.datasetIndex].rawVals[idx]; var maxes = [5, 15, 15, "15 (上限)"]; var dim = ["出勤", "作业", "听写", "课堂"][idx]; return dim + '实际得分: ' + raw + ' / ' + maxes[idx]; } } }
+                } 
+            });
+        }, 50);
+    } catch(e) { alert("⚠️ 渲染雷达图错误: " + e.message); }
+}
+
+function showWeeklyComparison() {
+    try {
+        if(typeof Chart === 'undefined') return alert("❌ 图表组件未能成功加载，请检查网络。");
+        
+        var ds = scoreState.students.map(function(s) { return { name:s.name, total:calcTotal(s.name, scoreState.currentMonday) }; }).sort(function(a,b){ return b.total-a.total; });
+        document.getElementById('ovl').style.display='block'; document.getElementById('compareModal').style.display='flex';
+        
+        setTimeout(function() {
+            if(compareChart) compareChart.destroy();
+            compareChart = new Chart(document.getElementById('compareChart').getContext('2d'), { 
+                type:'bar', 
+                data:{ 
+                    labels:ds.map(function(d){ return d.name; }), 
+                    datasets:[{ label:'总积分', data:ds.map(function(d){ return d.total; }), backgroundColor: ds.map(function(d){ if (d.total >= 40) return '#f59e0b'; if (d.total >= 30) return '#8b5cf6'; if (d.total >= 20) return '#3b82f6'; return '#94a3b8'; }), borderRadius:4 }] 
+                }, 
+                options: { 
+                    responsive: true, maintainAspectRatio: false, legend: { display: false },
+                    scales: { yAxes: [{ ticks: { beginAtZero: true } }] },
+                    tooltips: { callbacks: { label: function(t, d) { return '总积分: ' + t.yLabel + ' 分'; } } }
+                } 
+            });
+        }, 50);
+    } catch(e) { alert("⚠️ 渲染对比图错误: " + e.message); }
+}
+
+// 核心修复：多周分析页面选择对比周，只自动选中当前周数据
+function openMonthDashboard() { 
+    document.getElementById('ovl').style.display='block'; document.getElementById('monthDashboard').style.display='flex'; 
+    var weeks = Object.keys(scoreState.history).sort();
+    if(weeks.length === 0) { document.getElementById('weekSelector').innerHTML = "<span style='color:#ef4444;'>暂无历史记录</span>"; return; }
+    var html = '<span style="font-weight:bold; margin-right:10px; color:#1e293b; font-size:14px; white-space:nowrap;">选择对比周：</span>';
+    weeks.forEach(function(w) { 
+        var isChecked = (w === scoreState.currentMonday) ? 'checked' : '';
+        html += '<label class="week-chk-label"><input type="checkbox" class="week-checkbox" value="'+w+'" '+isChecked+' onchange="analyzeSelectedWeeks()"> '+w+'</label>'; 
+    });
+    document.getElementById('weekSelector').innerHTML = html; 
+    analyzeSelectedWeeks();
+}
+
+function analyzeSelectedWeeks() {
+    var checkboxes = document.querySelectorAll('.week-checkbox:checked');
+    var selected = Array.from(checkboxes).map(function(cb){ return cb.value; }).sort();
+    if(selected.length === 0) { document.getElementById('monthRightPane').style.display = 'none'; return; }
+    g_monthWeeks = selected; g_monthData = {};
+    scoreState.students.forEach(function(stu) {
+        g_monthData[stu.name] = { class: stu.class, name: stu.name, weeks: [], total: 0 };
+        selected.forEach(function(weekStr) { var wTotal = calcTotal(stu.name, weekStr); g_monthData[stu.name].weeks.push(wTotal); g_monthData[stu.name].total += wTotal; });
+    });
+    document.getElementById('monthRightPane').style.display = 'block';
+    var list = Object.values(g_monthData).sort(function(a,b){ return b.total-a.total; });
+    document.getElementById('monthStuList').innerHTML = list.map(function(s){ return '<div class="stu-list-item" id="mlist_'+s.name+'" onclick="selectMonthStu(\''+s.name+'\')"><span><span style="color:#64748b; font-size:11px;">['+(s.class||'')+']</span> <b>'+s.name+'</b></span><span style="color:#2563eb;">'+s.total+'</span></div>'; }).join('');
+    if(list.length > 0) selectMonthStu(list[0].name);
+}
+
+function selectMonthStu(name) {
+    try {
+        currentMonthStudent = name; document.querySelectorAll('.stu-list-item').forEach(function(el){ el.classList.remove('active'); }); document.getElementById('mlist_'+name).classList.add('active');
+        var data = g_monthData[name]; document.getElementById('mStuName').innerText = name; document.getElementById('mStuClass').innerText = data.class; document.getElementById('mStuTotal').innerText = data.total;
+        var chartLabels = g_monthWeeks.map(function(d){ return d.substring(5).replace('-', '/'); });
+        
+        setTimeout(function() {
+            if(typeof Chart === 'undefined') return;
+            if(c_monthLine) c_monthLine.destroy(); 
+            c_monthLine = new Chart(document.getElementById('monthLineChart').getContext('2d'), { type:'line', data:{ labels:chartLabels, datasets:[{label:'历史积分走势', data:data.weeks, borderColor:'#3b82f6', lineTension:0.2, borderWidth:3, pointBackgroundColor:'#1e40af', pointRadius:4, fill: false}] }, options: { responsive:true, maintainAspectRatio: false, legend: { display: false }, scales: { yAxes: [{ ticks: { beginAtZero: true } }] }, tooltips: { callbacks: { label: function(t, d) { return '积分: ' + t.yLabel + ' 分'; } } } } });
+            if(c_monthRadar) c_monthRadar.destroy();
+            c_monthRadar = new Chart(document.getElementById('monthRadarChart').getContext('2d'), { type:'bar', data:{ labels:chartLabels, datasets:[{label:'单周总分', data:data.weeks, backgroundColor: data.weeks.map(function(w){ if (w >= 40) return '#f59e0b'; if (w >= 30) return '#8b5cf6'; if (w >= 20) return '#3b82f6'; return '#94a3b8'; }) }] }, options: { responsive:true, maintainAspectRatio: false, legend:{ display: false }, scales: { yAxes: [{ ticks: { beginAtZero: true } }] }, tooltips: { callbacks: { label: function(t, d) { return '积分: ' + t.yLabel + ' 分'; } } } } });
+        }, 50);
+    } catch(e) { console.error("多周图表渲染失败: ", e); }
+}
+
+/* ================= 7. 附加模块 (弹窗、AI 诊断) ================= */
+function showToast(msg) { var toast = document.getElementById('toast'); toast.innerText = msg; toast.style.opacity = '1'; setTimeout(function(){ toast.style.opacity = '0'; }, 2000); }
+function closeAllModals() { document.querySelectorAll('.modal, .month-dashboard, .overlay').forEach(function(el){ el.style.display='none'; }); currentSelectingStudent = null; }
+function copyText(id) { navigator.clipboard.writeText(document.getElementById(id).innerText).then(function(){ alert("已成功复制到剪贴板"); }); }
+
+function openAvatarModal(name) {
+    currentSelectingStudent = name; document.getElementById('currentStudentName').innerText = name;
+    var gallery = document.getElementById('galleryGrid'); gallery.innerHTML = ''; 
+    var taken = Object.values(seatState.avatars).filter(function(v){ return v !== seatState.avatars[name]; });
+    avatarFiles.forEach(function(file) {
+        var item = document.createElement('div'); item.className = 'gallery-item'; 
+        item.innerHTML = '<img src="./头像库/24B/'+file+'" data-filename="'+file+'" onerror="this.src=\''+CLOUD_OSS_BASE_URL+'\'+this.dataset.filename">';
+        if (taken.includes(file)) { item.classList.add('taken'); } 
+        else { if (seatState.avatars[name] === file) item.style.borderColor = '#4CAF50'; item.onclick = function() { seatState.avatars[name] = file; triggerSaveSeat(); renderSeatGrid(); closeAllModals(); }; }
+        gallery.appendChild(item);
+    });
+    document.getElementById('ovl').style.display='block'; document.getElementById('avatarModal').style.display='flex';
+}
+
+function getWeightedWinner(nodes) {
+    var SPECIAL = ['钟菲儿', '刘澄橙', '李妮蔓']; var tot = 0, ws = [];
+    nodes.forEach(function(n) { var w = SPECIAL.includes(n.dataset.name) ? 1 : 2; ws.push(w); tot += w; });
+    var rand = Math.random() * tot; var sum = 0;
+    for(var i = 0; i < nodes.length; i++) { sum += ws[i]; if(rand < sum) return nodes[i]; }
+    return nodes[nodes.length - 1];
+}
+
+function startRandomDraw() {
+    var studentNodes = Array.from(document.querySelectorAll('.seat.student:not(.absent)'));
+    if (studentNodes.length === 0) return showToast("⚠️ 当前没有可供抽选的学生！");
+    synAudioEngine.init();
+    var btn = document.getElementById('randomBtn'); btn.disabled = true; btn.innerText = '🔄 抽取中...';
+    var finalWinner = getWeightedWinner(studentNodes);
+    var jumps = 0, totalJumps = 20, lastNode = null;
+    var drawInterval = setInterval(function() {
+        if (lastNode) lastNode.classList.remove('lucky-student');
+        var currentNode = (jumps >= totalJumps - 1) ? finalWinner : studentNodes[Math.floor(Math.random() * studentNodes.length)];
+        currentNode.classList.add('lucky-student'); lastNode = currentNode; jumps++;
+        if (jumps >= totalJumps) {
+            clearInterval(drawInterval); synAudioEngine.playTada();
+            showToast("🎉 恭喜 " + currentNode.dataset.name + " 同学！");
+            currentNode.classList.add('winner-highlight'); btn.disabled = false; btn.innerText = '🎲 随机点名';
+            setTimeout(function() { currentNode.classList.remove('lucky-student', 'winner-highlight'); }, 3000);
+        }
+    }, 75);
+}
+
+function resetAllAvatars() { if(confirm("⚠️ 确定清空全班头像？")) { seatState.avatars = {}; triggerSaveSeat(); renderSeatGrid(); } }
+
+async function generateWeeklyAI(name, total, force) {
+    var weekData = scoreState.history[scoreState.currentMonday]; if (!weekData[name]) weekData[name] = {};
+    document.getElementById('ovl').style.display='block'; document.getElementById('commentModal').style.display='flex'; document.getElementById('commentModalTitle').innerText = 'AI 智能学情诊断 - ' + name;
+    var regenBtn = document.getElementById('btnRegenAI'); var copyBtn = document.getElementById('btnCopyAI');
+    if (!force && weekData[name].ai_comment) { document.getElementById('aiContent').innerHTML = weekData[name].ai_comment; regenBtn.style.display = 'inline-block'; copyBtn.style.display = 'inline-block'; regenBtn.onclick = function() { generateWeeklyAI(name, total, true); }; return; }
+    var key = localStorage.getItem("DEEPSEEK_KEY") || prompt("首次使用，请输入大模型 API Key:"); if(!key) { closeAllModals(); return; } localStorage.setItem("DEEPSEEK_KEY", key);
+    regenBtn.style.display = 'none'; copyBtn.style.display = 'none';  document.getElementById('aiContent').innerText = "🤖 正在抓取本周详细学情并进行诊断分析...";
     
     var perf = { att:0, attTotal:0, hw:[], dt:[], cls:0, vio:0 };
-    for(var d=0; d<5; d++){
-        var r = (weekData[name] && weekData[name][d]) ? weekData[name][d] : {};
-        if(r.att !== undefined && r.att !== '') {
-            perf.attTotal += 1;
-            if(r.att === '1') perf.att += 1; 
-        }
-        if(r.hw) perf.hw.push(r.hw); if(r.dt) perf.dt.push(r.dt); 
-        perf.cls += (r.cls || 0); perf.vio += (r.vio || 0);
-    }
+    for(var d=0; d<7; d++){ var r = (weekData[name] && weekData[name][d]) ? weekData[name][d] : {}; if(r.att !== undefined && r.att !== '') { perf.attTotal += 1; if(r.att === '1') perf.att += 1; } if(r.hw) perf.hw.push(r.hw); if(r.dt) perf.dt.push(r.dt); perf.cls += (r.cls || 0); perf.vio += (r.vio || 0); }
     
     try {
-        var hwStatus = perf.hw.length > 0 ? perf.hw.join(', ') : '无记录';
-        var dtStatus = perf.dt.length > 0 ? perf.dt.join(', ') : '无记录';
-        var attStatus = perf.attTotal > 0 ? `${perf.att}/${perf.attTotal} 次` : '无记录';
-        
-        var promptMessage = `
-# 角色：专业日语老师
-# 任务：为学生 ${name} 撰写周评语（约60字），发给家长。
-
-# 符号说明表（务必准确理解）：
-- 出勤：数字代表次数。记录中若有“-1”代表迟到/早退，“缺”代表缺勤。
-- 作业：“未”代表未交或未完成（注意：这不是无记录，是负面表现）。
-- 听写：“重”代表重考后才过关（勉强及格），“未”代表未过关（负面表现）。
-
-# 学生本周真实数据：
-- 总积分：${total}
-- 出勤：${attStatus}
-- 作业等级：[${hwStatus}]
-- 听写成绩：[${dtStatus}]
-- 课堂加分：${perf.cls}
-- 违纪次数：${perf.vio}
-
-# 核心约束（严格执行）：
-1. **无记录 = 未安排**：若某项（如作业或听写）整体显示“无记录”，表示本周根本没有布置该任务，评语中请【完全跳过】该项，严禁误说成学生没做。
-2. **精准点出问题**：如果数据中有迟到(-1)、作业“未”、听写“未”或“重”、违纪等，必须客观指出这些短板。
-3. **先抑后扬**：指出问题后，结合加分项或总分给予正面鼓励。
-4. **语言风格**：温和、精炼、专业。`.trim();
-
-        var res = await fetch("https://api.deepseek.com/v1/chat/completions", {
-            method: 'POST', headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key},
-            body: JSON.stringify({ 
-                model: "deepseek-chat", 
-                messages: [
-                    { role: "system", content: "你是一个严谨的教学助手，擅长撰写客观且有温度的学生评语。" },
-                    { role: "user", content: promptMessage }
-                ], 
-                temperature: 0.5 
-            })
-        });
-        var json = await res.json(); 
-        var comment = json.choices[0].message.content;
-        
-        weekData[name].ai_comment = comment.replace(/\n/g, '<br>'); 
-        triggerSaveScore(); 
-        renderGakupoSummary(); 
-        
-        document.getElementById('aiContent').innerHTML = weekData[name].ai_comment;
-        regenBtn.style.display = 'inline-block';
-        copyBtn.style.display = 'inline-block'; 
-        regenBtn.onclick = () => generateWeeklyAI(name, total, true);
-    } catch(e) { 
-        document.getElementById('aiContent').innerText = "请求失败，请检查网络或密钥额度。"; 
-    }
+        var hwStatus = perf.hw.length > 0 ? perf.hw.join(', ') : '无记录'; var dtStatus = perf.dt.length > 0 ? perf.dt.join(', ') : '无记录'; var attStatus = perf.attTotal > 0 ? perf.att+'/'+perf.attTotal+' 次' : '无记录';
+        var promptMessage = "# 角色：专业日语老师\n# 任务：为学生 " + name + " 撰写周评语（约60字），发给家长。\n# 学生本周真实数据：\n- 总积分：" + total + "\n- 出勤：" + attStatus + "\n- 作业等级：[" + hwStatus + "]\n- 听写成绩：[" + dtStatus + "]\n- 课堂加分：" + perf.cls + "\n- 违纪次数：" + perf.vio + "\n# 核心约束（严格执行）：\n1. **无记录 = 未安排**：若某项整体显示“无记录”，表示本周根本没有布置该任务，评语中请【完全跳过】该项，严禁误说成学生没做。\n2. **精准点出问题**：如果数据中有迟到(-1)、作业“未”、听写“未”或“重”、违纪等，必须客观指出这些短板。\n3. **先抑后扬**：指出问题后，结合加分项或总分给予正面鼓励。\n4. **排版要求**：绝对禁止使用星号（*）等特殊符号。";
+        var res = await fetch("https://api.deepseek.com/v1/chat/completions", { method: 'POST', headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key}, body: JSON.stringify({ model: "deepseek-chat", messages: [ { role: "system", content: "你是一个严谨的教学助手，绝对不使用星号等特殊符号。" }, { role: "user", content: promptMessage } ], temperature: 0.5 }) });
+        var json = await res.json(); var comment = json.choices[0].message.content.replace(/\*/g, '');
+        weekData[name].ai_comment = comment.replace(/\n/g, '<br>'); triggerSaveScore(); renderGakupoSummary(); 
+        document.getElementById('aiContent').innerHTML = weekData[name].ai_comment; regenBtn.style.display = 'inline-block'; copyBtn.style.display = 'inline-block'; regenBtn.onclick = function() { generateWeeklyAI(name, total, true); };
+    } catch(e) { document.getElementById('aiContent').innerText = "请求失败，请检查网络或密钥额度。"; }
 }
 
 async function generateAllWeeklyAI() {
     if(!confirm("确定要为全班重新生成智能周评吗？\n\n⚠️ 注意：这会覆盖所有已有的周评缓存，并且可能需要消耗 1~2 分钟时间。")) return;
-
-    var key = localStorage.getItem("DEEPSEEK_KEY") || prompt("首次使用，请输入大模型 API Key:"); 
-    if(!key) return; 
-    localStorage.setItem("DEEPSEEK_KEY", key);
-
-    var weekData = scoreState.history[scoreState.currentMonday];
-    var studentsToProcess = scoreState.students.map(stu => ({ name: stu.name, total: calcTotal(stu.name, scoreState.currentMonday) }));
-
-    document.getElementById('ovl').style.display='block'; 
-    document.getElementById('commentModal').style.display='flex';
-    document.getElementById('commentModalTitle').innerText = "批量生成全班周评";
+    var key = localStorage.getItem("DEEPSEEK_KEY") || prompt("首次使用，请输入大模型 API Key:"); if(!key) return; localStorage.setItem("DEEPSEEK_KEY", key);
+    var weekData = scoreState.history[scoreState.currentMonday]; var studentsToProcess = scoreState.students.map(function(stu) { return { name: stu.name, total: calcTotal(stu.name, scoreState.currentMonday) }; });
+    document.getElementById('ovl').style.display='block'; document.getElementById('commentModal').style.display='flex'; document.getElementById('commentModalTitle').innerText = "批量生成全班周评";
+    document.getElementById('btnRegenAI').style.display = 'none'; document.getElementById('btnCopyAI').style.display = 'none';
     
-    document.getElementById('btnRegenAI').style.display = 'none';
-    document.getElementById('btnCopyAI').style.display = 'none';
-    
-    for (let i = 0; i < studentsToProcess.length; i++) {
-        let stu = studentsToProcess[i];
-        if (!weekData[stu.name]) weekData[stu.name] = {};
-        
-        document.getElementById('aiContent').innerHTML = `<div style="text-align:center; padding: 20px;">🤖 <b>正在批量生成全班周评...</b><br><br>当前进度: <b style="color:#2563eb; font-size:18px;">${stu.name}</b> (${i+1}/${studentsToProcess.length})<br><br><span style="color:#f59e0b; font-size:12px;">⚠️ 请勿关闭当前页面，整个过程可能需要几十秒。</span></div>`;
-        
+    for (var i = 0; i < studentsToProcess.length; i++) {
+        var stu = studentsToProcess[i]; if (!weekData[stu.name]) weekData[stu.name] = {};
+        document.getElementById('aiContent').innerHTML = '<div style="text-align:center; padding: 20px;">🤖 <b>正在批量生成全班周评...</b><br><br>当前进度: <b style="color:#2563eb; font-size:18px;">'+stu.name+'</b> ('+(i+1)+'/'+studentsToProcess.length+')<br><br><span style="color:#f59e0b; font-size:12px;">⚠️ 请勿关闭当前页面，整个过程可能需要几十秒。</span></div>';
         var perf = { att:0, attTotal:0, hw:[], dt:[], cls:0, vio:0 };
-        for(var d=0; d<5; d++){
-            var r = (weekData[stu.name] && weekData[stu.name][d]) ? weekData[stu.name][d] : {};
-            if(r.att !== undefined && r.att !== '') {
-                perf.attTotal += 1;
-                if(r.att === '1') perf.att += 1; 
-            }
-            if(r.hw) perf.hw.push(r.hw); if(r.dt) perf.dt.push(r.dt); 
-            perf.cls += (r.cls || 0); perf.vio += (r.vio || 0);
-        }
+        for(var d=0; d<7; d++){ var r = (weekData[stu.name] && weekData[stu.name][d]) ? weekData[stu.name][d] : {}; if(r.att !== undefined && r.att !== '') { perf.attTotal += 1; if(r.att === '1') perf.att += 1; } if(r.hw) perf.hw.push(r.hw); if(r.dt) perf.dt.push(r.dt); perf.cls += (r.cls || 0); perf.vio += (r.vio || 0); }
         
         try {
-            var hwStatus = perf.hw.length > 0 ? perf.hw.join(', ') : '无记录';
-            var dtStatus = perf.dt.length > 0 ? perf.dt.join(', ') : '无记录';
-            var attStatus = perf.attTotal > 0 ? `${perf.att}/${perf.attTotal} 次` : '无记录';
-            
-            var promptMessage = `
-# 角色：专业日语老师
-# 任务：为学生 ${stu.name} 撰写周评语（约80字），发给家长。
-
-# 符号说明表（务必准确理解）：
-- 出勤：数字代表次数。记录中若有“-1”代表迟到/早退，“缺”代表缺勤。
-- 作业：“未”代表未交或未完成（注意：这不是无记录，是负面表现）。
-- 听写：“重”代表重考后才过关（勉强及格），“未”代表未过关（负面表现）。
-
-# 学生本周真实数据：
-- 总积分：${stu.total}
-- 出勤：${attStatus}
-- 作业等级：[${hwStatus}]
-- 听写成绩：[${dtStatus}]
-- 课堂加分：${perf.cls}
-- 违纪次数：${perf.vio}
-
-# 核心约束（严格执行）：
-1. **无记录 = 未安排**：若某项（如作业或听写）整体显示“无记录”，表示本周根本没有布置该任务，评语中请【完全跳过】该项，严禁误说成学生没做。
-2. **精准点出问题**：如果数据中有迟到(-1)、作业“未”、听写“未”或“重”、违纪等，必须客观指出这些短板。
-3. **先抑后扬**：指出问题后，结合加分项或总分给予正面鼓励。
-4. **语言风格**：温和、精炼、专业。`.trim();
-
-            var res = await fetch("https://api.deepseek.com/v1/chat/completions", {
-                method: 'POST', headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key},
-                body: JSON.stringify({ 
-                    model: "deepseek-chat", 
-                    messages: [
-                        { role: "system", content: "你是一个严谨的教学助手，擅长撰写客观且有温度的学生评语。" },
-                        { role: "user", content: promptMessage }
-                    ], 
-                    temperature: 0.5 
-                })
-            });
-            var json = await res.json(); 
-            weekData[stu.name].ai_comment = json.choices[0].message.content.replace(/\n/g, '<br>');
-            triggerSaveScore(); 
-            renderGakupoSummary(); 
-        } catch(e) { 
-            document.getElementById('aiContent').innerHTML += `<br><br><span style="color:red">❌ 请求失败 (${stu.name})，请检查网络或余额。批量生成已中止。</span>`;
-            return;
-        }
+            var hwStatus = perf.hw.length > 0 ? perf.hw.join(', ') : '无记录'; var dtStatus = perf.dt.length > 0 ? perf.dt.join(', ') : '无记录'; var attStatus = perf.attTotal > 0 ? perf.att+'/'+perf.attTotal+' 次' : '无记录';
+            var promptMessage = "# 角色：专业日语老师\n# 任务：为学生 " + stu.name + " 撰写周评语（约60字）。\n# 学生本周真实数据：\n- 总积分：" + stu.total + "\n- 出勤：" + attStatus + "\n- 作业等级：[" + hwStatus + "]\n- 听写成绩：[" + dtStatus + "]\n- 课堂加分：" + perf.cls + "\n- 违纪次数：" + perf.vio + "\n# 核心约束（严格执行）：\n1. **无记录 = 未安排**：若某项整体显示“无记录”，请【完全跳过】该项。\n2. **精准点出问题**：如果数据中有迟到(-1)、作业“未”、听写“未”或“重”、违纪等，必须客观指出这些短板。\n3. **先抑后扬**：指出问题后，结合加分项或总分给予正面鼓励。\n4. **排版要求**：绝对禁止使用星号（*）等特殊符号。";
+            var res = await fetch("https://api.deepseek.com/v1/chat/completions", { method: 'POST', headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key}, body: JSON.stringify({ model: "deepseek-chat", messages: [ { role: "system", content: "你是一个严谨的教学助手，绝对不使用星号等特殊符号。" }, { role: "user", content: promptMessage } ], temperature: 0.5 }) });
+            var json = await res.json(); var comment = json.choices[0].message.content.replace(/\*/g, '');
+            weekData[stu.name].ai_comment = comment.replace(/\n/g, '<br>'); triggerSaveScore(); renderGakupoSummary(); 
+        } catch(e) { document.getElementById('aiContent').innerHTML += '<br><br><span style="color:red">❌ 请求失败 ('+stu.name+')，请检查网络或余额。批量生成已中止。</span>'; return; }
     }
-    
-    document.getElementById('aiContent').innerHTML = `<div style="text-align:center; padding: 20px;"><span style="font-size:40px;">✅</span><br><br><b>批量覆盖生成完成！</b><br><br>成功生成了 ${studentsToProcess.length} 份周评。<br>您现在可以在汇总界面秒开查阅。</div>`;
+    document.getElementById('aiContent').innerHTML = '<div style="text-align:center; padding: 20px;"><span style="font-size:40px;">✅</span><br><br><b>批量覆盖生成完成！</b><br><br>成功生成了 '+studentsToProcess.length+' 份周评。<br>您现在可以在汇总界面秒开查阅。</div>';
 }
 
+// 🔥 多周综合 AI 诊断功能
 async function generateMonthlyAI() {
     if(!currentMonthStudent) return; 
-    var key = localStorage.getItem("DEEPSEEK_KEY") || prompt("首次使用，请输入大模型 API Key:"); if(!key) return; localStorage.setItem("DEEPSEEK_KEY", key);
-    var box = document.getElementById('aiMonthContent'); box.innerHTML = "🤖 正在进行综合分析...";
-    var data = g_monthData[currentMonthStudent]; var chartLabels = g_monthWeeks.map(d => d.substring(5).replace('-', '/'));
-    var trendStr = data.weeks.map((w, i) => `${chartLabels[i]}周:${w}分`).join('，');
+    var key = localStorage.getItem("DEEPSEEK_KEY") || prompt("首次使用，请输入大模型 API Key:"); 
+    if(!key) return; localStorage.setItem("DEEPSEEK_KEY", key);
+    
+    var box = document.getElementById('aiMonthContent'); 
+    box.innerHTML = "🤖 正在抓取多周各项明细数据进行深度诊断...";
+    
+    var data = g_monthData[currentMonthStudent]; 
+    var chartLabels = g_monthWeeks.map(function(d){ return d.substring(5).replace('-', '/'); });
+    
+    var detailLogs = [];
+    g_monthWeeks.forEach(function(w, idx) {
+        var weekData = scoreState.history[w]; 
+        var stuWeek = weekData ? (weekData[currentMonthStudent] || {}) : {};
+        var perf = { att:0, attTotal:0, hw:[], dt:[], cls:0, vio:0 };
+        for(var d=0; d<7; d++){ 
+            var r = stuWeek[d] || {}; 
+            if(r.att !== undefined && r.att !== '') { perf.attTotal += 1; if(r.att === '1') perf.att += 1; } 
+            if(r.hw) perf.hw.push(r.hw); 
+            if(r.dt) perf.dt.push(r.dt); 
+            perf.cls += (r.cls || 0); perf.vio += (r.vio || 0); 
+        }
+        var hwS = perf.hw.length > 0 ? perf.hw.join(',') : '无'; 
+        var dtS = perf.dt.length > 0 ? perf.dt.join(',') : '无'; 
+        var attS = perf.attTotal > 0 ? perf.att+'/'+perf.attTotal : '无';
+        detailLogs.push(chartLabels[idx]+"周(总"+data.weeks[idx]+"分):出勤"+attS+",作业["+hwS+"],听写["+dtS+"],加分"+perf.cls+",违纪"+perf.vio);
+    });
+
+    var promptMessage = "# 角色：专业日语老师\n# 任务：为学生 " + currentMonthStudent + " 撰写多周综合学情诊断（约100字）。\n# 核心设定（绝对遵守）：积分是【无限累加制】，【绝对没有满分概念】，严禁在评语中提及“满分”或“未达满分”等字眼！\n# 多周真实数据明细（无记录代表未布置，请忽略）：\n" + detailLogs.join(" | ") + "\n# 选定周期总积分：" + data.total + "分\n# 要求：\n1. 结合各项数据的多周变化趋势（如作业、违纪、出勤等）进行具体分析，不要只看总分。\n2. 无记录的项目直接跳过，切勿评价。\n3. 语气温和、专业，先指出具体长处或短板，最后鼓励。\n4. 【重要】禁止使用 markdown 的星号（*）加粗或列表，使用纯文本排版。";
+    
     try {
-        var res = await fetch("https://api.deepseek.com/v1/chat/completions", { method: 'POST', headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key}, body: JSON.stringify({ model: "deepseek-chat", messages: [{role:"user", content: `多周学情诊断：学生 ${currentMonthStudent}，选定总积分：${data.total}分。得分波动：[${trendStr}]。请作为班主任，分析趋势给出鼓励。`}], temperature: 0.7 }) });
-        var json = await res.json(); box.innerHTML = json.choices[0].message.content.replace(/\n/g, '<br>');
+        var res = await fetch("https://api.deepseek.com/v1/chat/completions", { 
+            method: 'POST', 
+            headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key}, 
+            body: JSON.stringify({ 
+                model: "deepseek-chat", 
+                messages: [{role:"system", content: "你是一个严谨的教学助手，绝对不使用星号等特殊符号。"}, {role:"user", content: promptMessage}], 
+                temperature: 0.6 
+            }) 
+        });
+        var json = await res.json(); 
+        var comment = json.choices[0].message.content.replace(/\*/g, '');
+        box.innerHTML = comment.replace(/\n/g, '<br>');
     } catch(e) { box.innerHTML = "生成失败，请检查网络或 Key 额度。"; }
 }
 
-function bindGlobalEvents() {
-    var md = document.getElementById('mondayDate'); md.value = scoreState.currentMonday;
-    md.onchange = (e) => { 
-        var correct = getMonday(e.target.value); 
-        if(correct !== e.target.value) { alert("自动校准为周一: "+correct); e.target.value = correct; }
-        scoreState.currentMonday = correct; if(!scoreState.history[scoreState.currentMonday]) scoreState.history[scoreState.currentMonday] = {};
-        triggerSaveScore(); renderAll(); 
-    };
+/* ================= 8. 数据出入海与同步网络层 ================= */
+function fetchWithTimeout(url, options, timeout) {
+    if (timeout === void 0) { timeout = 2500; }
+    return Promise.race([ fetch(url, options), new Promise(function(_, reject){ setTimeout(function(){ reject(new Error('timeout')); }, timeout); }) ]);
 }
 
-function loadLocalFallback() {
-    var savedG = localStorage.getItem(GAKUPO_KEY); if(savedG) { try { scoreState = ensureScoreStateIntegrity(JSON.parse(savedG)); } catch(e){ scoreState = ensureScoreStateIntegrity({}); } } else { scoreState = ensureScoreStateIntegrity({}); }
-    var savedS = localStorage.getItem(SEAT_KEY); if(savedS) { try { seatState = ensureSeatStateIntegrity(JSON.parse(savedS)); } catch(e){ seatState = ensureSeatStateIntegrity({}); } } else { seatState = ensureSeatStateIntegrity({}); }
+async function syncBothClouds() {
+    var btn = document.getElementById('reconnectBtn'); btn.style.display = "none";
+    await Promise.all([syncCloudGakupo(), syncCloudSeat()]);
 }
 
+async function syncCloudGakupo() {
+    var st = document.getElementById('syncGakupoStatus');
+    try {
+        var res = await fetchWithTimeout(GAKUPO_API, { cache: "no-store" }, 5000); if(!res.ok) throw new Error("HTTP Error");
+        var text = await res.text(); var data = text ? JSON.parse(text) : null;
+        if (data && data.students && data.students.length > 0) {
+            scoreState = ensureScoreStateIntegrity(data); localStorage.setItem(GAKUPO_KEY, JSON.stringify(scoreState)); document.getElementById('mondayDate').value = scoreState.currentMonday; updateGlobalUI(); 
+            st.innerText = "积分: ☁️已同步"; st.style.color = "#10b981"; cloudSyncState.gakupoLoaded = true; document.getElementById('reconnectBtn').style.display = "none";
+        } else { cloudSyncState.gakupoLoaded = true; triggerSaveScore(); }
+    } catch(e) { cloudSyncState.gakupoLoaded = false; document.getElementById('reconnectBtn').style.display = "flex"; st.innerText = "积分: ⚠️离线/冲突"; st.style.color = "#f59e0b"; }
+}
+
+async function syncCloudSeat() {
+    var st = document.getElementById('syncSeatStatus');
+    try {
+        var res = await fetchWithTimeout(SEAT_API, { cache: "no-store" }, 5000); if(!res.ok) throw new Error("HTTP Error");
+        var text = await res.text(); var data = text ? JSON.parse(text) : null;
+        if (data && data.seats && data.seats.length > 0) {
+            seatState = ensureSeatStateIntegrity(data); localStorage.setItem(SEAT_KEY, JSON.stringify(seatState)); renderSeatGrid(); 
+            st.innerText = "座位: ☁️已同步"; st.style.color = "#10b981"; cloudSyncState.seatLoaded = true;
+        } else { cloudSyncState.seatLoaded = true; triggerSaveSeat(); }
+    } catch(e) { cloudSyncState.seatLoaded = false; document.getElementById('reconnectBtn').style.display = "flex"; st.innerText = "座位: ⚠️离线"; st.style.color = "#f59e0b"; }
+}
+
+function triggerSaveScore() {
+    localStorage.setItem(GAKUPO_KEY, JSON.stringify(scoreState)); if(!cloudSyncState.gakupoLoaded) return; 
+    var st = document.getElementById('syncGakupoStatus'); st.innerText = "积分: 🔄保存中"; st.style.color = "#3b82f6";
+    if(syncTimeouts.gakupo) clearTimeout(syncTimeouts.gakupo);
+    syncTimeouts.gakupo = setTimeout(async function() {
+        try { var res = await fetchWithTimeout(GAKUPO_API, { method: "POST", headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(scoreState) }, 4000); if(!res.ok) throw new Error("HTTP Error"); st.innerText = "积分: ☁️已同步"; st.style.color = "#10b981"; cloudSyncState.gakupoLoaded = true; document.getElementById('reconnectBtn').style.display = "none"; } 
+        catch(e) { st.innerText = "积分: ⚠️网络波动"; st.style.color = "#f59e0b"; }
+    }, 800);
+}
+
+function triggerSaveSeat() {
+    seatState.lastModified = new Date().getTime(); localStorage.setItem(SEAT_KEY, JSON.stringify(seatState)); if(!cloudSyncState.seatLoaded) return; 
+    var st = document.getElementById('syncSeatStatus'); st.innerText = "座位: 🔄保存中"; st.style.color = "#3b82f6";
+    if(syncTimeouts.seat) clearTimeout(syncTimeouts.seat);
+    syncTimeouts.seat = setTimeout(async function() {
+        try { var res = await fetchWithTimeout(SEAT_API, { method: "POST", headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(seatState) }, 4000); if(!res.ok) throw new Error("HTTP Error"); st.innerText = "座位: ☁️已同步"; st.style.color = "#10b981"; cloudSyncState.seatLoaded = true;} 
+        catch(e) { st.innerText = "座位: ⚠️网络波动"; st.style.color = "#f59e0b"; }
+    }, 800);
+}
+
+function triggerManualSync() {
+    var c = prompt("🔌 网络同步冲突解决\n\n【1】以云端为准（拉取云端覆盖本地）\n【2】以本地为准（强制推送覆盖云端）\n\n请输入 1 或 2：");
+    if(c==='1') { syncBothClouds(); } else if(c==='2') { cloudSyncState.gakupoLoaded = true; cloudSyncState.seatLoaded = true; document.getElementById('reconnectBtn').style.display = "none"; triggerSaveScore(); triggerSaveSeat(); }
+}
+
+/* ================= 9. 启动引擎 (必须放在最底下) ================= */
+document.addEventListener('DOMContentLoaded', async function() {
+    try {
+        scoreState.currentMonday = getMonday(new Date().toISOString().split('T')[0]);
+        loadLocalFallback();
+        bindGlobalEvents();
+        renderAll();
+        await syncBothClouds();
+    } catch(e) {
+        alert("⚠️ 页面初始化安全拦截，请检查网络或刷新重试。\n详情: " + e.message);
+    }
+});
 </script>
 </body>
 </html>
