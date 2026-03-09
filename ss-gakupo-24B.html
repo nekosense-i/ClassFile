@@ -321,7 +321,7 @@ var currentSelectingStudent = null;
 var syncTimeouts = { gakupo: null, seat: null };
 var isOfflineLocked = false;
 var draggedItem = null, isDragging = false, clone = null, startX, startY;
-var clickedSeat = null; // 核心修复：用于判定单机选中座位的变量
+var clickedSeat = null; 
 var radarChart, compareChart, c_monthLine, c_monthRadar;
 var g_monthData = {}, g_monthWeeks = [], currentMonthStudent = null;
 
@@ -346,12 +346,18 @@ var synAudioEngine = {
     }
 };
 
-/* ================= 2. 底层防注入与数据初始化 ================= */
+/* ================= 2. 底层防注入与日期引擎 ================= */
 function escapeHTML(str) {
     if (!str) return '';
     var div = document.createElement('div');
     div.innerText = str;
     return div.innerHTML;
+}
+
+function getTodayString() {
+    var d = new Date();
+    var m = d.getMonth() + 1; var dd = d.getDate();
+    return d.getFullYear() + '-' + (m < 10 ? '0' + m : m) + '-' + (dd < 10 ? '0' + dd : dd);
 }
 
 function getMonday(dateString) {
@@ -363,10 +369,10 @@ function getMonday(dateString) {
 
 function ensureScoreStateIntegrity(data) {
     if (!data) data = {};
-    if (data.records && !data.history) { data.history = {}; var d = data.monday || getMonday(new Date().toISOString().split('T')[0]); data.history[d] = data.records; data.currentMonday = d; delete data.records; delete data.monday; }
+    if (data.records && !data.history) { data.history = {}; var d = data.monday || getMonday(getTodayString()); data.history[d] = data.records; data.currentMonday = d; delete data.records; delete data.monday; }
     if (!data.students || !Array.isArray(data.students)) data.students = DEFAULT_STUDENTS;
     if (!data.history) data.history = {};
-    if (!data.currentMonday) data.currentMonday = getMonday(new Date().toISOString().split('T')[0]);
+    if (!data.currentMonday) data.currentMonday = getMonday(getTodayString());
     if (!data.history[data.currentMonday]) data.history[data.currentMonday] = {};
     return data;
 }
@@ -383,6 +389,12 @@ function ensureSeatStateIntegrity(data) {
 
 function loadLocalFallback() {
     var savedG = localStorage.getItem(GAKUPO_KEY); if(savedG) { try { scoreState = ensureScoreStateIntegrity(JSON.parse(savedG)); } catch(e){ scoreState = ensureScoreStateIntegrity({}); } } else { scoreState = ensureScoreStateIntegrity({}); }
+    
+    // 强制刷新时回到现实世界的当前周
+    var realTodayMonday = getMonday(getTodayString());
+    scoreState.currentMonday = realTodayMonday;
+    if(!scoreState.history[scoreState.currentMonday]) { scoreState.history[scoreState.currentMonday] = {}; }
+    
     var savedS = localStorage.getItem(SEAT_KEY); if(savedS) { try { seatState = ensureSeatStateIntegrity(JSON.parse(savedS)); } catch(e){ seatState = ensureSeatStateIntegrity({}); } } else { seatState = ensureSeatStateIntegrity({}); }
 }
 
@@ -396,14 +408,12 @@ function bindGlobalEvents() {
     };
 }
 
-/* ================= 3. 视图调度与自适应渲染层 ================= */
+/* ================= 3. 视图调度与自适应网格 ================= */
 function switchGlobalView(view) {
     document.getElementById('btnNavGakupo').classList.toggle('active', view === 'gakupo');
     document.getElementById('btnNavSeat').classList.toggle('active', view === 'seat');
     document.getElementById('gakupoView').style.display = view === 'gakupo' ? 'flex' : 'none';
     document.getElementById('seatView').style.display = view === 'seat' ? 'flex' : 'none';
-    
-    // 切换视图时清空选中的座位状态
     if (clickedSeat) { clickedSeat.classList.remove('selected-swap'); clickedSeat = null; }
 }
 
@@ -433,7 +443,6 @@ function renderDayTabs() {
     
     var activeBtn = dayTabs.querySelector('.active');
     if (activeBtn) { activeBtn.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' }); }
-    
     if(currentViewDay < 7) { document.getElementById('seatDayIndicator').innerText = DAYS[currentViewDay]; } else { document.getElementById('seatDayIndicator').innerText = "本周汇总(不可计分)"; }
 }
 
@@ -483,7 +492,7 @@ function renderGakupoSummary() {
 }
 
 function renderSeatGrid() {
-    clickedSeat = null; // 核心修复：重新渲染网格时释放选中状态
+    clickedSeat = null; 
     var grid = document.getElementById('seatingGrid'); if (!grid) return; grid.innerHTML = ''; 
     seatState.seats.forEach(function(seatData) {
         var day = currentViewDay;
@@ -518,7 +527,7 @@ function renderSeatGrid() {
     });
 }
 
-/* ================= 4. 交互记录与逻辑处理 ================= */
+/* ================= 4. 交互与拖拽事件 ================= */
 function setScore(name, day, type, val) { 
     if(!scoreState.history[scoreState.currentMonday][name]) scoreState.history[scoreState.currentMonday][name] = {};
     if(!scoreState.history[scoreState.currentMonday][name][day]) scoreState.history[scoreState.currentMonday][name][day] = {att:'', hw:'', dt:'', cls:0, vio:0};
@@ -584,17 +593,10 @@ function handlePointerUp(e) {
         var targetSeat = target; while (targetSeat && targetSeat !== document && (!targetSeat.classList || !targetSeat.classList.contains('seat'))) { targetSeat = targetSeat.parentNode; }
         if (targetSeat && targetSeat !== document && targetSeat !== draggedItem) attemptSwap(draggedItem, targetSeat);
     } else {
-        // 核心修复：点击选中与交换逻辑回归
         if (draggedItem) {
-            if (!clickedSeat) {
-                clickedSeat = draggedItem;
-                clickedSeat.classList.add('selected-swap');
-            } else if (clickedSeat === draggedItem) {
-                clickedSeat.classList.remove('selected-swap');
-                clickedSeat = null;
-            } else {
-                attemptSwap(clickedSeat, draggedItem);
-            }
+            if (!clickedSeat) { clickedSeat = draggedItem; clickedSeat.classList.add('selected-swap'); } 
+            else if (clickedSeat === draggedItem) { clickedSeat.classList.remove('selected-swap'); clickedSeat = null; } 
+            else { attemptSwap(clickedSeat, draggedItem); }
         }
     }
     draggedItem = null;
@@ -617,7 +619,7 @@ function attemptSwap(seatA, seatB) {
     triggerSaveSeat(); renderSeatGrid();
 }
 
-/* ================= 5. 数据导出与重置操作 ================= */
+/* ================= 5. 导出与重置 ================= */
 function exportDetailedWeek() {
     try {
         if (typeof XLSX === 'undefined') { alert("❌ Excel 导出组件尚未加载完成，请等待几秒或检查网络。"); return; }
@@ -644,9 +646,7 @@ function exportDetailedWeek() {
         }
         var wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "学情周报");
         XLSX.writeFile(wb, "智能学情周报_" + scoreState.currentMonday + ".xlsx");
-    } catch(e) {
-        alert("⚠️ 导出发生错误：\n" + e.message);
-    }
+    } catch(e) { alert("⚠️ 导出发生错误：\n" + e.message); }
 }
 
 function exportLocalState() { 
@@ -654,9 +654,7 @@ function exportLocalState() {
         var fullBackup = { gakupo: scoreState, seat: seatState };
         var b = new Blob([JSON.stringify(fullBackup)], {type:"application/json"}); 
         var a = document.createElement("a"); a.href=URL.createObjectURL(b); a.download="智能管家_双擎备份.json"; a.click(); 
-    } catch(e) {
-        alert("⚠️ 备份发生错误：\n" + e.message);
-    }
+    } catch(e) { alert("⚠️ 备份发生错误：\n" + e.message); }
 }
 
 function importLocalState(files) { 
@@ -683,7 +681,7 @@ function importLocalState(files) {
 
 function loadDefaultStudents() { 
     if(confirm("确定重置为新学期内置名单吗？\n所有历史数据将被永久清空并同步至云端！")) { 
-        scoreState = ensureScoreStateIntegrity({students:DEFAULT_STUDENTS, history:{}, currentMonday:getMonday(new Date().toISOString().split('T')[0])}); 
+        scoreState = ensureScoreStateIntegrity({students:DEFAULT_STUDENTS, history:{}, currentMonday:getMonday(getTodayString())}); 
         seatState = ensureSeatStateIntegrity({avatars:{}, seats:[]});
         localStorage.setItem(GAKUPO_KEY, JSON.stringify(scoreState));
         localStorage.setItem(SEAT_KEY, JSON.stringify(seatState));
@@ -721,19 +719,11 @@ function showRadar(name) {
         var weekData = scoreState.history[scoreState.currentMonday];
         for(var d=0; d<7; d++){ 
             var r = (weekData[name] && weekData[name][d]) ? weekData[name][d] : {}; 
-            s.att += SCORE_MAP.att[r.att]||0; 
-            s.hw += SCORE_MAP.hw[r.hw]||0; 
-            s.dt += SCORE_MAP.dt[r.dt]||0; 
-            s.cls += (r.cls||0) - (r.vio||0)*3; 
+            s.att += SCORE_MAP.att[r.att]||0; s.hw += SCORE_MAP.hw[r.hw]||0; s.dt += SCORE_MAP.dt[r.dt]||0; s.cls += (r.cls||0) - (r.vio||0)*3; 
         }
         
         var rawValues = [ Math.max(0, s.att), Math.max(0, s.hw), Math.max(0, s.dt), Math.max(0, s.cls) ];
-        var calcData = [
-            (Math.min(5, rawValues[0]) / 5) * 100,
-            (Math.min(15, rawValues[1]) / 15) * 100,
-            (Math.min(15, rawValues[2]) / 15) * 100,
-            (Math.min(15, rawValues[3]) / 15) * 100
-        ];
+        var calcData = [ (Math.min(5, rawValues[0]) / 5) * 100, (Math.min(15, rawValues[1]) / 15) * 100, (Math.min(15, rawValues[2]) / 15) * 100, (Math.min(15, rawValues[3]) / 15) * 100 ];
         
         document.getElementById('ovl').style.display='block'; document.getElementById('radarModal').style.display='flex';
         
@@ -741,16 +731,8 @@ function showRadar(name) {
             if(radarChart) radarChart.destroy();
             radarChart = new Chart(document.getElementById('radarChart').getContext('2d'), { 
                 type:'radar', 
-                data:{ 
-                    labels:["出勤(满分5)", "作业(满分15)", "听写(满分15)", "课堂表现(满分15)"], 
-                    datasets:[{ label:'能力雷达', data: calcData, rawVals: rawValues, backgroundColor:'rgba(59,130,246,0.2)', borderColor:'#3b82f6', pointBackgroundColor: '#1e40af' }] 
-                }, 
-                options:{ 
-                    responsive: true, maintainAspectRatio: false, 
-                    scale:{ ticks:{ min:0, max:100, display: false }, pointLabels: { fontSize: 12, fontStyle: 'bold', fontColor: '#334155' } }, 
-                    legend: { display: false },
-                    tooltips: { callbacks: { label: function(tooltipItem, data) { var idx = tooltipItem.index; var raw = data.datasets[tooltipItem.datasetIndex].rawVals[idx]; var maxes = [5, 15, 15, "15 (上限)"]; var dim = ["出勤", "作业", "听写", "课堂"][idx]; return dim + '实际得分: ' + raw + ' / ' + maxes[idx]; } } }
-                } 
+                data:{ labels:["出勤(满分5)", "作业(满分15)", "听写(满分15)", "课堂表现(满分15)"], datasets:[{ label:'能力雷达', data: calcData, rawVals: rawValues, backgroundColor:'rgba(59,130,246,0.2)', borderColor:'#3b82f6', pointBackgroundColor: '#1e40af' }] }, 
+                options:{ responsive: true, maintainAspectRatio: false, scale:{ ticks:{ min:0, max:100, display: false }, pointLabels: { fontSize: 12, fontStyle: 'bold', fontColor: '#334155' } }, legend: { display: false }, tooltips: { callbacks: { label: function(tooltipItem, data) { var idx = tooltipItem.index; var raw = data.datasets[tooltipItem.datasetIndex].rawVals[idx]; var maxes = [5, 15, 15, "15 (上限)"]; var dim = ["出勤", "作业", "听写", "课堂"][idx]; return dim + '实际得分: ' + raw + ' / ' + maxes[idx]; } } } } 
             });
         }, 50);
     } catch(e) { alert("⚠️ 渲染雷达图错误: " + e.message); }
@@ -759,23 +741,14 @@ function showRadar(name) {
 function showWeeklyComparison() {
     try {
         if(typeof Chart === 'undefined') return alert("❌ 图表组件未能成功加载，请检查网络。");
-        
         var ds = scoreState.students.map(function(s) { return { name:s.name, total:calcTotal(s.name, scoreState.currentMonday) }; }).sort(function(a,b){ return b.total-a.total; });
         document.getElementById('ovl').style.display='block'; document.getElementById('compareModal').style.display='flex';
-        
         setTimeout(function() {
             if(compareChart) compareChart.destroy();
             compareChart = new Chart(document.getElementById('compareChart').getContext('2d'), { 
                 type:'bar', 
-                data:{ 
-                    labels:ds.map(function(d){ return d.name; }), 
-                    datasets:[{ label:'总积分', data:ds.map(function(d){ return d.total; }), backgroundColor: ds.map(function(d){ if (d.total >= 40) return '#f59e0b'; if (d.total >= 30) return '#8b5cf6'; if (d.total >= 20) return '#3b82f6'; return '#94a3b8'; }), borderRadius:4 }] 
-                }, 
-                options: { 
-                    responsive: true, maintainAspectRatio: false, legend: { display: false },
-                    scales: { yAxes: [{ ticks: { beginAtZero: true } }] },
-                    tooltips: { callbacks: { label: function(t, d) { return '总积分: ' + t.yLabel + ' 分'; } } }
-                } 
+                data:{ labels:ds.map(function(d){ return d.name; }), datasets:[{ label:'总积分', data:ds.map(function(d){ return d.total; }), backgroundColor: ds.map(function(d){ if (d.total >= 40) return '#f59e0b'; if (d.total >= 30) return '#8b5cf6'; if (d.total >= 20) return '#3b82f6'; return '#94a3b8'; }), borderRadius:4 }] }, 
+                options: { responsive: true, maintainAspectRatio: false, legend: { display: false }, scales: { yAxes: [{ ticks: { beginAtZero: true } }] }, tooltips: { callbacks: { label: function(t, d) { return '总积分: ' + t.yLabel + ' 分'; } } } } 
             });
         }, 50);
     } catch(e) { alert("⚠️ 渲染对比图错误: " + e.message); }
@@ -833,7 +806,7 @@ function selectMonthStu(name) {
     } catch(e) { console.error("多周图表渲染失败: ", e); }
 }
 
-/* ================= 7. 附加模块 (弹窗、AI 诊断) ================= */
+/* ================= 7. AI 诊断系统 (纯原生队列防锁死) ================= */
 function showToast(msg) { var toast = document.getElementById('toast'); toast.innerText = msg; toast.style.opacity = '1'; setTimeout(function(){ toast.style.opacity = '0'; }, 2000); }
 function closeAllModals() { document.querySelectorAll('.modal, .month-dashboard, .overlay').forEach(function(el){ el.style.display='none'; }); currentSelectingStudent = null; }
 function copyText(id) { navigator.clipboard.writeText(document.getElementById(id).innerText).then(function(){ alert("已成功复制到剪贴板"); }); }
@@ -843,9 +816,7 @@ function openAvatarModal(name) {
     var gallery = document.getElementById('galleryGrid'); gallery.innerHTML = ''; 
     var taken = [];
     var avatarKeys = Object.keys(seatState.avatars);
-    for(var i=0; i<avatarKeys.length; i++) {
-        if(seatState.avatars[avatarKeys[i]] !== seatState.avatars[name]) taken.push(seatState.avatars[avatarKeys[i]]);
-    }
+    for(var i=0; i<avatarKeys.length; i++) { if(seatState.avatars[avatarKeys[i]] !== seatState.avatars[name]) taken.push(seatState.avatars[avatarKeys[i]]); }
     
     avatarFiles.forEach(function(file) {
         var item = document.createElement('div'); item.className = 'gallery-item'; 
@@ -927,19 +898,18 @@ function generateAllWeeklyAI() {
     if(!confirm("确定要为全班重新生成智能周评吗？\n\n⚠️ 注意：这会覆盖所有已有的周评缓存，并且可能需要消耗 1~2 分钟时间。")) return;
     var key = localStorage.getItem("DEEPSEEK_KEY") || prompt("首次使用，请输入大模型 API Key:"); if(!key) return; localStorage.setItem("DEEPSEEK_KEY", key);
     var weekData = scoreState.history[scoreState.currentMonday]; 
-    var studentsToProcess = scoreState.students.map(function(stu) { return { name: stu.name, total: calcTotal(stu.name, scoreState.currentMonday) }; });
+    var studentsToProcess = [];
+    scoreState.students.forEach(function(stu) { studentsToProcess.push({ name: stu.name, total: calcTotal(stu.name, scoreState.currentMonday) }); });
     
     document.getElementById('ovl').style.display='block'; document.getElementById('commentModal').style.display='flex'; document.getElementById('commentModalTitle').innerText = "批量生成全班周评";
     document.getElementById('btnRegenAI').style.display = 'none'; document.getElementById('btnCopyAI').style.display = 'none';
     
     var currentIndex = 0;
-    
     function processNext() {
         if (currentIndex >= studentsToProcess.length) {
             document.getElementById('aiContent').innerHTML = '<div style="text-align:center; padding: 20px;"><span style="font-size:40px;">✅</span><br><br><b>批量覆盖生成完成！</b><br><br>成功生成了 '+studentsToProcess.length+' 份周评。<br>您现在可以在汇总界面秒开查阅。</div>';
             return;
         }
-        
         var stu = studentsToProcess[currentIndex]; 
         if (!weekData[stu.name]) weekData[stu.name] = {};
         document.getElementById('aiContent').innerHTML = '<div style="text-align:center; padding: 20px;">🤖 <b>正在批量生成全班周评...</b><br><br>当前进度: <b style="color:#2563eb; font-size:18px;">'+stu.name+'</b> ('+(currentIndex+1)+'/'+studentsToProcess.length+')<br><br><span style="color:#f59e0b; font-size:12px;">⚠️ 请勿关闭当前页面，整个过程可能需要几十秒。</span></div>';
@@ -955,14 +925,10 @@ function generateAllWeeklyAI() {
         .then(function(json) {
             var comment = escapeHTML(json.choices[0].message.content.replace(/\*/g, ''));
             weekData[stu.name].ai_comment = comment.replace(/\n/g, '<br>'); triggerSaveScore(); renderGakupoSummary();
-            currentIndex++;
-            processNext();
+            currentIndex++; processNext();
         })
-        .catch(function(e) {
-            document.getElementById('aiContent').innerHTML += '<br><br><span style="color:red">❌ 请求失败 ('+stu.name+')，请检查网络或余额。批量生成已中止。</span>';
-        });
+        .catch(function(e) { document.getElementById('aiContent').innerHTML += '<br><br><span style="color:red">❌ 请求失败 ('+stu.name+')，请检查网络或余额。批量生成已中止。</span>'; });
     }
-    
     processNext();
 }
 
@@ -1014,7 +980,7 @@ function generateMonthlyAI() {
     .catch(function(e) { box.innerHTML = "生成失败，请检查网络或 Key 额度。"; });
 }
 
-/* ================= 8. 数据出入海与同步网络层 ================= */
+/* ================= 8. 数据出入海与网络层 ================= */
 function fetchWithTimeout(url, options, timeout) {
     if (timeout === void 0) { timeout = 2500; }
     return Promise.race([ fetch(url, options), new Promise(function(_, reject){ setTimeout(function(){ reject(new Error('timeout')); }, timeout); }) ]);
@@ -1032,7 +998,13 @@ function syncCloudGakupo() {
     .then(function(text) {
         var data = text ? JSON.parse(text) : null;
         if (data && data.students && data.students.length > 0) {
-            scoreState = ensureScoreStateIntegrity(data); localStorage.setItem(GAKUPO_KEY, JSON.stringify(scoreState)); document.getElementById('mondayDate').value = scoreState.currentMonday; updateGlobalUI(); 
+            var intendedMonday = scoreState.currentMonday || getMonday(getTodayString());
+            scoreState = ensureScoreStateIntegrity(data); 
+            scoreState.currentMonday = intendedMonday; 
+            if(!scoreState.history[scoreState.currentMonday]) { scoreState.history[scoreState.currentMonday] = {}; }
+            localStorage.setItem(GAKUPO_KEY, JSON.stringify(scoreState)); 
+            document.getElementById('mondayDate').value = scoreState.currentMonday; 
+            updateGlobalUI(); renderDayTabs();
             st.innerText = "积分: ☁️已同步"; st.style.color = "#10b981"; cloudSyncState.gakupoLoaded = true; document.getElementById('reconnectBtn').style.display = "none";
         } else { cloudSyncState.gakupoLoaded = true; triggerSaveScore(); }
     })
@@ -1080,10 +1052,9 @@ function triggerManualSync() {
     if(c==='1') { syncBothClouds(); } else if(c==='2') { cloudSyncState.gakupoLoaded = true; cloudSyncState.seatLoaded = true; document.getElementById('reconnectBtn').style.display = "none"; triggerSaveScore(); triggerSaveSeat(); }
 }
 
-/* ================= 9. 启动引擎 (物理防御机制) ================= */
+/* ================= 9. 启动引擎 ================= */
 document.addEventListener('DOMContentLoaded', function() {
     try {
-        scoreState.currentMonday = getMonday(new Date().toISOString().split('T')[0]);
         loadLocalFallback();
         bindGlobalEvents();
         renderAll();
