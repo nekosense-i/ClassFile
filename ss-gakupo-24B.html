@@ -178,6 +178,9 @@
             <button class="tool-btn" onclick="batchAttendance()" style="background:#10b981;">✅ 全勤</button>
             <button class="tool-btn" onclick="openMonthDashboard()" style="background:#eab308; color:#0f172a;">📅 多周分析</button>
             <button class="tool-btn" onclick="openPeriodStatsModal()" style="background:#8b5cf6;">📅 周期统计</button>
+            
+            <button class="tool-btn" onclick="openStudentManager()" style="background:#f43f5e;">👥 名单管理</button>
+            
             <button class="tool-btn" onclick="exportDetailedWeek()" style="background:#10b981;">📤 导出Excel</button>
             <button class="tool-btn" onclick="exportLocalState()" style="background:#f59e0b;">💾 双端备份</button>
             <button class="tool-btn" onclick="document.getElementById('importStateIn').click()" style="background:#06b6d4;">📂 一键恢复</button>
@@ -223,6 +226,21 @@
             <div class="seating-grid" id="seatingGrid"></div>
             <div class="side-wall side-door allow-select">教室门</div>
         </div>
+    </div>
+</div>
+
+<div id="studentManagerModal" class="modal" style="max-width: 500px; padding: 20px;">
+    <div style="display:flex; justify-content:space-between; border-bottom:1px solid #eee; padding-bottom:10px; margin-bottom:15px;">
+        <h3 style="margin:0; color:#1e293b;">👥 班级名单动态管理</h3>
+        <button class="tool-btn" style="background:#ef4444;" onclick="closeAllModals()">关闭</button>
+    </div>
+    <div style="background:#f8fafc; padding:15px; border:1px solid #cbd5e1; border-radius:8px; margin-bottom:15px; display:flex; gap:10px; align-items:center;">
+        <input type="text" id="newStuClass" placeholder="班级(如: 9班)" style="width:90px; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none;">
+        <input type="text" id="newStuName" placeholder="输入新学生姓名" style="flex:1; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none;">
+        <button class="tool-btn" onclick="addStudentDynamic()" style="background:#10b981; padding:8px 15px; font-size:13px;">➕ 新增入班</button>
+    </div>
+    <div style="font-size: 12px; color: #64748b; margin-bottom: 5px;">* 点击删除后，该生仍会保留在已有数据的旧周次中</div>
+    <div style="max-height: 45vh; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 5px; background: #f1f5f9;" id="dynamicStudentList">
     </div>
 </div>
 
@@ -491,17 +509,122 @@ function applyDynamicGridColumns(gridElement, studentCount) {
     gridElement.style.gridTemplateColumns = 'repeat(' + cols + ', 1fr)';
 }
 
+/* ================= 🔥 名单动态管理独立模块 ================= */
+function openStudentManager() {
+    renderStudentManagerList();
+    document.getElementById('ovl').style.display = 'block';
+    document.getElementById('studentManagerModal').style.display = 'flex';
+}
+
+function renderStudentManagerList() {
+    var listContainer = document.getElementById('dynamicStudentList');
+    listContainer.innerHTML = '';
+    scoreState.students.forEach(function(stu) {
+        var item = document.createElement('div');
+        item.style.cssText = 'display:flex; justify-content:space-between; align-items:center; padding:10px 12px; border-bottom:1px dashed #cbd5e1; background:#fff; border-radius:4px; margin-bottom:4px;';
+        item.innerHTML = '<div><span class="class-tag" style="background:#e2e8f0; color:#475569;">' + (stu.class || '') + '</span> <b style="color:#0f172a; font-size:15px;">' + stu.name + '</b></div>' +
+                         '<button class="tool-btn" onclick="removeStudentDynamic(\'' + stu.name + '\')" style="background:#ef4444; font-size:11px; padding:4px 8px;">❌ 删/退</button>';
+        listContainer.appendChild(item);
+    });
+}
+
+function addStudentDynamic() {
+    var cls = document.getElementById('newStuClass').value.trim();
+    var name = document.getElementById('newStuName').value.trim();
+    if(!name) return showToast("⚠️ 请输入学生姓名！");
+    
+    var exists = false;
+    for(var i=0; i<scoreState.students.length; i++) { if(scoreState.students[i].name === name) exists = true; }
+    if(exists) return showToast("⚠️ 该学生已存在当前名单中！");
+
+    scoreState.students.push({ class: cls, name: name });
+    triggerSaveScore();
+
+    var seatAssigned = false;
+    for(var j=0; j<seatState.seats.length; j++) {
+        if(seatState.seats[j].type === 'empty') {
+            seatState.seats[j].type = 'student';
+            seatState.seats[j].name = name;
+            seatState.seats[j].absent = false;
+            seatAssigned = true;
+            break;
+        }
+    }
+    triggerSaveSeat();
+
+    document.getElementById('newStuClass').value = '';
+    document.getElementById('newStuName').value = '';
+    renderStudentManagerList();
+    updateGlobalUI();
+    
+    if(seatAssigned) { showToast("✅ " + name + " 已入班，并自动填补了一个空位！"); } 
+    else { alert("⚠️ " + name + " 已加入积分卡！\n但教室当前没有【空位】可供分配。"); }
+}
+
+function removeStudentDynamic(name) {
+    if(!confirm("确定要将 [" + name + "] 移出当前班级吗？\n\n放心：他过去产生的积分和记录依然会在历史周次中保留并可查看。")) return;
+
+    var newStudents = [];
+    for(var i=0; i<scoreState.students.length; i++) {
+        if(scoreState.students[i].name !== name) newStudents.push(scoreState.students[i]);
+    }
+    scoreState.students = newStudents;
+    triggerSaveScore();
+
+    for(var j=0; j<seatState.seats.length; j++) {
+        if(seatState.seats[j].type === 'student' && seatState.seats[j].name === name) {
+            seatState.seats[j].type = 'empty';
+            seatState.seats[j].name = '空位';
+            seatState.seats[j].absent = false;
+        }
+    }
+    if (seatState.avatars[name]) delete seatState.avatars[name];
+    triggerSaveSeat();
+
+    renderStudentManagerList();
+    updateGlobalUI();
+    showToast("❌ " + name + " 已从当前名单移除，座位已腾空");
+}
+
+function getRenderStudentsForCurrentWeek() {
+    var renderList = scoreState.students.slice(); 
+    var activeNames = renderList.map(function(s){ return s.name; });
+    var weekData = scoreState.history[scoreState.currentMonday] || {};
+    
+    for (var stuName in weekData) {
+        if (stuName !== 'monday' && stuName !== 'ai_comment' && activeNames.indexOf(stuName) === -1) {
+            var hasData = false;
+            if(weekData[stuName].ai_comment) hasData = true;
+            for (var i=0; i<7; i++) { 
+                var d = weekData[stuName][i];
+                if (d && (d.att || d.hw || d.dt || d.cls || d.vio)) { hasData = true; break; }
+            }
+            if (hasData) { renderList.push({ name: stuName, class: "已退/离" }); }
+        }
+    }
+    return renderList; 
+}
+
+
+/* ================= 融合幽灵算法的计分卡渲染 ================= */
 function renderGakupoCards(day) {
     var grid = document.getElementById('cardGrid'); grid.innerHTML = '';
-    applyDynamicGridColumns(grid, scoreState.students.length);
+    var currentRenderList = getRenderStudentsForCurrentWeek();
+    applyDynamicGridColumns(grid, currentRenderList.length);
     var weekData = scoreState.history[scoreState.currentMonday] || {};
-    scoreState.students.forEach(function(stu) {
+    currentRenderList.forEach(function(stu) {
         if(!weekData[stu.name]) weekData[stu.name] = {};
         if(!weekData[stu.name][day]) weekData[stu.name][day] = {att:'', hw:'', dt:'', cls:0, vio:0};
         var r = weekData[stu.name][day];
-        var clsTag = stu.class === "9班" ? "tag-9" : "tag-10"; var vioClass = (r.vio > 0) ? 'act-vio' : 'vio-btn-off';
+        
+        var clsTag = stu.class === "已退/离" ? "style='background:#ef4444; color:white; border-color:#ef4444;'" : ("class='class-tag tag-" + (stu.class?stu.class.replace('班',''):'') + "'");
+        if(stu.class !== "已退/离" && !clsTag.includes("tag-")) clsTag = "class='class-tag'";
+        
+        var vioClass = (r.vio > 0) ? 'act-vio' : 'vio-btn-off';
         var card = document.createElement('div'); card.className = 'student-card';
-        card.innerHTML = '<div class="card-header"><span class="student-name" onclick="showRadar(\''+stu.name+'\')"><span class="class-tag '+clsTag+'">'+(stu.class||'')+'</span>'+stu.name+'</span><span class="week-total">'+calcTotal(stu.name, scoreState.currentMonday)+'分</span></div><div class="row-group"><div class="row-label">出勤</div><div class="btn-group">'+['1','-1','缺'].map(function(v){ return '<div class="opt '+(r.att==v?'act-att-'+v:'')+'" onclick="setScore(\''+stu.name+'\','+day+',\'att\',\''+v+'\')">'+(v=='1'?'出':v)+'</div>'; }).join('')+'</div></div><div class="row-group"><div class="row-label">作业</div><div class="btn-group">'+['A','B','C','D','未'].map(function(v){ return '<div class="opt '+(r.hw==v?'act-hw-'+v:'')+'" onclick="setScore(\''+stu.name+'\','+day+',\'hw\',\''+v+'\')">'+v+'</div>'; }).join('')+'</div></div><div class="row-group"><div class="row-label">听写</div><div class="btn-group">'+['满','过','重','未'].map(function(v){ return '<div class="opt '+(r.dt==v?'act-dt-'+v:'')+'" onclick="setScore(\''+stu.name+'\','+day+',\'dt\',\''+v+'\')">'+v+'</div>'; }).join('')+'</div></div><div class="row-group"><div class="row-label">课堂</div><div class="class-action-bar"><button class="opt-btn '+vioClass+'" onclick="toggleVio(\''+stu.name+'\','+day+')">违'+(r.vio>1?'('+r.vio+')':'')+'</button><button class="opt-btn success-btn" onclick="updCls(\''+stu.name+'\','+day+',1)">答1</button><button class="opt-btn success-btn" onclick="updCls(\''+stu.name+'\','+day+',2)">答2</button><button class="opt-btn success-btn" onclick="updCls(\''+stu.name+'\','+day+',3)">答3</button><div class="divider"></div><button class="opt-btn" onclick="updCls(\''+stu.name+'\','+day+',-1)">-</button><div class="cls-score-val">'+(r.cls||0)+'</div><button class="opt-btn" onclick="updCls(\''+stu.name+'\','+day+',1)">+</button></div></div>';
+        if(stu.class === "已退/离") card.style.opacity = '0.7'; 
+        
+        card.innerHTML = '<div class="card-header"><span class="student-name" onclick="showRadar(\''+stu.name+'\')"><span '+clsTag+'>'+(stu.class||'')+'</span>'+stu.name+'</span><span class="week-total">'+calcTotal(stu.name, scoreState.currentMonday)+'分</span></div><div class="row-group"><div class="row-label">出勤</div><div class="btn-group">'+['1','-1','缺'].map(function(v){ return '<div class="opt '+(r.att==v?'act-att-'+v:'')+'" onclick="setScore(\''+stu.name+'\','+day+',\'att\',\''+v+'\')">'+(v=='1'?'出':v)+'</div>'; }).join('')+'</div></div><div class="row-group"><div class="row-label">作业</div><div class="btn-group">'+['A','B','C','D','未'].map(function(v){ return '<div class="opt '+(r.hw==v?'act-hw-'+v:'')+'" onclick="setScore(\''+stu.name+'\','+day+',\'hw\',\''+v+'\')">'+v+'</div>'; }).join('')+'</div></div><div class="row-group"><div class="row-label">听写</div><div class="btn-group">'+['满','过','重','未'].map(function(v){ return '<div class="opt '+(r.dt==v?'act-dt-'+v:'')+'" onclick="setScore(\''+stu.name+'\','+day+',\'dt\',\''+v+'\')">'+v+'</div>'; }).join('')+'</div></div><div class="row-group"><div class="row-label">课堂</div><div class="class-action-bar"><button class="opt-btn '+vioClass+'" onclick="toggleVio(\''+stu.name+'\','+day+')">违'+(r.vio>1?'('+r.vio+')':'')+'</button><button class="opt-btn success-btn" onclick="updCls(\''+stu.name+'\','+day+',1)">答1</button><button class="opt-btn success-btn" onclick="updCls(\''+stu.name+'\','+day+',2)">答2</button><button class="opt-btn success-btn" onclick="updCls(\''+stu.name+'\','+day+',3)">答3</button><div class="divider"></div><button class="opt-btn" onclick="updCls(\''+stu.name+'\','+day+',-1)">-</button><div class="cls-score-val">'+(r.cls||0)+'</div><button class="opt-btn" onclick="updCls(\''+stu.name+'\','+day+',1)">+</button></div></div>';
         grid.appendChild(card);
     });
 }
@@ -509,9 +632,11 @@ function renderGakupoCards(day) {
 function renderGakupoSummary() {
     var tbody = document.getElementById('sumTBody'); tbody.innerHTML = '';
     var weekData = scoreState.history[scoreState.currentMonday] || {};
-    scoreState.students.forEach(function(stu) {
+    var currentRenderList = getRenderStudentsForCurrentWeek();
+    currentRenderList.forEach(function(stu) {
         var wt = calcTotal(stu.name, scoreState.currentMonday);
-        var row = '<tr><td style="color:#64748b; font-size:11px;">'+(stu.class||'')+'</td><td><b style="color:#0f172a;">'+stu.name+'</b></td>';
+        var labelHtml = stu.class === "已退/离" ? '<span style="color:#ef4444; font-weight:bold;">'+stu.class+'</span>' : stu.class||''; 
+        var row = '<tr><td style="color:#64748b; font-size:11px;">'+labelHtml+'</td><td><b style="color:#0f172a;">'+stu.name+'</b></td>';
         for(var i=0; i<7; i++){
             var r = (weekData[stu.name] && weekData[stu.name][i]) ? weekData[stu.name][i] : {};
             var attStr = r.att === '1' ? '出勤' : (r.att === '-1' ? '迟/退' : (r.att === '缺' ? '缺勤' : '-'));
@@ -846,7 +971,7 @@ function selectMonthStu(name) {
 
 /* ================= 7. 附加模块 (弹窗、AI 诊断、智能点名) ================= */
 function showToast(msg) { var toast = document.getElementById('toast'); toast.innerText = msg; toast.style.opacity = '1'; setTimeout(function(){ toast.style.opacity = '0'; }, 2000); }
-function closeAllModals() { document.querySelectorAll('.modal, .month-dashboard, .overlay').forEach(function(el){ el.style.display='none'; }); currentSelectingStudent = null; }
+function closeAllModals() { document.querySelectorAll('.modal, .month-dashboard, .overlay, #studentManagerModal').forEach(function(el){ el.style.display='none'; }); currentSelectingStudent = null; }
 function copyText(id) { navigator.clipboard.writeText(document.getElementById(id).innerText).then(function(){ alert("已成功复制到剪贴板"); }); }
 
 function openAvatarModal(name) {
@@ -867,6 +992,7 @@ function openAvatarModal(name) {
 }
 
 function getWeightedWinner(nodes) {
+    // 🔥 保留 24B 原有的定向偏见权重
     var SPECIAL = ['钟菲儿', '刘澄橙', '李妮蔓']; var tot = 0, ws = [];
     nodes.forEach(function(n) { 
         var name = n.dataset.name;
@@ -1093,7 +1219,7 @@ function triggerManualSync() {
     if(c==='1') { syncBothClouds(); } else if(c==='2') { cloudSyncState.gakupoLoaded = true; cloudSyncState.seatLoaded = true; document.getElementById('reconnectBtn').style.display = "none"; triggerSaveScore(); triggerSaveSeat(); }
 }
 
-/* ================= 9. 启动引擎 (物理防御机制) ================= */
+/* ================= 9. 启动引擎 ================= */
 document.addEventListener('DOMContentLoaded', function() {
     try {
         loadLocalFallback();
@@ -1105,7 +1231,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-// ======= 新增功能：自定义周期统计 =======
+// ======= 周期全数据统计 =======
 function formatDateString(d) {
     var m = d.getMonth() + 1; var dd = d.getDate();
     return d.getFullYear() + '-' + (m < 10 ? '0' + m : m) + '-' + (dd < 10 ? '0' + dd : dd);
