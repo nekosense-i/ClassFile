@@ -159,8 +159,8 @@
 <div class="overlay" id="ovl" onclick="closeAllModals()"></div>
 
 <div class="global-nav">
-    <button class="nav-btn active allow-select" id="btnNavGakupo" onclick="switchGlobalView('gakupo')">📊 学情积分卡</button>
-    <button class="nav-btn allow-select" id="btnNavSeat" onclick="switchGlobalView('seat')">🗺️ 座位表</button>
+    <button class="nav-btn active allow-select" id="btnNavGakupo" onclick="switchGlobalView('gakupo')">📊 学情积分卡(25B)</button>
+    <button class="nav-btn allow-select" id="btnNavSeat" onclick="switchGlobalView('seat')">🗺️ 空间座位表</button>
     <div class="global-sync allow-select">
         <span class="sync-indicator" id="syncGakupoStatus" style="color:#94a3b8;">积分: 读取中...</span>
         <span class="sync-indicator" id="syncSeatStatus" style="color:#94a3b8;">座位: 读取中...</span>
@@ -332,12 +332,12 @@
 <script>
 /* ================= 1. 全局配置与变量声明 (融合25B专属数据) ================= */
 var DEFAULT_STUDENTS = [
-    { class: "2班", name: "苏晴" }, { class: "2班", name: "杨瑜涵" }, { class: "2班", name: "梁默昊" }, { class: "2班", name: "包浩毓" }, { class: "2班", name: "王励昊" },
+    { class: "2班", name: "苏晴" }, { class: "2班", name: "杨瑜涵" }, { class: "2班", name: "梁默昊" }, { class: "2班", name: "王励昊" },
     { class: "5班", name: "周霖玥" }, { class: "5班", name: "刘雨曦" }, { class: "5班", name: "代梓豪" },
     { class: "9班", name: "余锦程" }, { class: "9班", name: "李昕诺" }, { class: "9班", name: "郑含宇" }, { class: "9班", name: "杨瑷祎" }, { class: "9班", name: "钟杰珂" },
     { class: "10班", name: "马浩铭" }, { class: "10班", name: "胡欣怡" }, { class: "10班", name: "杨宸瑞" }, { class: "10班", name: "廖曦雯" }
 ];
-var SEAT_NAMES = ['苏晴', '杨瑜涵', '梁默昊', '包浩毓', '王励昊', '周霖玥', '刘雨曦', '代梓豪', '余锦程', '李昕诺', '郑含宇', '杨瑷祎', '钟杰珂', '马浩铭', '胡欣怡', '杨宸瑞', '廖曦雯'];
+var SEAT_NAMES = ['苏晴', '杨瑜涵', '梁默昊', '王励昊', '周霖玥', '刘雨曦', '代梓豪', '余锦程', '李昕诺', '郑含宇', '杨瑷祎', '钟杰珂', '马浩铭', '胡欣怡', '杨宸瑞', '廖曦雯'];
 
 var GAKUPO_KEY = "JP_CARD_GAKUPO25B_V2"; 
 var GAKUPO_API = "https://sync.nekosensei.cn/gakupo25B"; 
