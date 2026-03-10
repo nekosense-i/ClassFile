@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>智能班级管家</title>
+    <title>智能班级管家 (25A Pro)</title>
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.4/Chart.min.js"></script>
     <script defer src="https://unpkg.com/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
     <script>
@@ -59,7 +59,7 @@
         
         .grid-container { flex: 1; min-height: 0; display: grid; width: 100%; grid-gap: 6px; }
         
-        .student-card { background: var(--card-bg); border-radius: 6px; border: 1px solid #cbd5e1; padding: 5px; display: flex; flex-direction: column; justify-content: space-between; min-height: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .student-card { background: var(--card-bg); border-radius: 6px; border: 1px solid #cbd5e1; padding: 5px; display: flex; flex-direction: column; justify-content: space-between; min-height: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: opacity 0.3s; }
         .card-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed #e2e8f0; padding-bottom: 2px; }
         .student-name { font-size: 14px; font-weight: 900; color: #0f172a; cursor: pointer; display: flex; align-items: center; }
         
@@ -177,6 +177,9 @@
             <button class="tool-btn" onclick="batchAttendance()" style="background:#10b981;">✅ 全勤</button>
             <button class="tool-btn" onclick="openMonthDashboard()" style="background:#eab308; color:#0f172a;">📅 多周分析</button>
             <button class="tool-btn" onclick="openPeriodStatsModal()" style="background:#8b5cf6;">📅 周期统计</button>
+            
+            <button class="tool-btn allow-select" onclick="openStudentManager()" style="background:#f43f5e;">👥 名单管理</button>
+
             <button class="tool-btn" onclick="exportDetailedWeek()" style="background:#10b981;">📤 导出Excel</button>
             <button class="tool-btn" onclick="exportLocalState()" style="background:#f59e0b;">💾 双端备份</button>
             <button class="tool-btn" onclick="document.getElementById('importStateIn').click()" style="background:#06b6d4;">📂 一键恢复</button>
@@ -222,6 +225,21 @@
             <div class="seating-grid" id="seatingGrid"></div>
             <div class="side-wall side-door allow-select">教室门</div>
         </div>
+    </div>
+</div>
+
+<div id="studentManagerModal" class="modal" style="max-width: 500px; padding: 20px;">
+    <div style="display:flex; justify-content:space-between; border-bottom:1px solid #eee; padding-bottom:10px; margin-bottom:15px;">
+        <h3 style="margin:0; color:#1e293b;">👥 班级名单动态管理</h3>
+        <button class="tool-btn allow-select" style="background:#ef4444;" onclick="closeAllModals()">关闭</button>
+    </div>
+    <div style="background:#f8fafc; padding:15px; border:1px solid #cbd5e1; border-radius:8px; margin-bottom:15px; display:flex; gap:10px; align-items:center;">
+        <input type="text" id="newStuClass" class="allow-select" placeholder="班级 (如: 1班)" style="width:90px; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none;">
+        <input type="text" id="newStuName" class="allow-select" placeholder="输入新学生姓名" style="flex:1; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none;">
+        <button class="tool-btn allow-select" onclick="addStudentDynamic()" style="background:#10b981; padding:8px 15px; font-size:13px;">➕ 新增入班</button>
+    </div>
+    <div style="font-size: 12px; color: #64748b; margin-bottom: 5px;">* 点击删除后，该生仍会保留在已有数据的旧周次中</div>
+    <div class="allow-select" style="max-height: 45vh; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 5px; background: #f1f5f9;" id="dynamicStudentList">
     </div>
 </div>
 
@@ -329,17 +347,17 @@
 </div>
 
 <script>
-/* ================= 1. 全局配置与变量声明 (融合25A专属数据) ================= */
+/* ================= 1. 全局配置与变量声明 (25A专属数据) ================= */
 var DEFAULT_STUDENTS = [
     { class: "1班", name: "刘湘婷" }, { class: "1班", name: "李佩息" },
-    { class: "4班", name: "罗子津" }, { class: "4班", name: "朱析睿" }, { class: "4班", name: "张尔卓" }, { class: "4班", name: "包浩毓" }, 
+    { class: "4班", name: "罗子津" }, { class: "4班", name: "朱析睿" }, { class: "4班", name: "张尔卓" },
     { class: "6班", name: "陈亦涵" }, { class: "6班", name: "赵天宇" },
     { class: "7班", name: "陈博睿" }, { class: "7班", name: "冯嘉仪" }, { class: "7班", name: "符恺宸" },
     { class: "8班", name: "冯裕阳" }, { class: "8班", name: "蒙玙璠" }, { class: "8班", name: "罗小雅" }, 
     { class: "8班", name: "曾丹" }, { class: "8班", name: "胡溪媛" }, { class: "8班", name: "任亦航" }, 
     { class: "8班", name: "王晰玉" }, { class: "8班", name: "廖若涵" }
 ];
-var SEAT_NAMES = ['罗小雅', '陈亦涵', '罗子津', '曾丹', '张尔卓', '朱析睿', '陈博睿', '冯嘉仪', '刘湘婷', '冯裕阳', '任亦航', '胡溪媛', '李佩息', '王晰玉', '廖若涵', '蒙玙璠','包浩毓', '符恺宸', '赵天宇'];
+var SEAT_NAMES = ['罗小雅', '陈亦涵', '罗子津', '曾丹', '张尔卓', '朱析睿', '陈博睿', '冯嘉仪', '刘湘婷', '冯裕阳', '任亦航', '胡溪媛', '李佩息', '王晰玉', '廖若涵', '蒙玙璠', '符恺宸', '赵天宇'];
 
 var GAKUPO_KEY = "JP_CARD_GAKUPO25A_V2"; 
 var GAKUPO_API = "https://sync.nekosensei.cn/gakupo25A"; 
@@ -347,7 +365,7 @@ var SEAT_KEY = "JP_SEAT_25A_V1";
 var SEAT_API = "https://sync.nekosensei.cn/seat25A"; 
 
 var SCORE_MAP = { hw: { 'A':3, 'B':2, 'C':1, 'D':-1, '未':-1 }, dt: { '满':3, '过':2, '重':1, '未':-1 }, att: { '1':1, '-1':-1, '缺':0 } };
-var DAYS = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']; // 恢复 24B 的7天制
+var DAYS = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']; 
 var CLOUD_OSS_BASE_URL = "https://jp-game-assets-2026.oss-cn-chengdu.aliyuncs.com/头像库/25A/";
 var avatarFiles = [];
 for(var i = 1; i <= 20; i++) { avatarFiles.push("头像" + i + ".gif"); }
@@ -371,7 +389,6 @@ var synAudioEngine = {
         if (!this.ctx) { var AudioContext = window.AudioContext || window.webkitAudioContext; if (AudioContext) { this.ctx = new AudioContext(); } }
         if (this.ctx && this.ctx.state === 'suspended') { this.ctx.resume(); }
     },
-    // 保留 25A 专属的点名滴答音效
     playTick: function() {
         if (!this.ctx) return;
         var osc = this.ctx.createOscillator(); var gain = this.ctx.createGain();
@@ -431,7 +448,7 @@ function ensureSeatStateIntegrity(data) {
     if (!data.avatars) data.avatars = {};
     if (!data.seats || !Array.isArray(data.seats) || data.seats.length === 0) {
         data.seats = []; var idx=0;
-        // 🔥 修改为 25A 的 5行 x 4列 网格
+        // 🔥 25A 专属 5行 x 4列 网格
         for(var r=1; r<=5; r++){ 
             for(var c=1; c<=4; c++){ 
                 if(idx < SEAT_NAMES.length) data.seats.push({row:r, col:c, type:'student', name:SEAT_NAMES[idx], absent:false}); 
@@ -503,32 +520,139 @@ function switchDay(idx) { currentViewDay = idx; renderAll(); }
 
 function applyDynamicGridColumns(gridElement, studentCount) {
     var cols = 5;
-    if (studentCount > 15 && studentCount <= 25) cols = 5;
+    if (studentCount > 15 && studentCount <= 24) cols = 5;
     else if (studentCount > 24 && studentCount <= 36) cols = 6;
-    else if (studentCount > 35) cols = 7;
+    else if (studentCount > 36) cols = 8;
     gridElement.style.gridTemplateColumns = 'repeat(' + cols + ', 1fr)';
 }
 
+/* ================= 🔥 名单动态管理独立模块 ================= */
+function openStudentManager() {
+    renderStudentManagerList();
+    document.getElementById('ovl').style.display = 'block';
+    document.getElementById('studentManagerModal').style.display = 'flex';
+}
+
+function renderStudentManagerList() {
+    var listContainer = document.getElementById('dynamicStudentList');
+    listContainer.innerHTML = '';
+    scoreState.students.forEach(function(stu) {
+        var item = document.createElement('div');
+        item.style.cssText = 'display:flex; justify-content:space-between; align-items:center; padding:10px 12px; border-bottom:1px dashed #cbd5e1; background:#fff; border-radius:4px; margin-bottom:4px;';
+        item.innerHTML = '<div><span class="class-tag" style="background:#e2e8f0; color:#475569;">' + (stu.class || '') + '</span> <b style="color:#0f172a; font-size:15px;">' + stu.name + '</b></div>' +
+                         '<button class="tool-btn allow-select" onclick="removeStudentDynamic(\'' + stu.name + '\')" style="background:#ef4444; font-size:11px; padding:4px 8px;">❌ 删/退</button>';
+        listContainer.appendChild(item);
+    });
+}
+
+function addStudentDynamic() {
+    var cls = document.getElementById('newStuClass').value.trim();
+    var name = document.getElementById('newStuName').value.trim();
+    if(!name) return showToast("⚠️ 请输入学生姓名！");
+    
+    var exists = false;
+    for(var i=0; i<scoreState.students.length; i++) { if(scoreState.students[i].name === name) exists = true; }
+    if(exists) return showToast("⚠️ 该学生已存在当前名单中！");
+
+    scoreState.students.push({ class: cls, name: name });
+    triggerSaveScore();
+
+    var seatAssigned = false;
+    for(var j=0; j<seatState.seats.length; j++) {
+        if(seatState.seats[j].type === 'empty') {
+            seatState.seats[j].type = 'student';
+            seatState.seats[j].name = name;
+            seatState.seats[j].absent = false;
+            seatAssigned = true;
+            break;
+        }
+    }
+    triggerSaveSeat();
+
+    document.getElementById('newStuClass').value = '';
+    document.getElementById('newStuName').value = '';
+    renderStudentManagerList();
+    updateGlobalUI();
+    
+    if(seatAssigned) { showToast("✅ " + name + " 已入班，并自动填补了一个空位！"); } 
+    else { alert("⚠️ " + name + " 已加入积分卡！\n但教室当前没有【空位】可供分配。"); }
+}
+
+function removeStudentDynamic(name) {
+    if(!confirm("确定要将 [" + name + "] 移出当前班级吗？\n\n放心：他过去产生的积分和记录依然会在历史周次中保留并可查看。")) return;
+
+    var newStudents = [];
+    for(var i=0; i<scoreState.students.length; i++) {
+        if(scoreState.students[i].name !== name) newStudents.push(scoreState.students[i]);
+    }
+    scoreState.students = newStudents;
+    triggerSaveScore();
+
+    for(var j=0; j<seatState.seats.length; j++) {
+        if(seatState.seats[j].type === 'student' && seatState.seats[j].name === name) {
+            seatState.seats[j].type = 'empty';
+            seatState.seats[j].name = '空位';
+            seatState.seats[j].absent = false;
+        }
+    }
+    if (seatState.avatars[name]) delete seatState.avatars[name];
+    triggerSaveSeat();
+
+    renderStudentManagerList();
+    updateGlobalUI();
+    showToast("❌ " + name + " 已从当前名单移除，座位已腾空");
+}
+
+function getRenderStudentsForCurrentWeek() {
+    var renderList = scoreState.students.slice(); 
+    var activeNames = renderList.map(function(s){ return s.name; });
+    var weekData = scoreState.history[scoreState.currentMonday] || {};
+    
+    for (var stuName in weekData) {
+        if (stuName !== 'monday' && stuName !== 'ai_comment' && activeNames.indexOf(stuName) === -1) {
+            var hasData = false;
+            if(weekData[stuName].ai_comment) hasData = true;
+            for (var i=0; i<7; i++) { 
+                var d = weekData[stuName][i];
+                if (d && (d.att || d.hw || d.dt || d.cls || d.vio)) { hasData = true; break; }
+            }
+            if (hasData) { renderList.push({ name: stuName, class: "已退/离" }); }
+        }
+    }
+    return renderList; 
+}
+
+
+/* ================= 融合幽灵算法的计分卡渲染 ================= */
 function renderGakupoCards(day) {
     var grid = document.getElementById('cardGrid'); grid.innerHTML = '';
-    applyDynamicGridColumns(grid, scoreState.students.length);
+    var currentRenderList = getRenderStudentsForCurrentWeek();
+    applyDynamicGridColumns(grid, currentRenderList.length);
     var weekData = scoreState.history[scoreState.currentMonday] || {};
-    scoreState.students.forEach(function(stu) {
+    
+    currentRenderList.forEach(function(stu) {
         if(!weekData[stu.name]) weekData[stu.name] = {};
         if(!weekData[stu.name][day]) weekData[stu.name][day] = {att:'', hw:'', dt:'', cls:0, vio:0};
         var r = weekData[stu.name][day];
         
-        // 适配 25A 专属的标签色
+        // 适配 25A 专属的标签色及退学红标
         var clsTag = "";
-        if(stu.class === "1班") clsTag = "tag-1";
-        else if(stu.class === "4班") clsTag = "tag-4";
-        else if(stu.class === "6班") clsTag = "tag-6";
-        else if(stu.class === "7班") clsTag = "tag-7";
-        else if(stu.class === "8班") clsTag = "tag-8";
+        if (stu.class === "已退/离") {
+            clsTag = "style='background:#ef4444; color:white; border-color:#ef4444;'";
+        } else {
+            if(stu.class === "1班") clsTag = "class='class-tag tag-1'";
+            else if(stu.class === "4班") clsTag = "class='class-tag tag-4'";
+            else if(stu.class === "6班") clsTag = "class='class-tag tag-6'";
+            else if(stu.class === "7班") clsTag = "class='class-tag tag-7'";
+            else if(stu.class === "8班") clsTag = "class='class-tag tag-8'";
+            else clsTag = "class='class-tag'";
+        }
         
         var vioClass = (r.vio > 0) ? 'act-vio' : 'vio-btn-off';
         var card = document.createElement('div'); card.className = 'student-card';
-        card.innerHTML = '<div class="card-header"><span class="student-name" onclick="showRadar(\''+stu.name+'\')"><span class="class-tag '+clsTag+'">'+(stu.class||'')+'</span>'+stu.name+'</span><span class="week-total">'+calcTotal(stu.name, scoreState.currentMonday)+'分</span></div><div class="row-group"><div class="row-label">出勤</div><div class="btn-group">'+['1','-1','缺'].map(function(v){ return '<div class="opt '+(r.att==v?'act-att-'+v:'')+'" onclick="setScore(\''+stu.name+'\','+day+',\'att\',\''+v+'\')">'+(v=='1'?'出':v)+'</div>'; }).join('')+'</div></div><div class="row-group"><div class="row-label">作业</div><div class="btn-group">'+['A','B','C','D','未'].map(function(v){ return '<div class="opt '+(r.hw==v?'act-hw-'+v:'')+'" onclick="setScore(\''+stu.name+'\','+day+',\'hw\',\''+v+'\')">'+v+'</div>'; }).join('')+'</div></div><div class="row-group"><div class="row-label">听写</div><div class="btn-group">'+['满','过','重','未'].map(function(v){ return '<div class="opt '+(r.dt==v?'act-dt-'+v:'')+'" onclick="setScore(\''+stu.name+'\','+day+',\'dt\',\''+v+'\')">'+v+'</div>'; }).join('')+'</div></div><div class="row-group"><div class="row-label">课堂</div><div class="class-action-bar"><button class="opt-btn '+vioClass+'" onclick="toggleVio(\''+stu.name+'\','+day+')">违'+(r.vio>1?'('+r.vio+')':'')+'</button><button class="opt-btn success-btn" onclick="updCls(\''+stu.name+'\','+day+',1)">答1</button><button class="opt-btn success-btn" onclick="updCls(\''+stu.name+'\','+day+',2)">答2</button><button class="opt-btn success-btn" onclick="updCls(\''+stu.name+'\','+day+',3)">答3</button><div class="divider"></div><button class="opt-btn" onclick="updCls(\''+stu.name+'\','+day+',-1)">-</button><div class="cls-score-val">'+(r.cls||0)+'</div><button class="opt-btn" onclick="updCls(\''+stu.name+'\','+day+',1)">+</button></div></div>';
+        if(stu.class === "已退/离") card.style.opacity = '0.7'; 
+        
+        card.innerHTML = '<div class="card-header"><span class="student-name" onclick="showRadar(\''+stu.name+'\')"><span '+clsTag+'>'+(stu.class||'')+'</span>'+stu.name+'</span><span class="week-total">'+calcTotal(stu.name, scoreState.currentMonday)+'分</span></div><div class="row-group"><div class="row-label">出勤</div><div class="btn-group">'+['1','-1','缺'].map(function(v){ return '<div class="opt '+(r.att==v?'act-att-'+v:'')+'" onclick="setScore(\''+stu.name+'\','+day+',\'att\',\''+v+'\')">'+(v=='1'?'出':v)+'</div>'; }).join('')+'</div></div><div class="row-group"><div class="row-label">作业</div><div class="btn-group">'+['A','B','C','D','未'].map(function(v){ return '<div class="opt '+(r.hw==v?'act-hw-'+v:'')+'" onclick="setScore(\''+stu.name+'\','+day+',\'hw\',\''+v+'\')">'+v+'</div>'; }).join('')+'</div></div><div class="row-group"><div class="row-label">听写</div><div class="btn-group">'+['满','过','重','未'].map(function(v){ return '<div class="opt '+(r.dt==v?'act-dt-'+v:'')+'" onclick="setScore(\''+stu.name+'\','+day+',\'dt\',\''+v+'\')">'+v+'</div>'; }).join('')+'</div></div><div class="row-group"><div class="row-label">课堂</div><div class="class-action-bar"><button class="opt-btn '+vioClass+'" onclick="toggleVio(\''+stu.name+'\','+day+')">违'+(r.vio>1?'('+r.vio+')':'')+'</button><button class="opt-btn success-btn" onclick="updCls(\''+stu.name+'\','+day+',1)">答1</button><button class="opt-btn success-btn" onclick="updCls(\''+stu.name+'\','+day+',2)">答2</button><button class="opt-btn success-btn" onclick="updCls(\''+stu.name+'\','+day+',3)">答3</button><div class="divider"></div><button class="opt-btn" onclick="updCls(\''+stu.name+'\','+day+',-1)">-</button><div class="cls-score-val">'+(r.cls||0)+'</div><button class="opt-btn" onclick="updCls(\''+stu.name+'\','+day+',1)">+</button></div></div>';
         grid.appendChild(card);
     });
 }
@@ -536,9 +660,12 @@ function renderGakupoCards(day) {
 function renderGakupoSummary() {
     var tbody = document.getElementById('sumTBody'); tbody.innerHTML = '';
     var weekData = scoreState.history[scoreState.currentMonday] || {};
-    scoreState.students.forEach(function(stu) {
+    var currentRenderList = getRenderStudentsForCurrentWeek();
+    
+    currentRenderList.forEach(function(stu) {
         var wt = calcTotal(stu.name, scoreState.currentMonday);
-        var row = '<tr><td style="color:#64748b; font-size:11px;">'+(stu.class||'')+'</td><td><b style="color:#0f172a;">'+stu.name+'</b></td>';
+        var labelHtml = stu.class === "已退/离" ? '<span style="color:#ef4444; font-weight:bold;">'+stu.class+'</span>' : stu.class||''; 
+        var row = '<tr><td style="color:#64748b; font-size:11px;">'+labelHtml+'</td><td><b style="color:#0f172a;">'+stu.name+'</b></td>';
         for(var i=0; i<7; i++){
             var r = (weekData[stu.name] && weekData[stu.name][i]) ? weekData[stu.name][i] : {};
             var attStr = r.att === '1' ? '出勤' : (r.att === '-1' ? '迟/退' : (r.att === '缺' ? '缺勤' : '-'));
@@ -874,7 +1001,7 @@ function selectMonthStu(name) {
 
 /* ================= 7. 附加模块 (弹窗、AI 诊断、智能点名) ================= */
 function showToast(msg) { var toast = document.getElementById('toast'); toast.innerText = msg; toast.style.opacity = '1'; setTimeout(function(){ toast.style.opacity = '0'; }, 2000); }
-function closeAllModals() { document.querySelectorAll('.modal, .month-dashboard, .overlay').forEach(function(el){ el.style.display='none'; }); currentSelectingStudent = null; }
+function closeAllModals() { document.querySelectorAll('.modal, .month-dashboard, .overlay, #studentManagerModal').forEach(function(el){ el.style.display='none'; }); currentSelectingStudent = null; }
 function copyText(id) { navigator.clipboard.writeText(document.getElementById(id).innerText).then(function(){ alert("已成功复制到剪贴板"); }); }
 
 function openAvatarModal(name) {
@@ -894,7 +1021,6 @@ function openAvatarModal(name) {
     document.getElementById('ovl').style.display='block'; document.getElementById('avatarModal').style.display='flex';
 }
 
-// 🔥 融合 25A 的公平抽取算法 (去除24B内部的特殊姓名降权)
 function getWeightedWinner(nodes) {
     var totalWeight = 0, weights = [];
     nodes.forEach(function(node) {
@@ -956,7 +1082,7 @@ function generateWeeklyAI(name, total, force) {
     for(var d=0; d<7; d++){ var r = (weekData[name] && weekData[name][d]) ? weekData[name][d] : {}; if(r.att !== undefined && r.att !== '') { perf.attTotal += 1; if(r.att === '1') perf.att += 1; } if(r.hw) perf.hw.push(r.hw); if(r.dt) perf.dt.push(r.dt); perf.cls += (r.cls || 0); perf.vio += (r.vio || 0); }
     
     var hwStatus = perf.hw.length > 0 ? perf.hw.join(', ') : '无记录'; var dtStatus = perf.dt.length > 0 ? perf.dt.join(', ') : '无记录'; var attStatus = perf.attTotal > 0 ? perf.att+'/'+perf.attTotal+' 次' : '无记录';
-    var promptMessage = "# 角色：专业日语老师\n# 任务：为学生 " + name + " 撰写周评语（约80字），发给家长。\n# 学生本周真实数据：\n- 总积分：" + total + "\n- 出勤：" + attStatus + "\n- 作业等级：[" + hwStatus + "]\n- 听写成绩：[" + dtStatus + "]\n- 课堂加分：" + perf.cls + "\n- 违纪次数：" + perf.vio + "\n# 核心约束（严格执行）：\n1. **无记录 = 未安排**：听写中”重“为重新听写后过关的意思，是偏向正面的学生指标。若某项整体显示“无记录”，表示本周根本没有布置该任务，评语中请【完全跳过】该项。严禁误说成学生没做。\n2. **精准点出问题**：如果数据中有迟到(-1)、作业“未”、听写“未”、违纪等，必须客观指出这些短板。\n3. **先抑后扬**：指出问题后，结合加分项或总分给予正面鼓励。";
+    var promptMessage = "# 角色：专业日语老师\n# 任务：为学生 " + name + " 撰写周评语（约80字），发给家长。\n# 学生本周真实数据：\n- 总积分：" + total + "\n- 出勤：" + attStatus + "\n- 作业等级：[" + hwStatus + "]\n- 听写成绩：[" + dtStatus + "]\n- 课堂加分：" + perf.cls + "\n- 违纪次数：" + perf.vio + "\n# 核心约束（严格执行）：\n1. **无记录 = 未安排**：若某项整体显示“无记录”，表示本周根本没有布置该任务，评语中请【完全跳过】该项。严禁误说成学生没做。\n2. **精准点出问题**：如果数据中有迟到(-1)、作业“未”、听写“未”、违纪等，必须客观指出这些短板。\n3. **先抑后扬**：指出问题后，结合加分项或总分给予正面鼓励。";
     
     fetch("https://api.deepseek.com/v1/chat/completions", { method: 'POST', headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key}, body: JSON.stringify({ model: "deepseek-chat", messages: [ { role: "system", content: "你是一个严谨的教学助手，绝对不使用星号等特殊符号。" }, { role: "user", content: promptMessage } ], temperature: 0.5 }) })
     .then(function(res) { return res.json(); })
