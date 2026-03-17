@@ -3,103 +3,160 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>智能班级管家</title>
+    <title>智能学情管家</title>
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.4/Chart.min.js"></script>
     <script defer src="https://unpkg.com/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
     <script>
-        // 浏览器内核兼容性嗅探，防止旧设备白屏无响应
         if (typeof window.fetch === 'undefined' || typeof window.Promise === 'undefined') {
-            alert("⚠️ 严重警告：当前浏览器版本过低（不支持 fetch/Promise）。\n请升级浏览器内核，否则云同步和 AI 功能将无法正常运行！");
+            alert("⚠️ 严重警告：当前浏览器不支持 fetch/Promise。请升级浏览器！");
         }
-        // 动态计算真实视口高度，解决老旧浏览器 dvh 塌陷问题
         function setVH() { var vh = window.innerHeight * 0.01; document.documentElement.style.setProperty('--vh', vh + 'px'); }
         window.addEventListener('resize', setVH); setVH();
     </script>
     <style>
-        /* ================= 全局公共与重置变量 ================= */
         :root {
             --bg: #e2e8f0; --card-bg: #ffffff;
             --primary: #3b82f6; --primary-hover: #2563eb;
             --hw-A: #22c55e; --hw-B: #86efac; --hw-C: #fef08a; --hw-D: #fca5a5; --hw-none: #ef4444;
             --text-main: #1e293b; --text-muted: #64748b;
         }
-        
-        /* 加入中文字体栈优化 */
-        * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", "Segoe UI", sans-serif; margin: 0; padding: 0; }
-        
-        /* 高度使用动态计算的 --vh，绝对防止溢出 */
+        * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; margin: 0; padding: 0; }
         html, body { height: 100%; width: 100%; overflow: hidden; }
         body { background: var(--bg); height: 100vh; height: calc(var(--vh, 1vh) * 100); display: flex; flex-direction: column; color: var(--text-main); touch-action: manipulation;}
-
-        /* 防止误触选中文字，仅在 UI 控件生效，允许长按复制 AI 评语 */
         .no-select { user-select: none; -webkit-user-select: none; }
         .allow-select { user-select: text; -webkit-user-select: text; }
 
-        /* ================= 顶层全局导航 ================= */
-        .global-nav { height: 48px; background: #0f172a; display: flex; justify-content: center; align-items: center; gap: 15px; flex-shrink: 0; position: relative; z-index: 2000; box-shadow: 0 2px 10px rgba(0,0,0,0.3);}
-        .nav-btn { background: #334155; color: #cbd5e1; border: none; padding: 8px 25px; border-radius: 20px; font-weight: bold; font-size: 14px; cursor: pointer; transition: 0.3s; }
+        /* ================= 🔥 终极重构：单行沉浸式全局导航 ================= */
+        .app-header {
+            height: 60px; background: #0f172a; display: flex; align-items: center; 
+            padding: 0 10px; flex-shrink: 0; position: relative; z-index: 2000; 
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3); justify-content: space-between;
+        }
+        
+        /* 左中侧：横向滚动安全区 */
+        .header-scroll-area {
+            display: flex; align-items: center; gap: 8px; overflow-x: auto; 
+            scrollbar-width: none; -webkit-overflow-scrolling: touch; 
+            flex: 1; min-width: 0; padding-right: 15px; height: 100%;
+        }
+        .header-scroll-area::-webkit-scrollbar { display: none; }
+        
+        .nav-title { color: white; font-weight: bold; font-size: 16px; letter-spacing: 1px; flex-shrink: 0; white-space: nowrap; margin-right: 4px;}
+        
+        /* 视图切换按钮 */
+        .nav-left { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+        .nav-btn { background: #334155; color: #cbd5e1; border: none; padding: 5px 12px; border-radius: 15px; font-weight: bold; font-size: 12px; cursor: pointer; transition: 0.3s; white-space: nowrap; }
         .nav-btn.active { background: var(--primary); color: white; box-shadow: 0 0 12px rgba(59,130,246,0.6); }
-        .global-sync { position: absolute; right: 10px; font-size: 11px; display: flex; flex-direction: column; align-items: flex-end;}
-        .sync-indicator { margin-bottom: 2px; font-weight: bold; }
 
-        /* flex: 1 min-height: 0 彻底解决老浏览器白屏折叠问题 */
+        /* 日期标签 */
+        .tabs { display: flex; background: #1e293b; padding: 3px; border-radius: 8px; gap: 4px; flex-shrink: 0; border: 1px solid #334155;}
+        .tab-btn { background: transparent; color: #cbd5e1; border: none; padding: 4px 10px; border-radius: 6px; cursor: pointer; transition: 0.2s; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.2; min-width: 50px; flex-shrink: 0; white-space: nowrap;}
+        .tab-btn.active { background: var(--primary); color: white; box-shadow: 0 2px 6px rgba(0,0,0,0.3); }
+        .date-label { font-size: 10px; font-weight: normal; opacity: 0.8; margin-top: 2px; }
+        
+        /* 过滤器 */
+        .filter-controls-wrapper { display: flex; align-items: center; gap: 6px; flex-shrink: 0;}
+        .filter-bar { display: flex; gap: 4px; align-items: center; flex-shrink: 0;}
+        .filter-btn { padding: 5px 12px; border-radius: 15px; border: 1px solid #334155; background: #1e293b; color: #94a3b8; font-size: 12px; font-weight: bold; cursor: pointer; white-space: nowrap; transition: all 0.2s ease; }
+        .filter-btn:hover { background: #334155; color: #e2e8f0; }
+        .filter-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+        .focus-btn.active { background: #8b5cf6 !important; border-color: #8b5cf6 !important; box-shadow: 0 2px 8px rgba(139,92,246,0.4); }
+        
+        .header-divider { width: 2px; height: 18px; background: #334155; border-radius: 2px; margin: 0 4px; flex-shrink: 0; }
+
+        /* 高频操作 */
+        .date-picker-wrap { display:flex; align-items:center; gap:4px; background:#1e293b; padding:4px 8px; border-radius:15px; border:1px solid #334155; flex-shrink:0; }
+        .date-picker-input { padding:0; font-size:12px; border:none; outline:none; background:transparent; color:#94a3b8; font-weight:bold; cursor:pointer; }
+        .tool-btn { background: #475569; color: white; border: none; padding: 6px 14px; border-radius: 15px; cursor: pointer; font-weight: bold; font-size: 12px; transition: 0.1s; display: flex; align-items: center; flex-shrink: 0; white-space: nowrap;}
+        .tool-btn:active { transform: scale(0.95); }
+
+        /* 右侧：折叠菜单与同步区 */
+        .header-fixed-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; padding-left: 10px; border-left: 1px solid #334155; }
+        
+        /* 🔥 下拉折叠菜单核心 CSS */
+        .dropdown { position: relative; }
+        .dropdown-content {
+            display: none; position: absolute; right: 0; top: 40px; background-color: #1e293b;
+            min-width: 150px; box-shadow: 0px 8px 20px 0px rgba(0,0,0,0.5); border-radius: 8px;
+            border: 1px solid #334155; z-index: 3000; overflow: hidden;
+            animation: fadeIn 0.2s ease;
+        }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+        .dropdown-content.show { display: block; }
+        .dropdown-item {
+            color: #cbd5e1; padding: 12px 16px; text-decoration: none; display: flex; align-items: center;
+            gap: 8px; width: 100%; text-align: left; border: none; background: none; font-size: 13px;
+            font-weight: bold; cursor: pointer; border-bottom: 1px solid #334155; white-space: nowrap;
+        }
+        .dropdown-item:last-child { border-bottom: none; }
+        .dropdown-item:hover { background-color: #334155; color: white; }
+
+        .global-sync { font-size: 11px; display: flex; flex-direction: column; align-items: flex-end; flex-shrink: 0; white-space: nowrap;}
+        .sync-indicator { font-weight: bold; color: #94a3b8; line-height: 1.3;}
+
         #gakupoView { display: flex; flex-direction: column; flex: 1; min-height: 0; width: 100%; }
         #seatView { display: none; flex-direction: column; flex: 1; min-height: 0; width: 100%; background: #f4f7f6; justify-content: center; align-items: center;}
-
-        /* ================= 积分卡 (Gakupo) 样式 ================= */
-        .header { height: 60px; flex-shrink: 0; background: #1e293b; color: white; padding: 0 15px; display: flex; justify-content: space-between; align-items: center; z-index: 10; border-top: 1px solid #334155;}
         
-        .tabs { display: flex; background: #334155; padding: 4px; border-radius: 8px; gap: 5px; overflow-x: auto; scrollbar-width: none; max-width: 55vw; }
-        .tabs::-webkit-scrollbar { display: none; }
+        .main-content { flex: 1; min-height: 0; padding: 15px 20px; width: 100%; display: flex; flex-direction: column; overflow: hidden; }
         
-        .tab-btn { background: transparent; color: #cbd5e1; border: none; padding: 6px 10px; border-radius: 6px; cursor: pointer; transition: 0.2s; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.2; min-width: 55px; flex-shrink: 0;}
-        .tab-btn.active { background: var(--primary); color: white; box-shadow: 0 2px 6px rgba(0,0,0,0.3); transform: scale(1.05); }
-        .date-label { font-size: 10px; font-weight: normal; opacity: 0.8; margin-top: 3px; }
+        /* ================= 计分卡自适应网格与排版 ================= */
+        .grid-container { 
+            flex: 1; min-height: 0; display: grid; width: 100%; 
+            grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); 
+            grid-auto-rows: max-content; 
+            gap: 20px; 
+            overflow-y: auto; align-content: start; 
+            padding-bottom: 40px; padding-right: 5px;
+            -webkit-overflow-scrolling: touch;
+        }
+        .grid-container::-webkit-scrollbar { width: 6px; }
+        .grid-container::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
         
-        .toolbar-actions { display: flex; align-items: center; gap: 5px; overflow-x: auto; white-space: nowrap; padding-bottom: 2px; scrollbar-width: none;}
-        .toolbar-actions::-webkit-scrollbar { display: none; }
+        .student-card { 
+            background: var(--card-bg); border-radius: 10px; border: 1px solid #cbd5e1; 
+            padding: 15px; display: flex; flex-direction: column; justify-content: flex-start; 
+            min-height: 250px; box-shadow: 0 4px 10px rgba(0,0,0,0.06); transition: opacity 0.3s; 
+        }
         
-        button.tool-btn { background: #475569; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px; transition: 0.1s; display: flex; align-items: center;}
-        button.tool-btn:active { transform: scale(0.95); }
-        .main-content { flex: 1; min-height: 0; padding: 6px; width: 100%; display: flex; flex-direction: column; overflow: hidden; }
+        .student-card.focus-compact { min-height: auto; padding: 12px 15px; }
+        .student-card.focus-compact .card-header { border-bottom: none; padding-bottom: 0; margin-bottom: 6px; }
         
-        /* 布局优化：动态 Grid */
-        .grid-container { flex: 1; min-height: 0; display: grid; width: 100%; grid-gap: 6px; }
+        .card-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed #e2e8f0; padding-bottom: 8px; margin-bottom: 4px; flex-shrink: 0; }
+        .student-name { font-size: 16px; font-weight: 900; color: #0f172a; cursor: pointer; display: flex; align-items: center; white-space: nowrap;}
         
-        .student-card { background: var(--card-bg); border-radius: 6px; border: 1px solid #cbd5e1; padding: 5px; display: flex; flex-direction: column; justify-content: space-between; min-height: 0; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-        .card-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed #e2e8f0; padding-bottom: 2px; }
-        .student-name { font-size: 14px; font-weight: 900; color: #0f172a; cursor: pointer; display: flex; align-items: center; }
-        .class-tag { padding: 1px 5px; border-radius: 3px; font-size: 10px; border: 1px solid #e2e8f0; margin-right: 8px; font-weight: bold; color: #64748b; }
+        .class-tag { padding: 3px 6px; border-radius: 4px; font-size: 11px; border: 1px solid #e2e8f0; margin-right: 8px; font-weight: bold; color: #64748b; }
         .tag-9 { background: #f0fdf4 !important; color: #166534 !important; border-color: #dcfce7 !important; }
         .tag-10 { background: #eff6ff !important; color: #1e40af !important; border-color: #dbeafe !important; }
         
-        .week-total { background: #eff6ff; color: #2563eb; padding: 1px 6px; border-radius: 8px; font-weight: 800; font-size: 12px; }
-        .row-group { display: flex; align-items: center; flex: 1; min-height: 0; margin-top: 2px; }
-        .row-label { width: 28px; font-size: 10px; font-weight: bold; color: var(--text-muted); text-align: right; margin-right: 4px; flex-shrink: 0; }
-        .btn-group { display: flex; flex: 1; height: 100%; max-height: 28px; }
-        .opt { flex: 1; height: 100%; border: 1px solid #e2e8f0; background: #f8fafc; border-radius: 4px; font-size: 11px; font-weight: bold; color: #475569; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.1s; }
+        .week-total { background: #eff6ff; color: #2563eb; padding: 2px 8px; border-radius: 8px; font-weight: 900; font-size: 15px; }
         
-        .class-action-bar { display: flex; flex: 1; height: 100%; max-height: 28px; align-items: center; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px; padding: 1px; gap: 1px; }
-        .opt-btn { flex: 1; height: 100%; border: none; border-radius: 3px; font-size: 10px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; background: white; border: 1px solid #e2e8f0; color: #475569; padding: 0; transition: 0.1s; }
+        .row-group { display: flex; align-items: center; width: 100%; margin-top: 10px; flex-shrink: 0; }
+        .row-label { width: 36px; font-size: 12px; font-weight: bold; color: var(--text-muted); text-align: right; margin-right: 8px; flex-shrink: 0; }
+        .btn-group { display: flex; flex: 1; height: 32px; gap: 5px; }
+        .opt { flex: 1; height: 100%; border: 1px solid #e2e8f0; background: #f8fafc; border-radius: 4px; font-size: 13px; font-weight: bold; color: #475569; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.1s; }
+        
+        .class-action-bar { display: flex; flex: 1; height: 32px; align-items: center; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px; padding: 2px; gap: 4px; }
+        .opt-btn { flex: 1; height: 100%; min-height: 26px; border: none; border-radius: 4px; font-size: 12px; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; background: white; border: 1px solid #e2e8f0; color: #475569; padding: 0; transition: 0.1s; }
         .opt-btn:active { transform: scale(0.9); }
+        
         .vio-btn-off { color: #94a3b8; background: #f1f5f9; border-color: #e2e8f0; }
         .act-vio { background: #ef4444 !important; color: white !important; border-color: #ef4444 !important; }
         .success-btn { color: #10b981; background: #ecfdf5; border-color: #a7f3d0; }
-        .divider { width: 1px; background: #cbd5e1; height: 70%; margin: 0 1px; flex-shrink: 0; }
-        .cls-score-val { width: 18px; text-align: center; font-weight: 900; color: #2563eb; font-size: 13px; flex-shrink: 0; }
+        .divider { width: 1px; background: #cbd5e1; height: 70%; margin: 0 4px; flex-shrink: 0; }
+        .cls-score-val { width: 28px; text-align: center; font-weight: 900; color: #2563eb; font-size: 16px; flex-shrink: 0; }
 
-        .act-hw-A { background: var(--hw-A) !important; color: white !important; } .act-hw-B { background: var(--hw-B) !important; color: #0f172a !important; } .act-hw-C { background: var(--hw-C) !important; color: #856404 !important; } .act-hw-D { background: var(--hw-D) !important; color: white !important; } .act-hw-未 { background: var(--hw-none) !important; color: white !important; }
-        .act-dt-满 { background: #16a34a !important; color: white !important; } .act-dt-过 { background: #86efac !important; color: #0f172a !important; } .act-dt-重 { background: #facc15 !important; color: #856404 !important; } .act-dt-未 { background: #ef4444 !important; color: white !important; }
         .act-att-1 { background: #10b981 !important; color: white !important; } .act-att--1 { background: #ef4444 !important; color: white !important; } .act-att-缺 { background: #000000 !important; color: white !important; }
+        .act-hw-A { background: #22c55e !important; color: white !important; } .act-hw-B { background: #86efac !important; color: #0f172a !important; } .act-hw-C { background: #fef08a !important; color: #856404 !important; } .act-hw-D { background: #fca5a5 !important; color: white !important; } .act-hw-未 { background: #ef4444 !important; color: white !important; }
+        .act-dt-满 { background: #16a34a !important; color: white !important; } .act-dt-过 { background: #86efac !important; color: #0f172a !important; } .act-dt-重 { background: #facc15 !important; color: #856404 !important; } .act-dt-未 { background: #ef4444 !important; color: white !important; }
 
-        .summary-view { display: none; background: white; padding: 15px; border-radius: 8px; width: 100%; height: 100%; overflow-y: auto; }
+        .summary-view { display: none; background: white; padding: 15px; border-radius: 8px; width: 100%; height: 100%; overflow-y: auto; -webkit-overflow-scrolling: touch;}
         .sum-table { width: 100%; border-collapse: collapse; text-align: center; font-size: 13px; }
         .sum-table th, .sum-table td { border: 1px solid #e2e8f0; padding: 6px 4px; }
         .sum-table th { background: #f8fafc; position: sticky; top: 0; z-index: 5; }
         .action-link { cursor: pointer; font-weight: bold; text-decoration: underline; display: inline-block; margin-top: 4px; transition: 0.2s;}
         .action-link:hover { opacity: 0.8; }
 
-        /* ================= 座位表 (Seat) 样式 ================= */
+        /* ================= 24B 座位表样式 ================= */
         .classroom { width: 96vw; flex: 1; margin: 1.5vmin 0; background: white; padding: 1.5vmin; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); display: flex; flex-direction: column; position: relative; }
         .front-board-container { display: flex; justify-content: center; align-items: center; width: 100%; margin-bottom: 1vmin; position: relative;}
         .front-board { background: #34495e; color: white; padding: 1vmin 0; width: 60%; font-size: 20px; border-radius: 8px; font-weight: bold; letter-spacing: 0.5vw; text-align: center; }
@@ -112,16 +169,15 @@
         .side-window { background: #e1f5fe; color: #0277bd; border-left: 0.5vmin solid #29b6f6; }
         .side-door { background: #fff3e0; color: #ef6c00; border-right: 0.5vmin solid #ffa726; }
         
+        /* 24B班 4列 x 4行 网格 */
         .seating-grid { display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(4, 1fr); gap: 1vmin; flex-grow: 1; margin: 0 1.5vmin; height: 100%; }
         
         .seat { border-radius: 8px; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding: 1vh 0.5vw; box-sizing: border-box; cursor: grab; transition: all 0.2s ease; box-shadow: 0 2px 5px rgba(0,0,0,0.05); position: relative; overflow: hidden;}
         .seat.student { background: #e8f5e9; border: 2px solid #81c784; color: #2e7d32; }
         .seat.empty { background: #f5f5f5; border: 2px dashed #bdbdbd; color: #9e9e9e; cursor: pointer; justify-content: center; padding: 0;}
-        
         .seat.selected-swap { border: 3px solid var(--primary) !important; box-shadow: 0 0 15px rgba(59, 130, 246, 0.6) !important; transform: scale(1.05); z-index: 10; }
 
         .seat > span:not(.absent-toggle) { font-size: clamp(14px, 2.2vh, 18px); font-weight: 800; margin-top: 2px; margin-bottom: 4px; letter-spacing: 1px; flex-shrink: 0;}
-        
         .avatar-wrapper { width: 6.5vh; height: 6.5vh; min-width: 42px; min-height: 42px; border-radius: 50%; background-color: #fff; border: 2px solid #a5d6a7; display: flex; align-items: center; justify-content: center; overflow: hidden; cursor: pointer; z-index: 5; margin-bottom: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); flex-shrink: 1;}
         .avatar-wrapper img { width: 100%; height: 100%; object-fit: cover; }
         .avatar-placeholder { font-size: 11px; color: #81c784; text-align: center; font-weight: bold;}
@@ -134,22 +190,42 @@
         .seat.winner-highlight { transform: scale(1.15) translateY(-5px) !important; box-shadow: 0 15px 35px rgba(241, 196, 15, 0.8) !important; border: 4px solid #f39c12 !important; animation: none !important; background: linear-gradient(135deg, #fff9c4, #ffeb3b) !important; z-index: 100; }
         @keyframes pulse-glow { 0% { box-shadow: 0 0 10px rgba(241, 196, 15, 0.5); } 50% { box-shadow: 0 0 40px rgba(241, 196, 15, 1); transform: scale(1.12); } 100% { box-shadow: 0 0 10px rgba(241, 196, 15, 0.5); } }
 
-        /* ================= 弹窗、模块与吐司 ================= */
+        /* ================= 移动端/平板 媒体查询 ================= */
+        @media (max-width: 768px) {
+            .grid-container { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+            .student-card { padding: 12px; min-height: 220px; }
+            .global-nav { padding: 0 10px; height: 55px; }
+            .nav-title { font-size: 14px; margin-right: 5px; }
+            .main-content { padding: 10px; }
+            .filter-btn { padding: 4px 12px; font-size: 11px; }
+            .nav-btn { padding: 4px 10px; font-size: 11px; }
+        }
+        @media (max-width: 480px) {
+            .grid-container { grid-template-columns: 1fr; gap: 10px; padding-right: 0; }
+            .student-name { font-size: 15px; }
+            .week-total { font-size: 13px; padding: 2px 6px; }
+            .row-label { width: 30px; font-size: 11px; margin-right: 4px; }
+            .opt { font-size: 12px; }
+            .opt-btn { font-size: 11px; }
+            .cls-score-val { width: 22px; font-size: 14px; }
+            .tool-btn { padding: 5px 8px; font-size: 11px; }
+            .header-fixed-right { padding-left: 5px; }
+        }
+
+        /* ================= 弹窗 ================= */
         .overlay { display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index: 3000; }
         .modal { display:none; position:fixed; top:50%; left:50%; transform:translate(-50%, -50%); width:90%; max-width:550px; background:white; z-index: 3001; padding:20px; border-radius:12px; flex-direction: column; box-shadow:0 15px 50px rgba(0,0,0,0.3); }
+        .month-dashboard { display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:#f8fafc; z-index: 3100; flex-direction:column; overflow:hidden;}
+        .stu-list-item { padding: 10px; margin-bottom: 5px; background: #f1f5f9; border-radius: 6px; cursor: pointer; display: flex; justify-content: space-between; border: 1px solid transparent; font-size: 14px;}
+        .stu-list-item:hover { background: #e2e8f0; }
+        .stu-list-item.active { background: #eff6ff; border-color: #bfdbfe; font-weight: bold; color: #2563eb; }
+        .week-selector-container { padding: 12px 20px; background: white; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; gap: 15px; overflow-x: auto; flex-shrink: 0; -webkit-overflow-scrolling: touch;}
+        .week-chk-label { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: bold; color: #334155; cursor: pointer; background: #f1f5f9; padding: 4px 10px; border-radius: 6px; white-space: nowrap;}
         
         .gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); grid-gap: 10px; max-height: 50vh; overflow-y: auto; padding: 10px; }
         .gallery-item { border-radius: 8px; overflow: hidden; border: 3px solid transparent; cursor: pointer; height: 80px; position: relative; }
         .gallery-item img { width: 100%; height: 100%; object-fit: cover; }
         .gallery-item.taken { filter: grayscale(100%); opacity: 0.5; pointer-events: none;}
-        
-        .month-dashboard { display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:#f8fafc; z-index: 3100; flex-direction:column; overflow:hidden;}
-        .stu-list-item { padding: 10px; margin-bottom: 5px; background: #f1f5f9; border-radius: 6px; cursor: pointer; display: flex; justify-content: space-between; border: 1px solid transparent; font-size: 14px;}
-        .stu-list-item:hover { background: #e2e8f0; }
-        .stu-list-item.active { background: #eff6ff; border-color: #bfdbfe; font-weight: bold; color: #2563eb; }
-        .week-selector-container { padding: 12px 20px; background: white; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; gap: 15px; overflow-x: auto; flex-shrink: 0;}
-        .week-chk-label { display: flex; align-items: center; gap: 6px; font-size: 14px; font-weight: bold; color: #334155; cursor: pointer; background: #f1f5f9; padding: 4px 10px; border-radius: 6px; white-space: nowrap;}
-
         #toast { position: fixed; top: 10vh; left: 50%; transform: translateX(-50%); background: rgba(0, 0, 0, 0.8); color: #fff; padding: 10px 20px; border-radius: 8px; font-size: 16px; opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 9999; }
     </style>
 </head>
@@ -158,46 +234,66 @@
 <div id="toast"></div>
 <div class="overlay" id="ovl" onclick="closeAllModals()"></div>
 
-<div class="global-nav">
-    <button class="nav-btn active allow-select" id="btnNavGakupo" onclick="switchGlobalView('gakupo')">📊 学情积分卡</button>
-    <button class="nav-btn allow-select" id="btnNavSeat" onclick="switchGlobalView('seat')">🗺️ 座位表</button>
-    <div class="global-sync allow-select">
-        <span class="sync-indicator" id="syncGakupoStatus" style="color:#94a3b8;">积分: 读取中...</span>
-        <span class="sync-indicator" id="syncSeatStatus" style="color:#94a3b8;">座位: 读取中...</span>
-    </div>
-</div>
-
-<div id="gakupoView">
-    <div class="header">
-        <div class="tabs" id="dayTabs"></div>
-        <div class="toolbar-actions">
-            <div style="display:flex; align-items:center; gap:4px; margin-left:5px; margin-right: 5px;">
-                <span style="font-size:10px; color:#94a3b8; white-space:nowrap;">周期校准:</span>
-                <input type="date" id="mondayDate" style="padding:2px; font-size: 11px; border-radius: 4px; border:none; outline:none; background:#334155; color:white;">
+<div class="app-header allow-select">
+    <div class="header-scroll-area">
+        <div class="nav-title">📊</div>
+        
+        <div class="nav-left">
+            <button class="nav-btn active" id="btnNavGakupo" onclick="switchGlobalView('gakupo')">积分卡</button>
+            <button class="nav-btn" id="btnNavSeat" onclick="switchGlobalView('seat')">座位表</button>
+        </div>
+        
+        <div class="header-divider"></div>
+        
+        <div id="gakupoControls" style="display:flex; align-items:center; gap:8px;">
+            <div class="tabs" id="dayTabs"></div>
+            
+            <div id="filterWrapper" class="filter-controls-wrapper">
+                <div id="classFilterBar" class="filter-bar"></div>
+                <div class="header-divider"></div>
+                <div id="focusModeBar" class="filter-bar"></div>
+            </div>
+            
+            <div class="header-divider"></div>
+            
+            <div class="date-picker-wrap">
+                <input type="date" id="mondayDate" class="date-picker-input">
             </div>
             <button class="tool-btn" onclick="batchAttendance()" style="background:#10b981;">✅ 全勤</button>
-            <button class="tool-btn" onclick="openMonthDashboard()" style="background:#eab308; color:#0f172a;">📅 多周分析</button>
-            <button class="tool-btn" onclick="openPeriodStatsModal()" style="background:#8b5cf6;">📅 周期统计</button>
-            
-            <button class="tool-btn" onclick="openStudentManager()" style="background:#f43f5e;">👥 名单管理</button>
-            
-            <button class="tool-btn" onclick="exportDetailedWeek()" style="background:#10b981;">📤 导出Excel</button>
-            <button class="tool-btn" onclick="exportLocalState()" style="background:#f59e0b;">💾 双端备份</button>
-            <button class="tool-btn" onclick="document.getElementById('importStateIn').click()" style="background:#06b6d4;">📂 一键恢复</button>
-            <input type="file" id="importStateIn" accept=".json" style="display:none" onchange="importLocalState(this.files)"/>
-            <button class="tool-btn" onclick="loadDefaultStudents()" style="background:#64748b;" title="清空全历史，重置为新学期名单">🔄 初始化</button>
-            <button class="tool-btn" onclick="clearAllRecords()" style="background:#ef4444;" title="仅清理这台设备，不影响云端">🗑️ 删本地</button>
-            <button id="reconnectBtn" class="tool-btn" onclick="triggerManualSync()" style="display:none; background:#ef4444; margin-left:10px;">🔌 冲突解决</button>
         </div>
     </div>
+    
+    <div class="header-fixed-right">
+        <div class="dropdown">
+            <button class="tool-btn dropbtn" onclick="toggleMoreMenu(event)" style="background:#f59e0b;">⚙️ 工具箱</button>
+            <div id="moreMenu" class="dropdown-content">
+                <button class="dropdown-item" onclick="openMonthDashboard()">📅 多周连贯分析</button>
+                <button class="dropdown-item" onclick="openPeriodStatsModal()">📅 自定义报表</button>
+                <button class="dropdown-item" onclick="openStudentManager()" style="color:#f43f5e;">👥 动态名单管理</button>
+                <button class="dropdown-item" onclick="exportDetailedWeek()">📤 导出本地 Excel</button>
+                <button class="dropdown-item" onclick="exportLocalState()">💾 备份双端数据</button>
+                <button class="dropdown-item" onclick="document.getElementById('importStateIn').click()">📂 恢复本地数据</button>
+                <button class="dropdown-item" id="reconnectBtn" onclick="triggerManualSync()" style="display:none; color:#f43f5e;">🔌 强制冲突处理</button>
+            </div>
+        </div>
+        <div class="global-sync">
+            <span class="sync-indicator" id="syncGakupoStatus">积分: 读取中</span>
+            <span class="sync-indicator" id="syncSeatStatus">座位: 读取中</span>
+        </div>
+    </div>
+</div>
+<input type="file" id="importStateIn" accept=".json" style="display:none" onchange="importLocalState(this.files)"/>
+
+<div id="gakupoView">
     <div class="main-content">
         <div id="cardGrid" class="grid-container"></div>
+        
         <div id="summaryView" class="summary-view allow-select">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-                <h2 style="font-size:18px;">📊 本周学情明细与汇总 (<span id="summaryWeekText"></span>)</h2>
+                <h2 style="font-size:18px;">📊 本周明细 (<span id="summaryWeekText"></span>)</h2>
                 <div style="display:flex; gap: 8px;">
-                    <button class="tool-btn" onclick="generateAllWeeklyAI()" style="background:#10b981; font-size:13px; padding: 6px 12px;">✨ 批量生成全班周评</button>
-                    <button class="tool-btn" onclick="showWeeklyComparison()" style="background:#8b5cf6; font-size:13px; padding: 6px 12px;">📈 查看本周排名</button>
+                    <button class="tool-btn" onclick="generateAllWeeklyAI()" style="background:#10b981; font-size:13px; padding: 6px 12px;">✨ 批量周评</button>
+                    <button class="tool-btn" onclick="showWeeklyComparison()" style="background:#8b5cf6; font-size:13px; padding: 6px 12px;">📈 排名</button>
                 </div>
             </div>
             <div style="overflow-x: auto;">
@@ -232,16 +328,15 @@
 <div id="studentManagerModal" class="modal" style="max-width: 500px; padding: 20px;">
     <div style="display:flex; justify-content:space-between; border-bottom:1px solid #eee; padding-bottom:10px; margin-bottom:15px;">
         <h3 style="margin:0; color:#1e293b;">👥 班级名单动态管理</h3>
-        <button class="tool-btn" style="background:#ef4444;" onclick="closeAllModals()">关闭</button>
+        <button class="tool-btn allow-select" style="background:#ef4444;" onclick="closeAllModals()">关闭</button>
     </div>
     <div style="background:#f8fafc; padding:15px; border:1px solid #cbd5e1; border-radius:8px; margin-bottom:15px; display:flex; gap:10px; align-items:center;">
-        <input type="text" id="newStuClass" placeholder="班级(如: 9班)" style="width:90px; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none;">
-        <input type="text" id="newStuName" placeholder="输入新学生姓名" style="flex:1; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none;">
-        <button class="tool-btn" onclick="addStudentDynamic()" style="background:#10b981; padding:8px 15px; font-size:13px;">➕ 新增入班</button>
+        <input type="text" id="newStuClass" class="allow-select" placeholder="班级(如: 9班)" style="width:90px; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none;">
+        <input type="text" id="newStuName" class="allow-select" placeholder="输入姓名" style="flex:1; padding:8px; border:1px solid #cbd5e1; border-radius:4px; outline:none;">
+        <button class="tool-btn allow-select" onclick="addStudentDynamic()" style="background:#10b981; padding:8px 15px; font-size:13px;">➕ 新增</button>
     </div>
-    <div style="font-size: 12px; color: #64748b; margin-bottom: 5px;">* 点击删除后，该生仍会保留在已有数据的旧周次中</div>
-    <div style="max-height: 45vh; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 5px; background: #f1f5f9;" id="dynamicStudentList">
-    </div>
+    <div style="font-size: 12px; color: #64748b; margin-bottom: 5px;">* 删除后，该生仍会保留在已有数据的旧周次历史中</div>
+    <div class="allow-select" style="max-height: 45vh; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 5px; background: #f1f5f9;" id="dynamicStudentList"></div>
 </div>
 
 <div id="avatarModal" class="modal">
@@ -253,35 +348,31 @@
 </div>
 
 <div id="commentModal" class="modal">
-    <h3 id="commentModalTitle" style="margin-bottom:10px; border-bottom:1px solid #eee; padding-bottom:8px;">AI 智能学情诊断</h3>
+    <h3 id="commentModalTitle" style="margin-bottom:10px; border-bottom:1px solid #eee; padding-bottom:8px;">AI 学情诊断</h3>
     <div id="aiContent" class="allow-select" style="background:#f8fafc; padding:15px; border:1px solid #cbd5e1; border-radius:8px; line-height:1.6; font-size:14px; color:#334155; min-height:80px; max-height:45vh; overflow-y:auto;"></div>
     <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:15px;">
         <button class="tool-btn allow-select" id="btnRegenAI" style="background:#f59e0b; display:none;">🔄 重新生成</button>
-        <button class="tool-btn allow-select" id="btnCopyAI" onclick="copyText('aiContent')" style="background:#3b82f6;">📋 复制评语</button>
+        <button class="tool-btn allow-select" id="btnCopyAI" onclick="copyText('aiContent')" style="background:#3b82f6;">📋 复制</button>
         <button class="tool-btn allow-select" onclick="closeAllModals()" style="background:#94a3b8;">关闭</button>
     </div>
 </div>
 
 <div id="radarModal" class="modal" style="width:380px;">
-    <h3 style="text-align:center; margin-bottom:10px;">能力评价雷达</h3>
+    <h3 style="text-align:center; margin-bottom:10px;">能力雷达</h3>
     <div style="height:320px; position:relative; width:100%;"><canvas id="radarChart"></canvas></div>
-    <div style="text-align:right; margin-top:10px;">
-        <button class="tool-btn allow-select" onclick="closeAllModals()" style="background:#ef4444;">关闭</button>
-    </div>
+    <div style="text-align:right; margin-top:10px;"><button class="tool-btn allow-select" onclick="closeAllModals()" style="background:#ef4444;">关闭</button></div>
 </div>
 
 <div id="compareModal" class="modal" style="max-width:800px; width:95%;">
-    <h3 style="margin-bottom: 10px;">本周积分对比</h3>
+    <h3 style="margin-bottom: 10px;">积分对比</h3>
     <div style="height:350px; position:relative; width:100%;"><canvas id="compareChart"></canvas></div>
-    <div style="text-align:right; margin-top:15px;">
-        <button class="tool-btn allow-select" onclick="closeAllModals()" style="background:#ef4444;">关闭</button>
-    </div>
+    <div style="text-align:right; margin-top:15px;"><button class="tool-btn allow-select" onclick="closeAllModals()" style="background:#ef4444;">关闭</button></div>
 </div>
 
 <div id="monthDashboard" class="month-dashboard">
     <div style="background:#1e293b; color:white; padding:10px 20px; display:flex; justify-content:space-between; align-items:center; flex-shrink:0;">
-        <h3 style="margin:0;">📅 多周连贯数据追踪</h3>
-        <button class="tool-btn allow-select" onclick="closeAllModals()" style="background:#ef4444;">关闭面板</button>
+        <h3 style="margin:0;">📅 多周连贯追踪</h3>
+        <button class="tool-btn allow-select" onclick="closeAllModals()" style="background:#ef4444;">关闭</button>
     </div>
     <div id="weekSelector" class="week-selector-container"></div>
     <div style="flex:1; display:flex; overflow:hidden;">
@@ -289,7 +380,7 @@
         <div style="flex:1; padding:20px; overflow-y:auto; background:#f8fafc;" id="monthRightPane">
             <div style="display: flex; justify-content: space-between; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; margin-bottom: 15px;">
                 <div><span id="mStuClass" class="class-tag allow-select" style="font-size:14px;"></span><span id="mStuName" class="allow-select" style="font-size:24px; font-weight:900;"></span></div>
-                <div class="allow-select" style="font-size: 18px; font-weight: 800; color: #2563eb;">累计追踪积分：<span id="mStuTotal">0</span></div>
+                <div class="allow-select" style="font-size: 18px; font-weight: 800; color: #2563eb;">累计积分：<span id="mStuTotal">0</span></div>
             </div>
              <div style="display:flex; gap:10px; height:300px; margin-bottom:15px;">
                  <div style="flex:2; background:white; padding:15px; border:1px solid #e2e8f0; border-radius:12px; position:relative;"><canvas id="monthLineChart"></canvas></div>
@@ -297,13 +388,13 @@
              </div>
              <div style="background:white; border:1px dashed #cbd5e1; border-radius:12px; padding:15px;">
                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                     <h4 style="margin:0;">🤖 AI 多周综合分析</h4>
+                     <h4 style="margin:0;">🤖 AI 跨周期分析</h4>
                      <div style="display:flex; gap:8px;">
-                         <button class="tool-btn allow-select" onclick="copyText('aiMonthContent')" style="background:#3b82f6;">📋 复制分析</button>
-                         <button class="tool-btn allow-select" onclick="generateMonthlyAI()" style="background:#8b5cf6;">✨ 诊断所选周期</button>
+                         <button class="tool-btn allow-select" onclick="copyText('aiMonthContent')" style="background:#3b82f6;">📋 复制</button>
+                         <button class="tool-btn allow-select" onclick="generateMonthlyAI()" style="background:#8b5cf6;">✨ 生成</button>
                      </div>
                  </div>
-                 <div id="aiMonthContent" class="allow-select" style="background:#f1f5f9; padding:15px; border-radius:8px; min-height:60px; max-height:200px; overflow-y:auto; font-size:14px; line-height:1.6; color:#334155;">选取上方周期后，点击按钮生成跨周期综合报告。</div>
+                 <div id="aiMonthContent" class="allow-select" style="background:#f1f5f9; padding:15px; border-radius:8px; min-height:60px; max-height:200px; overflow-y:auto; font-size:14px; line-height:1.6; color:#334155;">选取上方周期后，点击生成跨周期报告。</div>
              </div>
         </div>
     </div>
@@ -311,44 +402,24 @@
 
 <div id="periodStatsModal" class="modal" style="max-width:1000px; width:95%; height:90vh; display:none; flex-direction:column; padding: 0;">
     <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #e2e8f0; padding:15px 20px; flex-shrink: 0; background: #1e293b; color: white; border-radius: 12px 12px 0 0;">
-        <h3 style="margin:0;">📅 自定义周期全数据统计</h3>
+        <h3 style="margin:0;">📅 周期统计</h3>
         <button class="tool-btn allow-select" style="background:#ef4444;" onclick="closeAllModals()">关闭</button>
     </div>
     <div style="display:flex; gap:15px; align-items:center; padding:15px 20px; flex-shrink: 0; flex-wrap: wrap; background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
-        <div style="display:flex; align-items:center; gap:5px;">
-            <span style="font-size:14px; font-weight:bold; color:#334155;">统计起点:</span> 
-            <input type="date" id="statsStartDate" class="allow-select" style="padding:6px; border-radius:4px; border:1px solid #cbd5e1; outline:none;">
-        </div>
-        <div style="display:flex; align-items:center; gap:5px;">
-            <span style="font-size:14px; font-weight:bold; color:#334155;">统计终点:</span> 
-            <input type="date" id="statsEndDate" class="allow-select" style="padding:6px; border-radius:4px; border:1px solid #cbd5e1; outline:none;">
-        </div>
-        <button class="tool-btn allow-select" onclick="generatePeriodStats()" style="background:#3b82f6; padding:8px 20px; font-size:14px;">🚀 立即生成统计</button>
+        <div style="display:flex; align-items:center; gap:5px;"><span>起点:</span> <input type="date" id="statsStartDate" class="allow-select" style="padding:6px; border-radius:4px; border:1px solid #cbd5e1;"></div>
+        <div style="display:flex; align-items:center; gap:5px;"><span>终点:</span> <input type="date" id="statsEndDate" class="allow-select" style="padding:6px; border-radius:4px; border:1px solid #cbd5e1;"></div>
+        <button class="tool-btn allow-select" onclick="generatePeriodStats()" style="background:#3b82f6; padding:8px 20px;">🚀 生成</button>
     </div>
     <div style="flex:1; overflow-y:auto; padding: 15px;">
         <table class="sum-table" style="min-width: 900px; width: 100%; margin: 0;">
-            <thead>
-                <tr>
-                    <th style="width:50px; position:sticky; top:0; background:#f1f5f9; z-index:2; border-bottom: 2px solid #cbd5e1;">班级</th>
-                    <th style="width:70px; position:sticky; top:0; background:#f1f5f9; z-index:2; border-bottom: 2px solid #cbd5e1;">姓名</th>
-                    <th style="position:sticky; top:0; background:#f1f5f9; z-index:2; border-bottom: 2px solid #cbd5e1;">出勤明细</th>
-                    <th style="width:80px; position:sticky; top:0; background:#f1f5f9; z-index:2; border-bottom: 2px solid #cbd5e1;">出勤率</th>
-                    <th style="position:sticky; top:0; background:#f1f5f9; z-index:2; border-bottom: 2px solid #cbd5e1;">作业明细</th>
-                    <th style="width:90px; position:sticky; top:0; background:#f1f5f9; z-index:2; border-bottom: 2px solid #cbd5e1;">认真完成率</th>
-                    <th style="position:sticky; top:0; background:#f1f5f9; z-index:2; border-bottom: 2px solid #cbd5e1;">听写明细</th>
-                    <th style="width:90px; position:sticky; top:0; background:#f1f5f9; z-index:2; border-bottom: 2px solid #cbd5e1;">听写过关率</th>
-                    <th style="width:100px; position:sticky; top:0; background:#f1f5f9; z-index:2; border-bottom: 2px solid #cbd5e1;">课堂统计</th>
-                </tr>
-            </thead>
-            <tbody id="periodStatsTBody" class="allow-select">
-                <tr><td colspan="9" style="text-align:center; padding:40px; color:#94a3b8; font-size:16px;">请在上方选择日历范围并点击“生成统计”</td></tr>
-            </tbody>
+            <thead><tr><th style="width:50px; position:sticky; top:0; background:#f1f5f9; z-index:2; border-bottom: 2px solid #cbd5e1;">班级</th><th style="width:70px; position:sticky; top:0; background:#f1f5f9; z-index:2; border-bottom: 2px solid #cbd5e1;">姓名</th><th style="position:sticky; top:0; background:#f1f5f9; z-index:2; border-bottom: 2px solid #cbd5e1;">出勤明细</th><th style="width:80px; position:sticky; top:0; background:#f1f5f9; z-index:2; border-bottom: 2px solid #cbd5e1;">出勤率</th><th style="position:sticky; top:0; background:#f1f5f9; z-index:2; border-bottom: 2px solid #cbd5e1;">作业明细</th><th style="width:90px; position:sticky; top:0; background:#f1f5f9; z-index:2; border-bottom: 2px solid #cbd5e1;">完成率</th><th style="position:sticky; top:0; background:#f1f5f9; z-index:2; border-bottom: 2px solid #cbd5e1;">听写明细</th><th style="width:90px; position:sticky; top:0; background:#f1f5f9; z-index:2; border-bottom: 2px solid #cbd5e1;">过关率</th><th style="width:100px; position:sticky; top:0; background:#f1f5f9; z-index:2; border-bottom: 2px solid #cbd5e1;">课堂统计</th></tr></thead>
+            <tbody id="periodStatsTBody" class="allow-select"><tr><td colspan="9" style="text-align:center; padding:40px; color:#94a3b8;">请选择范围并生成</td></tr></tbody>
         </table>
     </div>
 </div>
 
 <script>
-/* ================= 1. 全局配置与变量声明 ================= */
+/* ================= 1. 全局配置与变量声明 (24B 专属) ================= */
 var DEFAULT_STUDENTS = [
     { class: "9班", name: "杨桓" }, { class: "9班", name: "李妮蔓" }, { class: "9班", name: "刘睿举" },
     { class: "9班", name: "都沐篱" }, { class: "9班", name: "王子珂" }, { class: "9班", name: "黄浩宇" },
@@ -370,14 +441,13 @@ var avatarFiles = [ "头像1.gif", "头像2.gif", "头像3.gif", "头像4.gif", 
 
 var scoreState = { students: DEFAULT_STUDENTS, history: {}, currentMonday: "" };
 var seatState = { lastModified: 0, avatars: {}, seats: [] };
-
 var cloudSyncState = { gakupoLoaded: false, seatLoaded: false };
+
 var currentViewDay = (new Date().getDay() + 6) % 7; 
-var currentSelectingStudent = null;
 var syncTimeouts = { gakupo: null, seat: null };
-var isOfflineLocked = false;
-var draggedItem = null, isDragging = false, clone = null, startX, startY;
-var clickedSeat = null; 
+var currentClassFilter = 'all'; 
+var currentFocusMode = 'all';   
+var isDragging = false, draggedItem = null, clone = null, startX, startY, clickedSeat = null;
 var radarChart, compareChart, c_monthLine, c_monthRadar;
 var g_monthData = {}, g_monthWeeks = [], currentMonthStudent = null;
 
@@ -402,12 +472,22 @@ var synAudioEngine = {
     }
 };
 
+/* ================= 🔥 下拉菜单交互逻辑 ================= */
+function toggleMoreMenu(e) {
+    e.stopPropagation();
+    document.getElementById('moreMenu').classList.toggle('show');
+}
+document.addEventListener('click', function(e) {
+    var menu = document.getElementById('moreMenu');
+    if (menu && menu.classList.contains('show') && !e.target.closest('.dropdown')) {
+        menu.classList.remove('show');
+    }
+});
+
 /* ================= 2. 底层防注入与日期引擎 ================= */
 function escapeHTML(str) {
     if (!str) return '';
-    var div = document.createElement('div');
-    div.innerText = str;
-    return div.innerHTML;
+    var div = document.createElement('div'); div.innerText = str; return div.innerHTML;
 }
 
 function getTodayString(targetDate) {
@@ -438,7 +518,14 @@ function ensureSeatStateIntegrity(data) {
     if (!data.avatars) data.avatars = {};
     if (!data.seats || !Array.isArray(data.seats) || data.seats.length === 0) {
         data.seats = []; var idx=0;
-        for(var r=1; r<=4; r++){ for(var c=1; c<=4; c++){ if(idx < SEAT_NAMES.length) data.seats.push({row:r, col:c, type:'student', name:SEAT_NAMES[idx], absent:false}); else data.seats.push({row:r, col:c, type:'empty', name:'空位', absent:false}); idx++; } }
+        // 24B 专属 4x4 (16座)
+        for(var r=1; r<=4; r++){ 
+            for(var c=1; c<=4; c++){ 
+                if(idx < SEAT_NAMES.length) data.seats.push({row:r, col:c, type:'student', name:SEAT_NAMES[idx], absent:false}); 
+                else data.seats.push({row:r, col:c, type:'empty', name:'空位', absent:false}); 
+                idx++; 
+            } 
+        }
     }
     return data;
 }
@@ -467,18 +554,30 @@ function switchGlobalView(view) {
     document.getElementById('btnNavSeat').classList.toggle('active', view === 'seat');
     document.getElementById('gakupoView').style.display = view === 'gakupo' ? 'flex' : 'none';
     document.getElementById('seatView').style.display = view === 'seat' ? 'flex' : 'none';
+    document.getElementById('gakupoControls').style.display = view === 'gakupo' ? 'flex' : 'none';
     if (clickedSeat) { clickedSeat.classList.remove('selected-swap'); clickedSeat = null; }
 }
 
-function updateGlobalUI() { renderGakupoCards(currentViewDay); renderSeatGrid(); }
+function updateGlobalUI() { 
+    renderClassFilters(); 
+    renderFocusModeFilters();
+    renderGakupoCards(currentViewDay); 
+    renderSeatGrid();
+}
 
 function renderAll() {
     renderDayTabs();
     if(currentViewDay === 7) {
-        document.getElementById('cardGrid').style.display = 'none'; document.getElementById('summaryView').style.display = 'block'; 
-        document.getElementById('summaryWeekText').innerText = scoreState.currentMonday + " 周期"; renderGakupoSummary();
+        document.getElementById('filterWrapper').style.display = 'none'; 
+        document.getElementById('cardGrid').style.display = 'none'; 
+        document.getElementById('summaryView').style.display = 'block'; 
+        document.getElementById('summaryWeekText').innerText = scoreState.currentMonday + " 周期"; 
+        renderGakupoSummary();
     } else {
-        document.getElementById('summaryView').style.display = 'none'; document.getElementById('cardGrid').style.display = 'grid'; updateGlobalUI();
+        document.getElementById('filterWrapper').style.display = 'flex'; 
+        document.getElementById('summaryView').style.display = 'none'; 
+        document.getElementById('cardGrid').style.display = 'grid'; 
+        updateGlobalUI();
     }
 }
 
@@ -496,20 +595,66 @@ function renderDayTabs() {
     
     var activeBtn = dayTabs.querySelector('.active');
     if (activeBtn) { activeBtn.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' }); }
-    if(currentViewDay < 7) { document.getElementById('seatDayIndicator').innerText = DAYS[currentViewDay]; } else { document.getElementById('seatDayIndicator').innerText = "本周汇总(不可计分)"; }
+    if(currentViewDay < 7) { document.getElementById('seatDayIndicator').innerText = DAYS[currentViewDay]; } else { document.getElementById('seatDayIndicator').innerText = "本周汇总"; }
 }
 
 function switchDay(idx) { currentViewDay = idx; renderAll(); }
 
-function applyDynamicGridColumns(gridElement, studentCount) {
-    var cols = 5;
-    if (studentCount > 15 && studentCount <= 24) cols = 6;
-    else if (studentCount > 24 && studentCount <= 35) cols = 7;
-    else if (studentCount > 35) cols = 8;
-    gridElement.style.gridTemplateColumns = 'repeat(' + cols + ', 1fr)';
+/* ================= 班级与模式过滤引擎 ================= */
+function renderClassFilters() {
+    var filterBar = document.getElementById('classFilterBar');
+    if (!filterBar) return;
+    
+    var allStudents = getRenderStudentsForCurrentWeek();
+    var classes = [];
+    allStudents.forEach(function(s) {
+        if (s.class && s.class !== '已退/离' && classes.indexOf(s.class) === -1) { classes.push(s.class); }
+    });
+    classes.sort(function(a, b) {
+        var numA = parseInt(a.replace(/\D/g, '')) || 0;
+        var numB = parseInt(b.replace(/\D/g, '')) || 0;
+        return numA - numB;
+    });
+    
+    var html = '<button class="filter-btn ' + (currentClassFilter === 'all' ? 'active' : '') + '" onclick="setClassFilter(\'all\')">全班</button>';
+    classes.forEach(function(c) {
+        var isActive = (currentClassFilter === c) ? 'active' : '';
+        html += '<button class="filter-btn ' + isActive + '" onclick="setClassFilter(\'' + c + '\')">' + c + '</button>';
+    });
+    filterBar.innerHTML = html;
 }
 
-/* ================= 🔥 名单动态管理独立模块 ================= */
+function setClassFilter(cls) {
+    currentClassFilter = cls;
+    renderClassFilters(); 
+    renderGakupoCards(currentViewDay); 
+}
+
+function renderFocusModeFilters() {
+    var bar = document.getElementById('focusModeBar');
+    if(!bar) return;
+    var modes = [
+        {id: 'all', name: '🌟 全貌'},
+        {id: 'att', name: '📅 出勤'},
+        {id: 'hw', name: '📝 作业'},
+        {id: 'dt', name: '✍️ 听写'},
+        {id: 'cls', name: '🙋 课堂'}
+    ];
+    var html = '';
+    modes.forEach(function(m) {
+        var isActive = (currentFocusMode === m.id) ? 'active focus-btn' : '';
+        html += '<button class="filter-btn ' + isActive + '" onclick="setFocusMode(\'' + m.id + '\')">' + m.name + '</button>';
+    });
+    bar.innerHTML = html;
+}
+
+function setFocusMode(mode) {
+    currentFocusMode = mode;
+    renderFocusModeFilters();
+    renderGakupoCards(currentViewDay);
+}
+
+/* ================= 名单动态管理 ================= */
 function openStudentManager() {
     renderStudentManagerList();
     document.getElementById('ovl').style.display = 'block';
@@ -523,7 +668,7 @@ function renderStudentManagerList() {
         var item = document.createElement('div');
         item.style.cssText = 'display:flex; justify-content:space-between; align-items:center; padding:10px 12px; border-bottom:1px dashed #cbd5e1; background:#fff; border-radius:4px; margin-bottom:4px;';
         item.innerHTML = '<div><span class="class-tag" style="background:#e2e8f0; color:#475569;">' + (stu.class || '') + '</span> <b style="color:#0f172a; font-size:15px;">' + stu.name + '</b></div>' +
-                         '<button class="tool-btn" onclick="removeStudentDynamic(\'' + stu.name + '\')" style="background:#ef4444; font-size:11px; padding:4px 8px;">❌ 删/退</button>';
+                         '<button class="tool-btn allow-select" onclick="removeStudentDynamic(\'' + stu.name + '\')" style="background:#ef4444; font-size:11px; padding:4px 8px;">❌ 删除</button>';
         listContainer.appendChild(item);
     });
 }
@@ -557,13 +702,12 @@ function addStudentDynamic() {
     renderStudentManagerList();
     updateGlobalUI();
     
-    if(seatAssigned) { showToast("✅ " + name + " 已入班，并自动填补了一个空位！"); } 
-    else { alert("⚠️ " + name + " 已加入积分卡！\n但教室当前没有【空位】可供分配。"); }
+    if(seatAssigned) { showToast("✅ " + name + " 已入班，并自动填补空位！"); } 
+    else { alert("⚠️ " + name + " 已加入积分卡！\n但教室当前没有空位可供分配。"); }
 }
 
 function removeStudentDynamic(name) {
-    if(!confirm("确定要将 [" + name + "] 移出当前班级吗？\n\n放心：他过去产生的积分和记录依然会在历史周次中保留并可查看。")) return;
-
+    if(!confirm("确定要将 [" + name + "] 移出吗？\n\n放心：历史记录会自动保留。")) return;
     var newStudents = [];
     for(var i=0; i<scoreState.students.length; i++) {
         if(scoreState.students[i].name !== name) newStudents.push(scoreState.students[i]);
@@ -583,7 +727,7 @@ function removeStudentDynamic(name) {
 
     renderStudentManagerList();
     updateGlobalUI();
-    showToast("❌ " + name + " 已从当前名单移除，座位已腾空");
+    showToast("❌ " + name + " 已移除，座位已腾空");
 }
 
 function getRenderStudentsForCurrentWeek() {
@@ -606,25 +750,46 @@ function getRenderStudentsForCurrentWeek() {
 }
 
 
-/* ================= 融合幽灵算法的计分卡渲染 ================= */
+/* ================= 融合专注模式与班级过滤的计分卡渲染 ================= */
 function renderGakupoCards(day) {
     var grid = document.getElementById('cardGrid'); grid.innerHTML = '';
     var currentRenderList = getRenderStudentsForCurrentWeek();
-    applyDynamicGridColumns(grid, currentRenderList.length);
+    
+    if (currentClassFilter !== 'all') {
+        currentRenderList = currentRenderList.filter(function(stu) { return stu.class === currentClassFilter; });
+    }
+    
     var weekData = scoreState.history[scoreState.currentMonday] || {};
+    var isAllMode = currentFocusMode === 'all';
+    
     currentRenderList.forEach(function(stu) {
         if(!weekData[stu.name]) weekData[stu.name] = {};
         if(!weekData[stu.name][day]) weekData[stu.name][day] = {att:'', hw:'', dt:'', cls:0, vio:0};
         var r = weekData[stu.name][day];
         
-        var clsTag = stu.class === "已退/离" ? "style='background:#ef4444; color:white; border-color:#ef4444;'" : ("class='class-tag tag-" + (stu.class?stu.class.replace('班',''):'') + "'");
-        if(stu.class !== "已退/离" && !clsTag.includes("tag-")) clsTag = "class='class-tag'";
+        var clsTag = "";
+        if (stu.class === "已退/离") {
+            clsTag = "style='background:#ef4444; color:white; border-color:#ef4444;'";
+        } else {
+            var match = stu.class ? stu.class.match(/\d+/) : null;
+            if (match) { clsTag = "class='class-tag tag-" + match[0] + "'"; } 
+            else { clsTag = "class='class-tag'"; }
+        }
         
         var vioClass = (r.vio > 0) ? 'act-vio' : 'vio-btn-off';
-        var card = document.createElement('div'); card.className = 'student-card';
+        var card = document.createElement('div'); 
+        
+        card.className = 'student-card' + (isAllMode ? '' : ' focus-compact');
         if(stu.class === "已退/离") card.style.opacity = '0.7'; 
         
-        card.innerHTML = '<div class="card-header"><span class="student-name" onclick="showRadar(\''+stu.name+'\')"><span '+clsTag+'>'+(stu.class||'')+'</span>'+stu.name+'</span><span class="week-total">'+calcTotal(stu.name, scoreState.currentMonday)+'分</span></div><div class="row-group"><div class="row-label">出勤</div><div class="btn-group">'+['1','-1','缺'].map(function(v){ return '<div class="opt '+(r.att==v?'act-att-'+v:'')+'" onclick="setScore(\''+stu.name+'\','+day+',\'att\',\''+v+'\')">'+(v=='1'?'出':v)+'</div>'; }).join('')+'</div></div><div class="row-group"><div class="row-label">作业</div><div class="btn-group">'+['A','B','C','D','未'].map(function(v){ return '<div class="opt '+(r.hw==v?'act-hw-'+v:'')+'" onclick="setScore(\''+stu.name+'\','+day+',\'hw\',\''+v+'\')">'+v+'</div>'; }).join('')+'</div></div><div class="row-group"><div class="row-label">听写</div><div class="btn-group">'+['满','过','重','未'].map(function(v){ return '<div class="opt '+(r.dt==v?'act-dt-'+v:'')+'" onclick="setScore(\''+stu.name+'\','+day+',\'dt\',\''+v+'\')">'+v+'</div>'; }).join('')+'</div></div><div class="row-group"><div class="row-label">课堂</div><div class="class-action-bar"><button class="opt-btn '+vioClass+'" onclick="toggleVio(\''+stu.name+'\','+day+')">违'+(r.vio>1?'('+r.vio+')':'')+'</button><button class="opt-btn success-btn" onclick="updCls(\''+stu.name+'\','+day+',1)">答1</button><button class="opt-btn success-btn" onclick="updCls(\''+stu.name+'\','+day+',2)">答2</button><button class="opt-btn success-btn" onclick="updCls(\''+stu.name+'\','+day+',3)">答3</button><div class="divider"></div><button class="opt-btn" onclick="updCls(\''+stu.name+'\','+day+',-1)">-</button><div class="cls-score-val">'+(r.cls||0)+'</div><button class="opt-btn" onclick="updCls(\''+stu.name+'\','+day+',1)">+</button></div></div>';
+        var headerHtml = '<div class="card-header"><span class="student-name" onclick="showRadar(\''+stu.name+'\')"><span '+clsTag+'>'+(stu.class||'')+'</span>'+stu.name+'</span><span class="week-total">'+calcTotal(stu.name, scoreState.currentMonday)+'分</span></div>';
+        
+        var attHtml = (isAllMode || currentFocusMode === 'att') ? '<div class="row-group"><div class="row-label">出勤</div><div class="btn-group">'+['1','-1','缺'].map(function(v){ return '<div class="opt '+(r.att==v?'act-att-'+v:'')+'" onclick="setScore(\''+stu.name+'\','+day+',\'att\',\''+v+'\')">'+(v=='1'?'出':v)+'</div>'; }).join('')+'</div></div>' : '';
+        var hwHtml = (isAllMode || currentFocusMode === 'hw') ? '<div class="row-group"><div class="row-label">作业</div><div class="btn-group">'+['A','B','C','D','未'].map(function(v){ return '<div class="opt '+(r.hw==v?'act-hw-'+v:'')+'" onclick="setScore(\''+stu.name+'\','+day+',\'hw\',\''+v+'\')">'+v+'</div>'; }).join('')+'</div></div>' : '';
+        var dtHtml = (isAllMode || currentFocusMode === 'dt') ? '<div class="row-group"><div class="row-label">听写</div><div class="btn-group">'+['满','过','重','未'].map(function(v){ return '<div class="opt '+(r.dt==v?'act-dt-'+v:'')+'" onclick="setScore(\''+stu.name+'\','+day+',\'dt\',\''+v+'\')">'+v+'</div>'; }).join('')+'</div></div>' : '';
+        var clsHtml = (isAllMode || currentFocusMode === 'cls') ? '<div class="row-group"><div class="row-label">课堂</div><div class="class-action-bar"><button class="opt-btn '+vioClass+'" onclick="toggleVio(\''+stu.name+'\','+day+')">违'+(r.vio>1?'('+r.vio+')':'')+'</button><button class="opt-btn success-btn" onclick="updCls(\''+stu.name+'\','+day+',1)">答1</button><button class="opt-btn success-btn" onclick="updCls(\''+stu.name+'\','+day+',2)">答2</button><button class="opt-btn success-btn" onclick="updCls(\''+stu.name+'\','+day+',3)">答3</button><div class="divider"></div><button class="opt-btn" onclick="updCls(\''+stu.name+'\','+day+',-1)">-</button><div class="cls-score-val">'+(r.cls||0)+'</div><button class="opt-btn" onclick="updCls(\''+stu.name+'\','+day+',1)">+</button></div></div>' : '';
+        
+        card.innerHTML = headerHtml + attHtml + hwHtml + dtHtml + clsHtml;
         grid.appendChild(card);
     });
 }
@@ -633,6 +798,7 @@ function renderGakupoSummary() {
     var tbody = document.getElementById('sumTBody'); tbody.innerHTML = '';
     var weekData = scoreState.history[scoreState.currentMonday] || {};
     var currentRenderList = getRenderStudentsForCurrentWeek();
+    
     currentRenderList.forEach(function(stu) {
         var wt = calcTotal(stu.name, scoreState.currentMonday);
         var labelHtml = stu.class === "已退/离" ? '<span style="color:#ef4444; font-weight:bold;">'+stu.class+'</span>' : stu.class||''; 
@@ -651,6 +817,7 @@ function renderGakupoSummary() {
     });
 }
 
+/* ================= 24B 座位表渲染及交互 ================= */
 function renderSeatGrid() {
     clickedSeat = null; 
     var grid = document.getElementById('seatingGrid'); if (!grid) return; grid.innerHTML = ''; 
@@ -687,7 +854,124 @@ function renderSeatGrid() {
     });
 }
 
-/* ================= 4. 交互与拖拽事件 ================= */
+function getWeightedWinner(nodes) {
+    // 🔥 保留 24B 原有的定向偏见权重
+    var SPECIAL = ['钟菲儿', '刘澄橙', '李妮蔓']; var tot = 0, ws = [];
+    nodes.forEach(function(n) { 
+        var name = n.dataset.name;
+        var r = (scoreState.history[scoreState.currentMonday] && scoreState.history[scoreState.currentMonday][name] && scoreState.history[scoreState.currentMonday][name][currentViewDay]) || {};
+        var w = 10;
+        if (SPECIAL.indexOf(name) !== -1) w = 5;
+        if (r.att === '缺') w = 0; 
+        else if (r.att === '-1') w = 5; 
+        if (r.vio > 0) w = Math.max(1, w - r.vio * 3); 
+        ws.push(w); tot += w; 
+    });
+    var rand = Math.random() * tot; var sum = 0;
+    for(var i = 0; i < nodes.length; i++) { sum += ws[i]; if(rand < sum) return nodes[i]; }
+    return nodes[nodes.length - 1];
+}
+
+function startRandomDraw() {
+    var nodeList = document.querySelectorAll('.seat.student:not(.absent)');
+    var studentNodes = [];
+    for(var i=0; i<nodeList.length; i++) { studentNodes.push(nodeList[i]); }
+    
+    if (studentNodes.length === 0) return showToast("⚠️ 当前没有可供抽选的学生！");
+    synAudioEngine.init();
+    var btn = document.getElementById('randomBtn'); btn.disabled = true; btn.innerText = '🔄 抽取中...';
+    var finalWinner = getWeightedWinner(studentNodes);
+    var jumps = 0, totalJumps = 20, lastNode = null;
+    var drawInterval = setInterval(function() {
+        if (lastNode) lastNode.classList.remove('lucky-student');
+        var currentNode = (jumps >= totalJumps - 1) ? finalWinner : studentNodes[Math.floor(Math.random() * studentNodes.length)];
+        currentNode.classList.add('lucky-student'); lastNode = currentNode; jumps++;
+        if (jumps >= totalJumps) {
+            clearInterval(drawInterval); synAudioEngine.playTada();
+            showToast("🎉 恭喜 " + currentNode.dataset.name + " 同学！");
+            currentNode.classList.add('winner-highlight'); btn.disabled = false; btn.innerText = '🎲 随机点名';
+            setTimeout(function() { currentNode.classList.remove('lucky-student', 'winner-highlight'); }, 3000);
+        }
+    }, 75);
+}
+
+function attemptSwap(seatA, seatB) {
+    var isAEmpty = seatA.dataset.type === 'empty'; var isBEmpty = seatB.dataset.type === 'empty';
+    var rowA = parseInt(seatA.dataset.row); var rowB = parseInt(seatB.dataset.row);
+    if ((isAEmpty && rowB !== 4) || (isBEmpty && rowA !== 4)) { showToast("⚠️ 空位只能留在最后一排！"); return; }
+    
+    var idxA = -1, idxB = -1;
+    for(var i=0; i<seatState.seats.length; i++) {
+        if(seatState.seats[i].row == rowA && seatState.seats[i].col == seatA.dataset.col) idxA = i;
+        if(seatState.seats[i].row == rowB && seatState.seats[i].col == seatB.dataset.col) idxB = i;
+    }
+    
+    var tempNode = { type: seatState.seats[idxA].type, name: seatState.seats[idxA].name, absent: seatState.seats[idxA].absent };
+    seatState.seats[idxA].type = seatState.seats[idxB].type; seatState.seats[idxA].name = seatState.seats[idxB].name; seatState.seats[idxA].absent = seatState.seats[idxB].absent;
+    seatState.seats[idxB].type = tempNode.type; seatState.seats[idxB].name = tempNode.name; seatState.seats[idxB].absent = tempNode.absent;
+    triggerSaveSeat(); renderSeatGrid();
+}
+
+function openAvatarModal(name) {
+    currentSelectingStudent = name; document.getElementById('currentStudentName').innerText = name;
+    var gallery = document.getElementById('galleryGrid'); gallery.innerHTML = ''; 
+    var taken = [];
+    var avatarKeys = Object.keys(seatState.avatars);
+    for(var i=0; i<avatarKeys.length; i++) { if(seatState.avatars[avatarKeys[i]] !== seatState.avatars[name]) taken.push(seatState.avatars[avatarKeys[i]]); }
+    
+    avatarFiles.forEach(function(file) {
+        var item = document.createElement('div'); item.className = 'gallery-item'; 
+        item.innerHTML = '<img src="./头像库/24B/'+file+'" data-filename="'+file+'" onerror="this.src=\''+CLOUD_OSS_BASE_URL+'\'+this.dataset.filename">';
+        if (taken.indexOf(file) !== -1) { item.classList.add('taken'); } 
+        else { if (seatState.avatars[name] === file) item.style.borderColor = '#4CAF50'; item.onclick = function() { seatState.avatars[name] = file; triggerSaveSeat(); renderSeatGrid(); closeAllModals(); }; }
+        gallery.appendChild(item);
+    });
+    document.getElementById('ovl').style.display='block'; document.getElementById('avatarModal').style.display='flex';
+}
+
+function resetAllAvatars() { if(confirm("⚠️ 确定清空全班头像？")) { seatState.avatars = {}; triggerSaveSeat(); renderSeatGrid(); } }
+
+function handlePointerDown(e) {
+    if (e.type === 'mousedown' && e.button !== 0) return; 
+    var clientX = e.type === 'touchstart' ? e.touches[0].pageX : e.pageX; var clientY = e.type === 'touchstart' ? e.touches[0].pageY : e.pageY;
+    draggedItem = e.currentTarget; isDragging = false; startX = clientX; startY = clientY;
+    document.addEventListener('mousemove', handlePointerMove); document.addEventListener('mouseup', handlePointerUp);
+    document.addEventListener('touchmove', handlePointerMove, {passive: false}); document.addEventListener('touchend', handlePointerUp);
+}
+
+function handlePointerMove(e) {
+    var clientX = e.type === 'touchmove' ? e.touches[0].pageX : e.pageX; var clientY = e.type === 'touchmove' ? e.touches[0].pageY : e.pageY;
+    if (!isDragging && (Math.abs(clientX - startX) > 10 || Math.abs(clientY - startY) > 10)) {
+        isDragging = true; clone = draggedItem.cloneNode(true);
+        clone.style.cssText = 'width:'+draggedItem.offsetWidth+'px; height:'+draggedItem.offsetHeight+'px; position:absolute; z-index:2000; pointer-events:none; opacity:0.85; box-shadow:0 10px 20px rgba(0,0,0,0.2);';
+        document.body.appendChild(clone); draggedItem.style.opacity = '0.3';
+    }
+    if (isDragging) { if(e.cancelable) e.preventDefault(); clone.style.left = clientX - clone.offsetWidth / 2 + 'px'; clone.style.top = clientY - clone.offsetHeight / 2 + 'px'; }
+}
+
+function handlePointerUp(e) {
+    document.removeEventListener('mousemove', handlePointerMove); document.removeEventListener('mouseup', handlePointerUp);
+    document.removeEventListener('touchmove', handlePointerMove); document.removeEventListener('touchend', handlePointerUp);
+    var clientX = e.type === 'touchend' && e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
+    var clientY = e.type === 'touchend' && e.changedTouches ? e.changedTouches[0].clientY : e.clientY;
+    
+    if (isDragging) {
+        if (clone) clone.parentNode.removeChild(clone);
+        draggedItem.style.opacity = '1'; draggedItem.style.visibility = 'hidden';
+        var target = document.elementFromPoint(clientX, clientY); draggedItem.style.visibility = 'visible';
+        var targetSeat = target; while (targetSeat && targetSeat !== document && (!targetSeat.classList || !targetSeat.classList.contains('seat'))) { targetSeat = targetSeat.parentNode; }
+        if (targetSeat && targetSeat !== document && targetSeat !== draggedItem) attemptSwap(draggedItem, targetSeat);
+    } else {
+        if (draggedItem) {
+            if (!clickedSeat) { clickedSeat = draggedItem; clickedSeat.classList.add('selected-swap'); } 
+            else if (clickedSeat === draggedItem) { clickedSeat.classList.remove('selected-swap'); clickedSeat = null; } 
+            else { attemptSwap(clickedSeat, draggedItem); }
+        }
+    }
+    draggedItem = null;
+}
+
+/* ================= 4. 交互记录事件 ================= */
 function setScore(name, day, type, val) { 
     if(!scoreState.history[scoreState.currentMonday][name]) scoreState.history[scoreState.currentMonday][name] = {};
     if(!scoreState.history[scoreState.currentMonday][name][day]) scoreState.history[scoreState.currentMonday][name][day] = {att:'', hw:'', dt:'', cls:0, vio:0};
@@ -723,62 +1007,6 @@ function calcTotal(name, weekStr) {
     return t;
 }
 
-function handlePointerDown(e) {
-    if (e.type === 'mousedown' && e.button !== 0) return; 
-    var clientX = e.type === 'touchstart' ? e.touches[0].pageX : e.pageX; var clientY = e.type === 'touchstart' ? e.touches[0].pageY : e.pageY;
-    draggedItem = e.currentTarget; isDragging = false; startX = clientX; startY = clientY;
-    document.addEventListener('mousemove', handlePointerMove); document.addEventListener('mouseup', handlePointerUp);
-    document.addEventListener('touchmove', handlePointerMove, {passive: false}); document.addEventListener('touchend', handlePointerUp);
-}
-function handlePointerMove(e) {
-    var clientX = e.type === 'touchmove' ? e.touches[0].pageX : e.pageX; var clientY = e.type === 'touchmove' ? e.touches[0].pageY : e.pageY;
-    if (!isDragging && (Math.abs(clientX - startX) > 10 || Math.abs(clientY - startY) > 10)) {
-        isDragging = true; clone = draggedItem.cloneNode(true);
-        clone.style.cssText = 'width:'+draggedItem.offsetWidth+'px; height:'+draggedItem.offsetHeight+'px; position:absolute; z-index:2000; pointer-events:none; opacity:0.85; box-shadow:0 10px 20px rgba(0,0,0,0.2);';
-        document.body.appendChild(clone); draggedItem.style.opacity = '0.3';
-    }
-    if (isDragging) { if(e.cancelable) e.preventDefault(); clone.style.left = clientX - clone.offsetWidth / 2 + 'px'; clone.style.top = clientY - clone.offsetHeight / 2 + 'px'; }
-}
-
-function handlePointerUp(e) {
-    document.removeEventListener('mousemove', handlePointerMove); document.removeEventListener('mouseup', handlePointerUp);
-    document.removeEventListener('touchmove', handlePointerMove); document.removeEventListener('touchend', handlePointerUp);
-    var clientX = e.type === 'touchend' && e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
-    var clientY = e.type === 'touchend' && e.changedTouches ? e.changedTouches[0].clientY : e.clientY;
-    
-    if (isDragging) {
-        if (clone) clone.parentNode.removeChild(clone);
-        draggedItem.style.opacity = '1'; draggedItem.style.visibility = 'hidden';
-        var target = document.elementFromPoint(clientX, clientY); draggedItem.style.visibility = 'visible';
-        var targetSeat = target; while (targetSeat && targetSeat !== document && (!targetSeat.classList || !targetSeat.classList.contains('seat'))) { targetSeat = targetSeat.parentNode; }
-        if (targetSeat && targetSeat !== document && targetSeat !== draggedItem) attemptSwap(draggedItem, targetSeat);
-    } else {
-        if (draggedItem) {
-            if (!clickedSeat) { clickedSeat = draggedItem; clickedSeat.classList.add('selected-swap'); } 
-            else if (clickedSeat === draggedItem) { clickedSeat.classList.remove('selected-swap'); clickedSeat = null; } 
-            else { attemptSwap(clickedSeat, draggedItem); }
-        }
-    }
-    draggedItem = null;
-}
-
-function attemptSwap(seatA, seatB) {
-    var isAEmpty = seatA.dataset.type === 'empty'; var isBEmpty = seatB.dataset.type === 'empty';
-    var rowA = parseInt(seatA.dataset.row); var rowB = parseInt(seatB.dataset.row);
-    if ((isAEmpty && rowB !== 4) || (isBEmpty && rowA !== 4)) { showToast("⚠️ 空位只能留在最后一排！"); return; }
-    
-    var idxA = -1, idxB = -1;
-    for(var i=0; i<seatState.seats.length; i++) {
-        if(seatState.seats[i].row == rowA && seatState.seats[i].col == seatA.dataset.col) idxA = i;
-        if(seatState.seats[i].row == rowB && seatState.seats[i].col == seatB.dataset.col) idxB = i;
-    }
-    
-    var tempNode = { type: seatState.seats[idxA].type, name: seatState.seats[idxA].name, absent: seatState.seats[idxA].absent };
-    seatState.seats[idxA].type = seatState.seats[idxB].type; seatState.seats[idxA].name = seatState.seats[idxB].name; seatState.seats[idxA].absent = seatState.seats[idxB].absent;
-    seatState.seats[idxB].type = tempNode.type; seatState.seats[idxB].name = tempNode.name; seatState.seats[idxB].absent = tempNode.absent;
-    triggerSaveSeat(); renderSeatGrid();
-}
-
 /* ================= 5. 导出与重置 ================= */
 function exportDetailedWeek() {
     try {
@@ -805,7 +1033,7 @@ function exportDetailedWeek() {
             }
         }
         var wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "学情周报");
-        XLSX.writeFile(wb, "智能学情周报_" + scoreState.currentMonday + ".xlsx");
+        XLSX.writeFile(wb, "智能学情周报_24B_" + scoreState.currentMonday + ".xlsx");
     } catch(e) { alert("⚠️ 导出发生错误：\n" + e.message); }
 }
 
@@ -813,7 +1041,7 @@ function exportLocalState() {
     try {
         var fullBackup = { gakupo: scoreState, seat: seatState };
         var b = new Blob([JSON.stringify(fullBackup)], {type:"application/json"}); 
-        var a = document.createElement("a"); a.href=URL.createObjectURL(b); a.download="智能管家_双擎备份.json"; a.click(); 
+        var a = document.createElement("a"); a.href=URL.createObjectURL(b); a.download="智能管家_备份.json"; a.click(); 
     } catch(e) { alert("⚠️ 备份发生错误：\n" + e.message); }
 }
 
@@ -827,7 +1055,7 @@ function importLocalState(files) {
             if(fullData.seat) seatState = ensureSeatStateIntegrity(fullData.seat);
             
             localStorage.setItem(GAKUPO_KEY, JSON.stringify(scoreState)); 
-            localStorage.setItem(SEAT_KEY, JSON.stringify(seatState));
+            localStorage.setItem(SEAT_KEY, JSON.stringify(seatState)); 
             
             document.getElementById('syncGakupoStatus').innerText = "☁️ 正在推送云端...";
             Promise.all([ 
@@ -856,7 +1084,7 @@ function loadDefaultStudents() {
 function clearAllRecords() { 
     if(confirm("【排障专用】\n确定清空本地缓存吗？\n(这不会删除云端数据，刷新网页后会重新拉取云端记录)")) { 
         localStorage.removeItem(GAKUPO_KEY); 
-        localStorage.removeItem(SEAT_KEY); 
+        localStorage.removeItem(SEAT_KEY);
         location.reload(); 
     } 
 }
@@ -969,70 +1197,10 @@ function selectMonthStu(name) {
     } catch(e) { console.error("多周图表渲染失败: ", e); }
 }
 
-/* ================= 7. 附加模块 (弹窗、AI 诊断、智能点名) ================= */
+/* ================= 7. 附加模块 (弹窗、AI 诊断) ================= */
 function showToast(msg) { var toast = document.getElementById('toast'); toast.innerText = msg; toast.style.opacity = '1'; setTimeout(function(){ toast.style.opacity = '0'; }, 2000); }
 function closeAllModals() { document.querySelectorAll('.modal, .month-dashboard, .overlay, #studentManagerModal').forEach(function(el){ el.style.display='none'; }); currentSelectingStudent = null; }
 function copyText(id) { navigator.clipboard.writeText(document.getElementById(id).innerText).then(function(){ alert("已成功复制到剪贴板"); }); }
-
-function openAvatarModal(name) {
-    currentSelectingStudent = name; document.getElementById('currentStudentName').innerText = name;
-    var gallery = document.getElementById('galleryGrid'); gallery.innerHTML = ''; 
-    var taken = [];
-    var avatarKeys = Object.keys(seatState.avatars);
-    for(var i=0; i<avatarKeys.length; i++) { if(seatState.avatars[avatarKeys[i]] !== seatState.avatars[name]) taken.push(seatState.avatars[avatarKeys[i]]); }
-    
-    avatarFiles.forEach(function(file) {
-        var item = document.createElement('div'); item.className = 'gallery-item'; 
-        item.innerHTML = '<img src="./头像库/24B/'+file+'" data-filename="'+file+'" onerror="this.src=\''+CLOUD_OSS_BASE_URL+'\'+this.dataset.filename">';
-        if (taken.indexOf(file) !== -1) { item.classList.add('taken'); } 
-        else { if (seatState.avatars[name] === file) item.style.borderColor = '#4CAF50'; item.onclick = function() { seatState.avatars[name] = file; triggerSaveSeat(); renderSeatGrid(); closeAllModals(); }; }
-        gallery.appendChild(item);
-    });
-    document.getElementById('ovl').style.display='block'; document.getElementById('avatarModal').style.display='flex';
-}
-
-function getWeightedWinner(nodes) {
-    // 🔥 保留 24B 原有的定向偏见权重
-    var SPECIAL = ['钟菲儿', '刘澄橙', '李妮蔓']; var tot = 0, ws = [];
-    nodes.forEach(function(n) { 
-        var name = n.dataset.name;
-        var r = (scoreState.history[scoreState.currentMonday] && scoreState.history[scoreState.currentMonday][name] && scoreState.history[scoreState.currentMonday][name][currentViewDay]) || {};
-        var w = 10;
-        if (SPECIAL.indexOf(name) !== -1) w = 5;
-        if (r.att === '缺') w = 0; 
-        else if (r.att === '-1') w = 5; 
-        if (r.vio > 0) w = Math.max(1, w - r.vio * 3); 
-        ws.push(w); tot += w; 
-    });
-    var rand = Math.random() * tot; var sum = 0;
-    for(var i = 0; i < nodes.length; i++) { sum += ws[i]; if(rand < sum) return nodes[i]; }
-    return nodes[nodes.length - 1];
-}
-
-function startRandomDraw() {
-    var nodeList = document.querySelectorAll('.seat.student:not(.absent)');
-    var studentNodes = [];
-    for(var i=0; i<nodeList.length; i++) { studentNodes.push(nodeList[i]); }
-    
-    if (studentNodes.length === 0) return showToast("⚠️ 当前没有可供抽选的学生！");
-    synAudioEngine.init();
-    var btn = document.getElementById('randomBtn'); btn.disabled = true; btn.innerText = '🔄 抽取中...';
-    var finalWinner = getWeightedWinner(studentNodes);
-    var jumps = 0, totalJumps = 20, lastNode = null;
-    var drawInterval = setInterval(function() {
-        if (lastNode) lastNode.classList.remove('lucky-student');
-        var currentNode = (jumps >= totalJumps - 1) ? finalWinner : studentNodes[Math.floor(Math.random() * studentNodes.length)];
-        currentNode.classList.add('lucky-student'); lastNode = currentNode; jumps++;
-        if (jumps >= totalJumps) {
-            clearInterval(drawInterval); synAudioEngine.playTada();
-            showToast("🎉 恭喜 " + currentNode.dataset.name + " 同学！");
-            currentNode.classList.add('winner-highlight'); btn.disabled = false; btn.innerText = '🎲 随机点名';
-            setTimeout(function() { currentNode.classList.remove('lucky-student', 'winner-highlight'); }, 3000);
-        }
-    }, 75);
-}
-
-function resetAllAvatars() { if(confirm("⚠️ 确定清空全班头像？")) { seatState.avatars = {}; triggerSaveSeat(); renderSeatGrid(); } }
 
 function generateWeeklyAI(name, total, force) {
     var weekData = scoreState.history[scoreState.currentMonday]; if (!weekData[name]) weekData[name] = {};
@@ -1046,7 +1214,7 @@ function generateWeeklyAI(name, total, force) {
     for(var d=0; d<7; d++){ var r = (weekData[name] && weekData[name][d]) ? weekData[name][d] : {}; if(r.att !== undefined && r.att !== '') { perf.attTotal += 1; if(r.att === '1') perf.att += 1; } if(r.hw) perf.hw.push(r.hw); if(r.dt) perf.dt.push(r.dt); perf.cls += (r.cls || 0); perf.vio += (r.vio || 0); }
     
     var hwStatus = perf.hw.length > 0 ? perf.hw.join(', ') : '无记录'; var dtStatus = perf.dt.length > 0 ? perf.dt.join(', ') : '无记录'; var attStatus = perf.attTotal > 0 ? perf.att+'/'+perf.attTotal+' 次' : '无记录';
-    var promptMessage = "# 角色：专业日语老师\n# 任务：为学生 " + name + " 撰写周评语（约80字），发给家长。\n# 学生本周真实数据：\n- 总积分：" + total + "\n- 出勤：" + attStatus + "\n- 作业等级：[" + hwStatus + "]\n- 听写成绩：[" + dtStatus + "]\n- 课堂加分：" + perf.cls + "\n- 违纪次数：" + perf.vio + "\n# 核心约束（严格执行）：\n1. **无记录 = 未安排**：，听写中”重“为重新听写后过关的意思，是偏向正面的学生指标。若某项整体显示“无记录”，表示本周根本没有布置该任务，评语中请【完全跳过】该项。严禁误说成学生没做。\n2. **精准点出问题**：如果数据中有迟到(-1)、作业“未”、听写“未”、违纪等，必须客观指出这些短板。\n3. **先抑后扬**：指出问题后，结合加分项或总分给予正面鼓励。";
+    var promptMessage = "# 角色：专业日语老师\n# 任务：为学生 " + name + " 撰写周评语（约80字），发给家长。\n# 学生本周真实数据：\n- 总积分：" + total + "\n- 出勤：" + attStatus + "\n- 作业等级：[" + hwStatus + "]\n- 听写成绩：[" + dtStatus + "]\n- 课堂加分：" + perf.cls + "\n- 违纪次数：" + perf.vio + "\n# 核心约束（严格执行）：\n1. **无记录 = 未安排**：若某项整体显示“无记录”，表示本周根本没有布置该任务，评语中请【完全跳过】该项。严禁误说成学生没做。\n2. **精准点出问题**：如果数据中有迟到(-1)、作业“未”、听写“未”、违纪等，必须客观指出这些短板。\n3. **先抑后扬**：指出问题后，结合加分项或总分给予正面鼓励。";
     
     fetch("https://api.deepseek.com/v1/chat/completions", { method: 'POST', headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key}, body: JSON.stringify({ model: "deepseek-chat", messages: [ { role: "system", content: "你是一个严谨的教学助手，绝对不使用星号等特殊符号。" }, { role: "user", content: promptMessage } ], temperature: 0.5 }) })
     .then(function(res) { return res.json(); })
@@ -1059,7 +1227,7 @@ function generateWeeklyAI(name, total, force) {
 }
 
 function generateAllWeeklyAI() {
-    if(!confirm("确定要为全班重新生成智能周评吗？\n\n⚠️ 注意：这会覆盖所有已有的周评缓存，并且可能需要消耗 1~2 分钟时间。")) return;
+    if(!confirm("确定要为全班重新生成智能周评吗？\n\n⚠️ 注意：这会消耗一定的 API 额度和时间。")) return;
     var key = localStorage.getItem("DEEPSEEK_KEY") || prompt("首次使用，请输入大模型 API Key:"); if(!key) return; localStorage.setItem("DEEPSEEK_KEY", key);
     var weekData = scoreState.history[scoreState.currentMonday]; 
     var studentsToProcess = [];
@@ -1071,18 +1239,18 @@ function generateAllWeeklyAI() {
     var currentIndex = 0;
     function processNext() {
         if (currentIndex >= studentsToProcess.length) {
-            document.getElementById('aiContent').innerHTML = '<div style="text-align:center; padding: 20px;"><span style="font-size:40px;">✅</span><br><br><b>批量覆盖生成完成！</b><br><br>成功生成了 '+studentsToProcess.length+' 份周评。<br>您现在可以在汇总界面秒开查阅。</div>';
+            document.getElementById('aiContent').innerHTML = '<div style="text-align:center; padding: 20px;"><span style="font-size:40px;">✅</span><br><br><b>批量覆盖生成完成！</b><br>您现在可以在汇总界面秒开查阅。</div>';
             return;
         }
         var stu = studentsToProcess[currentIndex]; 
         if (!weekData[stu.name]) weekData[stu.name] = {};
-        document.getElementById('aiContent').innerHTML = '<div style="text-align:center; padding: 20px;">🤖 <b>正在批量生成全班周评...</b><br><br>当前进度: <b style="color:#2563eb; font-size:18px;">'+stu.name+'</b> ('+(currentIndex+1)+'/'+studentsToProcess.length+')<br><br><span style="color:#f59e0b; font-size:12px;">⚠️ 请勿关闭当前页面，整个过程可能需要几十秒。</span></div>';
+        document.getElementById('aiContent').innerHTML = '<div style="text-align:center; padding: 20px;">🤖 <b>正在批量生成全班周评...</b><br><br>当前进度: <b style="color:#2563eb; font-size:18px;">'+stu.name+'</b> ('+(currentIndex+1)+'/'+studentsToProcess.length+')</div>';
         
         var perf = { att:0, attTotal:0, hw:[], dt:[], cls:0, vio:0 };
         for(var d=0; d<7; d++){ var r = (weekData[stu.name] && weekData[stu.name][d]) ? weekData[stu.name][d] : {}; if(r.att !== undefined && r.att !== '') { perf.attTotal += 1; if(r.att === '1') perf.att += 1; } if(r.hw) perf.hw.push(r.hw); if(r.dt) perf.dt.push(r.dt); perf.cls += (r.cls || 0); perf.vio += (r.vio || 0); }
         
         var hwStatus = perf.hw.length > 0 ? perf.hw.join(', ') : '无记录'; var dtStatus = perf.dt.length > 0 ? perf.dt.join(', ') : '无记录'; var attStatus = perf.attTotal > 0 ? perf.att+'/'+perf.attTotal+' 次' : '无记录';
-        var promptMessage = "# 角色：专业日语老师\n# 任务：为学生 " + stu.name + " 撰写周评语（约60字）。\n# 学生本周真实数据：\n- 总积分：" + stu.total + "\n- 出勤：" + attStatus + "\n- 作业等级：[" + hwStatus + "]\n- 听写成绩：[" + dtStatus + "]\n- 课堂加分：" + perf.cls + "\n- 违纪次数：" + perf.vio + "\n# 核心约束（严格执行）：\n1. **无记录 = 未安排**：若某项整体显示“无记录”，请【完全跳过】该项。\n2. **精准点出问题**：如果数据中有迟到(-1)、作业“未”、听写“未”或“重”、违纪等，必须客观指出这些短板。\n3. **先抑后扬**：指出问题后，结合加分项或总分给予正面鼓励。\n4. **排版要求**：绝对禁止使用星号（*）等特殊符号。";
+        var promptMessage = "# 角色：专业日语老师\n# 任务：为学生 " + stu.name + " 撰写周评语（约60字）。\n# 核心约束：\n1. 无记录的项目直接跳过。\n2. 客观指出迟到、未交、违纪等。\n3. 先抑后扬，禁止使用星号（*）等符号。\n# 数据：\n- 总分：" + stu.total + "\n- 出勤：" + attStatus + "\n- 作业：" + hwStatus + "\n- 听写：" + dtStatus + "\n- 加分：" + perf.cls + "\n- 违纪：" + perf.vio;
         
         fetch("https://api.deepseek.com/v1/chat/completions", { method: 'POST', headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key}, body: JSON.stringify({ model: "deepseek-chat", messages: [ { role: "system", content: "你是一个严谨的教学助手，绝对不使用星号等特殊符号。" }, { role: "user", content: promptMessage } ], temperature: 0.5 }) })
         .then(function(res) { return res.json(); })
@@ -1090,12 +1258,10 @@ function generateAllWeeklyAI() {
             var comment = escapeHTML(json.choices[0].message.content.replace(/\*/g, ''));
             weekData[stu.name].ai_comment = comment.replace(/\n/g, '<br>'); triggerSaveScore(); renderGakupoSummary();
             currentIndex++; processNext();
-        })
-        .catch(function(e) {
-            document.getElementById('aiContent').innerHTML += '<br><br><span style="color:red">❌ 请求失败 ('+stu.name+')，请检查网络或余额。批量生成已中止。</span>';
+        }).catch(function(e) {
+            document.getElementById('aiContent').innerHTML += '<br><br><span style="color:red">❌ 请求失败，批量生成中止。</span>';
         });
     }
-    
     processNext();
 }
 
@@ -1105,11 +1271,10 @@ function generateMonthlyAI() {
     if(!key) return; localStorage.setItem("DEEPSEEK_KEY", key);
     
     var box = document.getElementById('aiMonthContent'); 
-    box.innerHTML = "🤖 正在抓取多周各项明细数据进行深度诊断...";
+    box.innerHTML = "🤖 正在诊断...";
     
     var data = g_monthData[currentMonthStudent]; 
     var chartLabels = g_monthWeeks.map(function(d){ return d.substring(5).replace('-', '/'); });
-    
     var detailLogs = [];
     g_monthWeeks.forEach(function(w, idx) {
         var weekData = scoreState.history[w]; 
@@ -1118,36 +1283,21 @@ function generateMonthlyAI() {
         for(var d=0; d<7; d++){ 
             var r = stuWeek[d] || {}; 
             if(r.att !== undefined && r.att !== '') { perf.attTotal += 1; if(r.att === '1') perf.att += 1; } 
-            if(r.hw) perf.hw.push(r.hw); 
-            if(r.dt) perf.dt.push(r.dt); 
-            perf.cls += (r.cls || 0); perf.vio += (r.vio || 0); 
+            if(r.hw) perf.hw.push(r.hw); if(r.dt) perf.dt.push(r.dt); perf.cls += (r.cls || 0); perf.vio += (r.vio || 0); 
         }
-        var hwS = perf.hw.length > 0 ? perf.hw.join(',') : '无'; 
-        var dtS = perf.dt.length > 0 ? perf.dt.join(',') : '无'; 
-        var attS = perf.attTotal > 0 ? perf.att+'/'+perf.attTotal : '无';
-        detailLogs.push(chartLabels[idx]+"周(总"+data.weeks[idx]+"分):出勤"+attS+",作业["+hwS+"],听写["+dtS+"],加分"+perf.cls+",违纪"+perf.vio);
+        detailLogs.push(chartLabels[idx]+"周(总"+data.weeks[idx]+"分):加分"+perf.cls+",违纪"+perf.vio);
     });
 
-    var promptMessage = "# 角色：专业日语老师\n# 任务：为学生 " + currentMonthStudent + " 撰写多周综合学情诊断（约100字）。\n# 核心设定（绝对遵守）：积分是【无限累加制】，【绝对没有满分概念】，严禁在评语中提及“满分”或“未达满分”等字眼！\n# 多周真实数据明细（无记录代表未布置，请忽略）：\n" + detailLogs.join(" | ") + "\n# 选定周期总积分：" + data.total + "分\n# 要求：\n1. 结合各项数据的多周变化趋势（如作业、违纪、出勤等）进行具体分析，不要只看总分。\n2. 无记录的项目直接跳过，切勿评价。\n3. 语气温和、专业，先指出具体长处或短板，最后鼓励。\n4. 【重要】禁止使用 markdown 的星号（*）加粗或列表，使用纯文本排版。";
+    var promptMessage = "# 角色：专业老师\n# 任务：为学生 " + currentMonthStudent + " 写多周学情诊断（100字）。不要提满分。\n# 数据明细：" + detailLogs.join(" | ") + "\n# 总积分：" + data.total + "分";
     
-    fetch("https://api.deepseek.com/v1/chat/completions", { 
-        method: 'POST', 
-        headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key}, 
-        body: JSON.stringify({ 
-            model: "deepseek-chat", 
-            messages: [{role:"system", content: "你是一个严谨的教学助手，绝对不使用星号等特殊符号。"}, {role:"user", content: promptMessage}], 
-            temperature: 0.6 
-        }) 
-    })
+    fetch("https://api.deepseek.com/v1/chat/completions", { method: 'POST', headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key}, body: JSON.stringify({ model: "deepseek-chat", messages: [{role:"system", content: "你是一个严谨的教学助手，绝对不使用星号等特殊符号。"}, {role:"user", content: promptMessage}], temperature: 0.6 }) })
     .then(function(res) { return res.json(); })
     .then(function(json) {
-        var comment = escapeHTML(json.choices[0].message.content.replace(/\*/g, '')); 
-        box.innerHTML = comment.replace(/\n/g, '<br>');
-    })
-    .catch(function(e) { box.innerHTML = "生成失败，请检查网络或 Key 额度。"; });
+        box.innerHTML = escapeHTML(json.choices[0].message.content.replace(/\*/g, '')).replace(/\n/g, '<br>');
+    }).catch(function(e) { box.innerHTML = "生成失败，请检查网络或 Key。"; });
 }
 
-/* ================= 8. 数据出入海与网络层 ================= */
+/* ================= 8. 数据同步 ================= */
 function fetchWithTimeout(url, options, timeout) {
     if (timeout === void 0) { timeout = 2500; }
     return Promise.race([ fetch(url, options), new Promise(function(_, reject){ setTimeout(function(){ reject(new Error('timeout')); }, timeout); }) ]);
@@ -1219,7 +1369,6 @@ function triggerManualSync() {
     if(c==='1') { syncBothClouds(); } else if(c==='2') { cloudSyncState.gakupoLoaded = true; cloudSyncState.seatLoaded = true; document.getElementById('reconnectBtn').style.display = "none"; triggerSaveScore(); triggerSaveSeat(); }
 }
 
-/* ================= 9. 启动引擎 ================= */
 document.addEventListener('DOMContentLoaded', function() {
     try {
         loadLocalFallback();
@@ -1231,7 +1380,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-// ======= 周期全数据统计 =======
+/* ======= 周期全数据统计 ======= */
 function formatDateString(d) {
     var m = d.getMonth() + 1; var dd = d.getDate();
     return d.getFullYear() + '-' + (m < 10 ? '0' + m : m) + '-' + (dd < 10 ? '0' + dd : dd);
@@ -1242,8 +1391,7 @@ function openPeriodStatsModal() {
     document.getElementById('periodStatsModal').style.display='flex';
     var today = new Date();
     document.getElementById('statsEndDate').value = formatDateString(today);
-    var lastMonth = new Date();
-    lastMonth.setMonth(lastMonth.getMonth() - 1);
+    var lastMonth = new Date(); lastMonth.setMonth(lastMonth.getMonth() - 1);
     document.getElementById('statsStartDate').value = formatDateString(lastMonth);
     document.getElementById('periodStatsTBody').innerHTML = '<tr><td colspan="9" style="text-align:center; padding:40px; color:#94a3b8; font-size:16px;">请在上方选择日历范围并点击“生成统计”</td></tr>';
 }
@@ -1252,19 +1400,12 @@ function generatePeriodStats() {
     var startStr = document.getElementById('statsStartDate').value;
     var endStr = document.getElementById('statsEndDate').value;
     if(!startStr || !endStr) return alert("请选择完整的起止日期！");
-    var startD = new Date(startStr);
-    var endD = new Date(endStr);
+    var startD = new Date(startStr); var endD = new Date(endStr);
     if(startD > endD) return alert("起点日期不能晚于终点日期！");
 
     var stats = {};
     scoreState.students.forEach(function(s) {
-        stats[s.name] = {
-            className: s.class || '',
-            att: {'1':0, '-1':0, '缺':0},
-            hw: {'A':0, 'B':0, 'C':0, 'D':0, '未':0},
-            dt: {'满':0, '过':0, '重':0, '未':0},
-            cls: 0, vio: 0
-        };
+        stats[s.name] = { className: s.class || '', att: {'1':0, '-1':0, '缺':0}, hw: {'A':0, 'B':0, 'C':0, 'D':0, '未':0}, dt: {'满':0, '过':0, '重':0, '未':0}, cls: 0, vio: 0 };
     });
 
     var currD = new Date(startD);
@@ -1277,66 +1418,36 @@ function generatePeriodStats() {
             scoreState.students.forEach(function(stu) {
                 var stuData = scoreState.history[monday][stu.name];
                 if (stuData && stuData[dayIdx]) {
-                    var r = stuData[dayIdx];
-                    var st = stats[stu.name];
+                    var r = stuData[dayIdx]; var st = stats[stu.name];
                     if(r.att === '1' || r.att === '-1' || r.att === '缺') st.att[r.att]++;
                     if(r.hw === 'A' || r.hw === 'B' || r.hw === 'C' || r.hw === 'D' || r.hw === '未') st.hw[r.hw]++;
                     if(r.dt === '满' || r.dt === '过' || r.dt === '重' || r.dt === '未') st.dt[r.dt]++;
-                    st.cls += (r.cls || 0);
-                    st.vio += (r.vio || 0);
+                    st.cls += (r.cls || 0); st.vio += (r.vio || 0);
                 }
             });
         }
         currD.setDate(currD.getDate() + 1);
     }
 
-    var tbody = document.getElementById('periodStatsTBody');
-    tbody.innerHTML = '';
-    
+    var tbody = document.getElementById('periodStatsTBody'); tbody.innerHTML = '';
     scoreState.students.forEach(function(stu) {
         var st = stats[stu.name];
         var attTotal = st.att['1'] + st.att['-1'] + st.att['缺'];
         var attRate = attTotal > 0 ? Math.round((st.att['1'] + st.att['-1']) / attTotal * 100) + '%' : '-';
-        
         var hwTotal = st.hw['A'] + st.hw['B'] + st.hw['C'] + st.hw['D'] + st.hw['未'];
         var hwRate = hwTotal > 0 ? Math.round((st.hw['A'] + st.hw['B']) / hwTotal * 100) + '%' : '-';
-        
         var dtTotal = st.dt['满'] + st.dt['过'] + st.dt['重'] + st.dt['未'];
         var dtRate = dtTotal > 0 ? Math.round((st.dt['满'] + st.dt['过']) / dtTotal * 100) + '%' : '-';
 
         var row = '<tr>';
-        row += '<td style="color:#64748b; font-size:11px;">' + st.className + '</td>';
-        row += '<td><b style="color:#0f172a;">' + stu.name + '</b></td>';
-        
-        row += '<td style="text-align:left; font-size:11px; padding:6px; line-height:1.5;">';
-        row += '出勤:<b style="color:#10b981">' + st.att['1'] + '</b> | ';
-        row += '迟退:<b style="color:#f59e0b">' + st.att['-1'] + '</b> | ';
-        row += '缺勤:<b style="color:#ef4444">' + st.att['缺'] + '</b></td>';
-        
+        row += '<td style="color:#64748b; font-size:11px;">' + st.className + '</td><td><b style="color:#0f172a;">' + stu.name + '</b></td>';
+        row += '<td style="text-align:left; font-size:11px; padding:6px; line-height:1.5;">出勤:<b style="color:#10b981">' + st.att['1'] + '</b> | 迟退:<b style="color:#f59e0b">' + st.att['-1'] + '</b> | 缺勤:<b style="color:#ef4444">' + st.att['缺'] + '</b></td>';
         row += '<td><b style="color:#2563eb; font-size:14px;">' + attRate + '</b></td>';
-        
-        row += '<td style="text-align:left; font-size:11px; padding:6px; line-height:1.5;">';
-        row += 'A:<b style="color:#22c55e">' + st.hw['A'] + '</b> ';
-        row += 'B:<b style="color:#86efac">' + st.hw['B'] + '</b> ';
-        row += 'C:<b style="color:#fef08a">' + st.hw['C'] + '</b> ';
-        row += 'D:<b style="color:#fca5a5">' + st.hw['D'] + '</b> ';
-        row += '未交:<b style="color:#ef4444">' + st.hw['未'] + '</b></td>';
-        
+        row += '<td style="text-align:left; font-size:11px; padding:6px; line-height:1.5;">A:<b style="color:#22c55e">' + st.hw['A'] + '</b> B:<b style="color:#86efac">' + st.hw['B'] + '</b> C:<b style="color:#fef08a">' + st.hw['C'] + '</b> D:<b style="color:#fca5a5">' + st.hw['D'] + '</b> 未交:<b style="color:#ef4444">' + st.hw['未'] + '</b></td>';
         row += '<td><b style="color:#2563eb; font-size:14px;">' + hwRate + '</b></td>';
-        
-        row += '<td style="text-align:left; font-size:11px; padding:6px; line-height:1.5;">';
-        row += '满分:<b style="color:#16a34a">' + st.dt['满'] + '</b> ';
-        row += '过关:<b style="color:#86efac">' + st.dt['过'] + '</b> ';
-        row += '重考:<b style="color:#facc15">' + st.dt['重'] + '</b> ';
-        row += '未过:<b style="color:#ef4444">' + st.dt['未'] + '</b></td>';
-        
+        row += '<td style="text-align:left; font-size:11px; padding:6px; line-height:1.5;">满分:<b style="color:#16a34a">' + st.dt['满'] + '</b> 过关:<b style="color:#86efac">' + st.dt['过'] + '</b> 重考:<b style="color:#facc15">' + st.dt['重'] + '</b> 未过:<b style="color:#ef4444">' + st.dt['未'] + '</b></td>';
         row += '<td><b style="color:#2563eb; font-size:14px;">' + dtRate + '</b></td>';
-        
-        row += '<td style="text-align:left; font-size:11px; padding:6px; line-height:1.5;">';
-        row += '加分:<b style="color:#2563eb">+' + st.cls + '</b><br>';
-        row += '违纪:<b style="color:#ef4444">' + st.vio + '</b>次</td>';
-        
-        row += '</tr>';
+        row += '<td style="text-align:left; font-size:11px; padding:6px; line-height:1.5;">加分:<b style="color:#2563eb">+' + st.cls + '</b><br>违纪:<b style="color:#ef4444">' + st.vio + '</b>次</td></tr>';
         tbody.innerHTML += row;
     });
 }
