@@ -3,14 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>智能学情管家 25高考日语班</title>
+    <title>智能学情管家</title>
     <script defer src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.4/Chart.min.js"></script>
     <script defer src="https://unpkg.com/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
     <script>
         if (typeof window.fetch === 'undefined' || typeof window.Promise === 'undefined') {
             alert("⚠️ 严重警告：当前浏览器不支持 fetch/Promise。请升级浏览器！");
         }
-        // 动态计算真实视口高度，防止移动端底部浏览器工具栏遮挡
         function setVH() { var vh = window.innerHeight * 0.01; document.documentElement.style.setProperty('--vh', vh + 'px'); }
         window.addEventListener('resize', setVH); setVH();
     </script>
@@ -27,42 +26,95 @@
         .no-select { user-select: none; -webkit-user-select: none; }
         .allow-select { user-select: text; -webkit-user-select: text; }
 
-        /* ================= 第一行：全局导航与工具栏 ================= */
-        .global-nav { height: 58px; background: #0f172a; display: flex; justify-content: space-between; padding: 0 15px; align-items: center; flex-shrink: 0; position: relative; z-index: 2000; box-shadow: 0 2px 10px rgba(0,0,0,0.3);}
-        .nav-title { color: white; font-weight: bold; font-size: 16px; letter-spacing: 1px; flex-shrink: 0; white-space: nowrap; margin-right: 15px;}
+        /* ================= 🔥 终极重构：单行沉浸式全局导航 ================= */
+        .app-header {
+            height: 60px; background: #0f172a; display: flex; align-items: center; 
+            padding: 0 10px; flex-shrink: 0; position: relative; z-index: 2000; 
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3); justify-content: space-between;
+        }
         
-        .toolbar-actions { display: flex; align-items: center; gap: 6px; overflow-x: auto; flex: 1; scrollbar-width: none; flex-shrink: 1; -webkit-overflow-scrolling: touch;}
-        .toolbar-actions::-webkit-scrollbar { display: none; }
-        button.tool-btn { background: #475569; color: white; border: none; padding: 5px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px; transition: 0.1s; display: flex; align-items: center; flex-shrink: 0; white-space: nowrap;}
-        button.tool-btn:active { transform: scale(0.95); }
-
-        .global-sync { font-size: 11px; display: flex; flex-direction: column; align-items: flex-end; flex-shrink: 0; margin-left: 15px; white-space: nowrap;}
-        .sync-indicator { font-weight: bold; color: #94a3b8; }
-
-        #gakupoView { display: flex; flex-direction: column; flex: 1; min-height: 0; width: 100%; }
-
-        /* ================= 第二行：视图标签与模式过滤器 ================= */
-        .header { height: 54px; flex-shrink: 0; background: #1e293b; color: white; padding: 0 15px; display: flex; justify-content: space-between; align-items: center; z-index: 10; border-top: 1px solid #000000;}
-        .tabs { display: flex; background: #334155; padding: 4px; border-radius: 8px; gap: 5px; overflow-x: auto; scrollbar-width: none; flex-shrink: 0; -webkit-overflow-scrolling: touch;}
-        .tabs::-webkit-scrollbar { display: none; }
-        .tab-btn { background: transparent; color: #cbd5e1; border: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; transition: 0.2s; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.2; min-width: 55px; flex-shrink: 0; white-space: nowrap;}
-        .tab-btn.active { background: var(--primary); color: white; box-shadow: 0 2px 6px rgba(0,0,0,0.3); transform: scale(1.05); }
-        .date-label { font-size: 10px; font-weight: normal; opacity: 0.8; margin-top: 3px; }
+        /* 左中侧：横向可滚动安全区 */
+        .header-scroll-area {
+            display: flex; align-items: center; gap: 8px; overflow-x: auto; 
+            scrollbar-width: none; -webkit-overflow-scrolling: touch; 
+            flex: 1; min-width: 0; padding-right: 15px; height: 100%;
+        }
+        .header-scroll-area::-webkit-scrollbar { display: none; }
         
-        .filter-controls-wrapper { display: flex; align-items: center; gap: 8px; overflow-x: auto; scrollbar-width: none; flex: 1; padding-left: 15px; -webkit-overflow-scrolling: touch;}
-        .filter-controls-wrapper::-webkit-scrollbar { display: none; }
-        .filter-bar { display: flex; gap: 6px; align-items: center; flex-shrink: 0;}
-        .filter-btn { padding: 5px 14px; border-radius: 15px; border: 1px solid #334155; background: #1e293b; color: #94a3b8; font-size: 12px; font-weight: bold; cursor: pointer; white-space: nowrap; transition: all 0.2s ease; }
+        .nav-title { color: white; font-weight: bold; font-size: 16px; letter-spacing: 1px; flex-shrink: 0; white-space: nowrap; margin-right: 4px;}
+        
+        /* 日期标签 */
+        .tabs { display: flex; background: #1e293b; padding: 3px; border-radius: 8px; gap: 4px; flex-shrink: 0; border: 1px solid #334155;}
+        .tab-btn { background: transparent; color: #cbd5e1; border: none; padding: 4px 10px; border-radius: 6px; cursor: pointer; transition: 0.2s; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.2; min-width: 50px; flex-shrink: 0; white-space: nowrap;}
+        .tab-btn.active { background: var(--primary); color: white; box-shadow: 0 2px 6px rgba(0,0,0,0.3); }
+        .date-label { font-size: 10px; font-weight: normal; opacity: 0.8; margin-top: 2px; }
+        
+        /* 过滤器与模式 */
+        .filter-controls-wrapper { display: flex; align-items: center; gap: 6px; flex-shrink: 0;}
+        .filter-bar { display: flex; gap: 4px; align-items: center; flex-shrink: 0;}
+        .filter-btn { padding: 5px 12px; border-radius: 15px; border: 1px solid #334155; background: #1e293b; color: #94a3b8; font-size: 12px; font-weight: bold; cursor: pointer; white-space: nowrap; transition: all 0.2s ease; }
         .filter-btn:hover { background: #334155; color: #e2e8f0; }
         .filter-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
-        .focus-btn.active { background: #8b5cf6 !important; border-color: #8b5cf6 !important; }
+        .focus-btn.active { background: #8b5cf6 !important; border-color: #8b5cf6 !important; box-shadow: 0 2px 8px rgba(139,92,246,0.4); }
+        
+        .header-divider { width: 2px; height: 18px; background: #334155; border-radius: 2px; margin: 0 4px; flex-shrink: 0; }
+
+        /* 🔥 隐形交互式搜索框 */
+        .search-box {
+            display: flex; align-items: center; background: transparent; border: 1px solid transparent; 
+            border-radius: 15px; padding: 4px; flex-shrink: 0; transition: all 0.3s ease; cursor: text;
+        }
+        .search-box:focus-within, .search-box.has-val {
+            background: #1e293b; border-color: var(--primary); box-shadow: 0 0 8px rgba(59,130,246,0.4); padding: 4px 10px;
+        }
+        .search-box input {
+            background: transparent; border: none; outline: none; color: white; font-size: 12px; 
+            width: 0; padding: 0; transition: all 0.3s ease; opacity: 0; font-weight: bold;
+        }
+        .search-box:focus-within input, .search-box.has-val input {
+            width: 70px; padding-left: 6px; opacity: 1;
+        }
+        .search-box input::placeholder { color: #64748b; font-weight: normal;}
+        .search-icon { font-size: 14px; cursor: pointer; opacity: 0.8; transition: 0.2s; }
+        .search-box:hover .search-icon { opacity: 1; }
+
+        /* 高频操作与日期输入 */
+        .date-picker-wrap { display:flex; align-items:center; gap:4px; background:#1e293b; padding:4px 8px; border-radius:15px; border:1px solid #334155; flex-shrink:0; }
+        .date-picker-input { padding:0; font-size:12px; border:none; outline:none; background:transparent; color:#94a3b8; font-weight:bold; cursor:pointer; }
+        .tool-btn { background: #475569; color: white; border: none; padding: 6px 14px; border-radius: 15px; cursor: pointer; font-weight: bold; font-size: 12px; transition: 0.1s; display: flex; align-items: center; flex-shrink: 0; white-space: nowrap;}
+        .tool-btn:active { transform: scale(0.95); }
+
+        /* 右侧：折叠菜单与同步区 */
+        .header-fixed-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; padding-left: 10px; border-left: 1px solid #334155; }
+        
+        /* 二级下拉折叠菜单核心 CSS */
+        .dropdown { position: relative; }
+        .dropdown-content {
+            display: none; position: absolute; right: 0; top: 40px; background-color: #1e293b;
+            min-width: 160px; box-shadow: 0px 8px 20px 0px rgba(0,0,0,0.5); border-radius: 8px;
+            border: 1px solid #334155; z-index: 3000; overflow: hidden;
+            animation: fadeIn 0.2s ease;
+        }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+        .dropdown-content.show { display: block; }
+        .dropdown-item {
+            color: #cbd5e1; padding: 12px 16px; text-decoration: none; display: flex; align-items: center;
+            gap: 8px; width: 100%; text-align: left; border: none; background: none; font-size: 13px;
+            font-weight: bold; cursor: pointer; border-bottom: 1px solid #334155; white-space: nowrap;
+        }
+        .dropdown-item:last-child { border-bottom: none; }
+        .dropdown-item:hover { background-color: #334155; color: white; }
+
+        .global-sync { font-size: 11px; display: flex; flex-direction: column; align-items: flex-end; flex-shrink: 0; white-space: nowrap;}
+        .sync-indicator { font-weight: bold; color: #94a3b8; line-height: 1.3;}
+
+        #gakupoView { display: flex; flex-direction: column; flex: 1; min-height: 0; width: 100%; }
         
         .main-content { flex: 1; min-height: 0; padding: 15px 20px; width: 100%; display: flex; flex-direction: column; overflow: hidden; }
         
-        /* ================= 自适应网格引擎 (响应式核心) ================= */
+        /* ================= 计分卡自适应网格与排版 ================= */
         .grid-container { 
             flex: 1; min-height: 0; display: grid; width: 100%; 
-            /* 🔥 绝技：自动填充列，最小卡片宽度 310px，完美自适应手机到带鱼屏 */
             grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); 
             grid-auto-rows: max-content; 
             gap: 20px; 
@@ -73,14 +125,12 @@
         .grid-container::-webkit-scrollbar { width: 6px; }
         .grid-container::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
         
-        /* 卡片基础样式 */
         .student-card { 
             background: var(--card-bg); border-radius: 10px; border: 1px solid #cbd5e1; 
             padding: 15px; display: flex; flex-direction: column; justify-content: flex-start; 
             min-height: 250px; box-shadow: 0 4px 10px rgba(0,0,0,0.06); transition: opacity 0.3s; 
         }
         
-        /* 专注模式变身小横条 */
         .student-card.focus-compact { min-height: auto; padding: 12px 15px; }
         .student-card.focus-compact .card-header { border-bottom: none; padding-bottom: 0; margin-bottom: 6px; }
         
@@ -100,7 +150,6 @@
         
         .week-total { background: #eff6ff; color: #2563eb; padding: 2px 8px; border-radius: 8px; font-weight: 900; font-size: 15px; }
         
-        /* 内部按钮与布局防挤压 */
         .row-group { display: flex; align-items: center; width: 100%; margin-top: 10px; flex-shrink: 0; }
         .row-label { width: 36px; font-size: 12px; font-weight: bold; color: var(--text-muted); text-align: right; margin-right: 8px; flex-shrink: 0; }
         .btn-group { display: flex; flex: 1; height: 32px; gap: 5px; }
@@ -131,15 +180,13 @@
         @media (max-width: 768px) {
             .grid-container { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
             .student-card { padding: 12px; min-height: 220px; }
-            .global-nav { padding: 0 10px; height: 50px; }
-            .header { padding: 0 10px; height: 50px; }
-            .nav-title { font-size: 14px; margin-right: 10px; }
+            .app-header { padding: 0 5px; height: 55px; }
+            .nav-title { font-size: 14px; margin-right: 5px; }
             .main-content { padding: 10px; }
             .filter-btn { padding: 4px 12px; font-size: 11px; }
+            .tab-btn { padding: 4px 10px; font-size: 11px; }
         }
-        
         @media (max-width: 480px) {
-            /* 手机竖屏：强制单列，高度舒展 */
             .grid-container { grid-template-columns: 1fr; gap: 10px; padding-right: 0; }
             .student-name { font-size: 15px; }
             .week-total { font-size: 13px; padding: 2px 6px; }
@@ -147,9 +194,8 @@
             .opt { font-size: 12px; }
             .opt-btn { font-size: 11px; }
             .cls-score-val { width: 22px; font-size: 14px; }
-            button.tool-btn { padding: 5px 8px; font-size: 11px; }
-            .global-sync { margin-left: 5px; }
-            .sync-indicator { font-size: 10px; }
+            .tool-btn { padding: 5px 8px; font-size: 11px; }
+            .header-fixed-right { padding-left: 5px; }
         }
 
         /* ================= 弹窗 ================= */
@@ -169,41 +215,56 @@
 <div id="toast"></div>
 <div class="overlay" id="ovl" onclick="closeAllModals()"></div>
 
-<div class="global-nav">
-    <div class="nav-title">📊 计分卡 (xq-25)</div>
-    
-    <div class="toolbar-actions">
-        <div style="display:flex; align-items:center; gap:4px; margin-right: 8px; background:#334155; padding:4px 8px; border-radius:4px;">
+<div class="app-header allow-select">
+    <div class="header-scroll-area">
+        <div class="nav-title">📊</div>
+        
+        <div class="tabs" id="dayTabs"></div>
+        
+        <div class="header-divider" id="filterDivider1"></div>
+        
+        <div id="filterWrapper" class="filter-controls-wrapper">
+            <div id="classFilterBar" class="filter-bar"></div>
+            <div class="header-divider" id="filterDividerClass"></div>
+            <div id="focusModeBar" class="filter-bar"></div>
+        </div>
+        
+        <div class="header-divider" id="filterDivider2"></div>
+        
+        <div class="search-box" id="searchWrap" onclick="document.getElementById('searchInput').focus()">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="searchInput" placeholder="搜姓名" oninput="handleSearch(this.value)">
+        </div>
+
+        <div class="date-picker-wrap">
             <span style="font-size:11px; color:#cbd5e1; font-weight:bold;">日期:</span>
-            <input type="date" id="mondayDate" style="padding:2px; font-size: 12px; border:none; outline:none; background:transparent; color:white; font-weight:bold;">
+            <input type="date" id="mondayDate" class="date-picker-input">
         </div>
         <button class="tool-btn" onclick="batchAttendance()" style="background:#10b981;">✅ 全勤</button>
-        <button class="tool-btn" onclick="openMonthDashboard()" style="background:#eab308; color:#0f172a;">📅 多周分析</button>
-        <button class="tool-btn" onclick="openPeriodStatsModal()" style="background:#8b5cf6;">📅 周期报表</button>
-        <button class="tool-btn" onclick="openStudentManager()" style="background:#f43f5e; border:1px solid #fff;">👥 名单管理</button>
-        <button class="tool-btn" onclick="exportDetailedWeek()" style="background:#10b981;">📤 导出</button>
-        <button class="tool-btn" onclick="exportLocalState()" style="background:#f59e0b;">💾 备份</button>
-        <button class="tool-btn" onclick="document.getElementById('importStateIn').click()" style="background:#06b6d4;">📂 恢复</button>
-        <input type="file" id="importStateIn" accept=".json" style="display:none" onchange="importLocalState(this.files)"/>
-        <button id="reconnectBtn" class="tool-btn" onclick="triggerManualSync()" style="display:none; background:#ef4444;">🔌 冲突处理</button>
     </div>
-
-    <div class="global-sync allow-select">
-        <span class="sync-indicator" id="syncGakupoStatus">同步: 读取中...</span>
+    
+    <div class="header-fixed-right">
+        <div class="dropdown">
+            <button class="tool-btn dropbtn" onclick="toggleMoreMenu(event)" style="background:#f59e0b;">⚙️ 工具箱</button>
+            <div id="moreMenu" class="dropdown-content">
+                <button class="dropdown-item" onclick="openMonthDashboard()">📅 多周连贯分析</button>
+                <button class="dropdown-item" onclick="openPeriodStatsModal()">📅 自定义报表</button>
+                <button class="dropdown-item" onclick="openStudentManager()" style="color:#f43f5e;">👥 动态名单管理</button>
+                <button class="dropdown-item" onclick="exportDetailedWeek()">📤 导出本地 Excel</button>
+                <button class="dropdown-item" onclick="exportLocalState()">💾 备份云端数据</button>
+                <button class="dropdown-item" onclick="document.getElementById('importStateIn').click()">📂 恢复本地数据</button>
+                <button class="dropdown-item" id="reconnectBtn" onclick="triggerManualSync()" style="display:none; color:#f43f5e;">🔌 强制冲突处理</button>
+            </div>
+        </div>
+        <div class="global-sync">
+            <span class="sync-indicator" id="syncGakupoStatus">同步: 读取中...</span>
+        </div>
     </div>
 </div>
 
+<input type="file" id="importStateIn" accept=".json" style="display:none" onchange="importLocalState(this.files)"/>
+
 <div id="gakupoView">
-    <div class="header">
-        <div class="tabs" id="dayTabs"></div>
-        
-        <div id="filterWrapper" class="filter-controls-wrapper allow-select">
-            <div id="classFilterBar" class="filter-bar"></div>
-            <div style="width:2px; height:18px; background:#475569; flex-shrink:0; border-radius:2px; margin: 0 4px;"></div>
-            <div id="focusModeBar" class="filter-bar"></div>
-        </div>
-    </div>
-    
     <div class="main-content">
         <div id="cardGrid" class="grid-container"></div>
         
@@ -311,6 +372,36 @@
 </div>
 
 <script>
+/* ================= 🔥 交互逻辑与状态 ================= */
+var currentFocusMode = 'all';   
+var currentClassFilter = 'all'; 
+var currentSearchQuery = '';
+
+function toggleMoreMenu(e) {
+    e.stopPropagation();
+    document.getElementById('moreMenu').classList.toggle('show');
+}
+document.addEventListener('click', function(e) {
+    var menu = document.getElementById('moreMenu');
+    if (menu && menu.classList.contains('show') && !e.target.closest('.dropdown')) {
+        menu.classList.remove('show');
+    }
+});
+
+function handleSearch(val) {
+    currentSearchQuery = val.trim().toLowerCase();
+    
+    var searchWrap = document.getElementById('searchWrap');
+    if (currentSearchQuery.length > 0) { searchWrap.classList.add('has-val'); } 
+    else { searchWrap.classList.remove('has-val'); }
+    
+    if (currentViewDay === 7) { renderGakupoSummary(); } 
+    else { updateGlobalUI(); }
+    
+    if (document.getElementById('monthDashboard').style.display === 'flex') { analyzeSelectedWeeks(); }
+    if (document.getElementById('periodStatsModal').style.display === 'flex') { generatePeriodStats(); }
+}
+
 /* ================= 1. 全局配置与变量声明 ================= */
 var DEFAULT_STUDENTS = [
     {"class":"1班","name":"胡瀚文"}, {"class":"4班","name":"杨涵"}, {"class":"4班","name":"胡艺泷"}, {"class":"4班","name":"王熙午"}, 
@@ -335,9 +426,6 @@ var currentViewDay = (new Date().getDay() + 6) % 7;
 var syncTimeouts = { gakupo: null };
 var radarChart, compareChart, c_monthLine, c_monthRadar;
 var g_monthData = {}, g_monthWeeks = [], currentMonthStudent = null;
-
-var currentClassFilter = 'all'; 
-var currentFocusMode = 'all';   
 
 /* ================= 2. 底层防注入与日期引擎 ================= */
 function escapeHTML(str) {
@@ -395,13 +483,21 @@ function updateGlobalUI() {
 function renderAll() {
     renderDayTabs();
     if(currentViewDay === 7) {
-        document.getElementById('filterWrapper').style.display = 'none'; 
+        document.getElementById('filterWrapper').style.display = 'flex'; // 汇总页同样支持过滤
+        if(document.getElementById('filterDivider1')) document.getElementById('filterDivider1').style.display = 'block';
+        if(document.getElementById('filterDivider2')) document.getElementById('filterDivider2').style.display = 'block';
+        if(document.getElementById('focusModeBar')) document.getElementById('focusModeBar').style.display = 'none'; // 汇总页不需要模式
+        if(document.getElementById('filterDividerClass')) document.getElementById('filterDividerClass').style.display = 'none'; 
         document.getElementById('cardGrid').style.display = 'none'; 
         document.getElementById('summaryView').style.display = 'block'; 
         document.getElementById('summaryWeekText').innerText = scoreState.currentMonday + " 周期"; 
         renderGakupoSummary();
     } else {
         document.getElementById('filterWrapper').style.display = 'flex'; 
+        if(document.getElementById('filterDivider1')) document.getElementById('filterDivider1').style.display = 'block';
+        if(document.getElementById('filterDivider2')) document.getElementById('filterDivider2').style.display = 'block';
+        if(document.getElementById('focusModeBar')) document.getElementById('focusModeBar').style.display = 'flex'; 
+        if(document.getElementById('filterDividerClass')) document.getElementById('filterDividerClass').style.display = 'block'; 
         document.getElementById('summaryView').style.display = 'none'; 
         document.getElementById('cardGrid').style.display = 'grid'; 
         updateGlobalUI();
@@ -431,7 +527,7 @@ function renderClassFilters() {
     var filterBar = document.getElementById('classFilterBar');
     if (!filterBar) return;
     
-    var allStudents = getRenderStudentsForCurrentWeek();
+    var allStudents = scoreState.students; // 取总名单
     var classes = [];
     allStudents.forEach(function(s) {
         if (s.class && s.class !== '已退/离' && classes.indexOf(s.class) === -1) { classes.push(s.class); }
@@ -453,7 +549,7 @@ function renderClassFilters() {
 function setClassFilter(cls) {
     currentClassFilter = cls;
     renderClassFilters(); 
-    renderGakupoCards(currentViewDay); 
+    if (currentViewDay === 7) { renderGakupoSummary(); } else { renderGakupoCards(currentViewDay); }
 }
 
 function renderFocusModeFilters() {
@@ -511,10 +607,9 @@ function addStudentDynamic() {
     scoreState.students.push({ class: cls, name: name });
     triggerSaveScore();
 
-    document.getElementById('newStuClass').value = '';
     document.getElementById('newStuName').value = '';
     renderStudentManagerList();
-    updateGlobalUI();
+    if (currentViewDay === 7) { renderGakupoSummary(); } else { updateGlobalUI(); }
     showToast("✅ " + name + " 已成功加入积分卡！");
 }
 
@@ -527,7 +622,7 @@ function removeStudentDynamic(name) {
     scoreState.students = newStudents;
     triggerSaveScore();
     renderStudentManagerList();
-    updateGlobalUI();
+    if (currentViewDay === 7) { renderGakupoSummary(); } else { updateGlobalUI(); }
     showToast("❌ " + name + " 已移除");
 }
 
@@ -547,6 +642,14 @@ function getRenderStudentsForCurrentWeek() {
             if (hasData) { renderList.push({ name: stuName, class: "已退/离" }); }
         }
     }
+    
+    // 🔥 全局模糊搜索过滤核心逻辑
+    if (currentSearchQuery) {
+        renderList = renderList.filter(function(s) {
+            return s.name.toLowerCase().indexOf(currentSearchQuery) !== -1;
+        });
+    }
+    
     return renderList; 
 }
 
@@ -580,7 +683,6 @@ function renderGakupoCards(day) {
         var vioClass = (r.vio > 0) ? 'act-vio' : 'vio-btn-off';
         var card = document.createElement('div'); 
         
-        // CSS 控制自适应高度与显示压缩
         card.className = 'student-card' + (isAllMode ? '' : ' focus-compact');
         if(stu.class === "已退/离") card.style.opacity = '0.7'; 
         
@@ -600,6 +702,11 @@ function renderGakupoSummary() {
     var tbody = document.getElementById('sumTBody'); tbody.innerHTML = '';
     var weekData = scoreState.history[scoreState.currentMonday] || {};
     var currentRenderList = getRenderStudentsForCurrentWeek();
+    
+    // 汇总页也支持班级过滤
+    if (currentClassFilter !== 'all') {
+        currentRenderList = currentRenderList.filter(function(stu) { return stu.class === currentClassFilter; });
+    }
     
     currentRenderList.forEach(function(stu) {
         var wt = calcTotal(stu.name, scoreState.currentMonday);
@@ -805,7 +912,16 @@ function analyzeSelectedWeeks() {
     
     if(selected.length === 0) { document.getElementById('monthRightPane').style.display = 'none'; return; }
     g_monthWeeks = selected; g_monthData = {};
-    scoreState.students.forEach(function(stu) {
+    
+    // 🔥 全局模糊搜索过滤多周数据
+    var filteredStudents = scoreState.students;
+    if(currentSearchQuery) {
+        filteredStudents = filteredStudents.filter(function(s) { 
+            return s.name.toLowerCase().indexOf(currentSearchQuery) !== -1; 
+        });
+    }
+    
+    filteredStudents.forEach(function(stu) {
         g_monthData[stu.name] = { class: stu.class, name: stu.name, weeks: [], total: 0 };
         selected.forEach(function(weekStr) { var wTotal = calcTotal(stu.name, weekStr); g_monthData[stu.name].weeks.push(wTotal); g_monthData[stu.name].total += wTotal; });
     });
@@ -818,6 +934,7 @@ function analyzeSelectedWeeks() {
     
     document.getElementById('monthStuList').innerHTML = list.map(function(s){ return '<div class="stu-list-item" id="mlist_'+s.name+'" onclick="selectMonthStu(\''+s.name+'\')"><span><span style="color:#64748b; font-size:11px;">['+(s.class||'')+']</span> <b>'+s.name+'</b></span><span style="color:#2563eb;">'+s.total+'</span></div>'; }).join('');
     if(list.length > 0) selectMonthStu(list[0].name);
+    else document.getElementById('monthRightPane').style.display = 'none';
 }
 
 function selectMonthStu(name) {
@@ -956,20 +1073,20 @@ function syncCloudGakupo() {
             localStorage.setItem(GAKUPO_KEY, JSON.stringify(scoreState)); 
             document.getElementById('mondayDate').value = scoreState.currentMonday; 
             updateGlobalUI(); renderDayTabs();
-            st.innerText = "云端同步: ☁️已同步"; st.style.color = "#10b981"; cloudSyncState.gakupoLoaded = true; document.getElementById('reconnectBtn').style.display = "none";
+            st.innerText = "同步: ☁️已同步"; st.style.color = "#10b981"; cloudSyncState.gakupoLoaded = true; document.getElementById('reconnectBtn').style.display = "none";
         } else { cloudSyncState.gakupoLoaded = true; triggerSaveScore(); }
     })
-    .catch(function(e) { cloudSyncState.gakupoLoaded = false; document.getElementById('reconnectBtn').style.display = "flex"; st.innerText = "云端同步: ⚠️离线/冲突"; st.style.color = "#f59e0b"; });
+    .catch(function(e) { cloudSyncState.gakupoLoaded = false; document.getElementById('reconnectBtn').style.display = "flex"; st.innerText = "同步: ⚠️离线/冲突"; st.style.color = "#f59e0b"; });
 }
 
 function triggerSaveScore() {
     localStorage.setItem(GAKUPO_KEY, JSON.stringify(scoreState)); if(!cloudSyncState.gakupoLoaded) return; 
-    var st = document.getElementById('syncGakupoStatus'); st.innerText = "云端同步: 🔄保存中"; st.style.color = "#3b82f6";
+    var st = document.getElementById('syncGakupoStatus'); st.innerText = "同步: 🔄保存中"; st.style.color = "#3b82f6";
     if(syncTimeouts.gakupo) clearTimeout(syncTimeouts.gakupo);
     syncTimeouts.gakupo = setTimeout(function() {
         fetchWithTimeout(GAKUPO_API, { method: "POST", headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(scoreState) }, 4000)
-        .then(function(res) { if(!res.ok) throw new Error("HTTP Error"); st.innerText = "云端同步: ☁️已同步"; st.style.color = "#10b981"; cloudSyncState.gakupoLoaded = true; document.getElementById('reconnectBtn').style.display = "none"; })
-        .catch(function(e) { st.innerText = "云端同步: ⚠️网络波动"; st.style.color = "#f59e0b"; });
+        .then(function(res) { if(!res.ok) throw new Error("HTTP Error"); st.innerText = "同步: ☁️已同步"; st.style.color = "#10b981"; cloudSyncState.gakupoLoaded = true; document.getElementById('reconnectBtn').style.display = "none"; })
+        .catch(function(e) { st.innerText = "同步: ⚠️网络波动"; st.style.color = "#f59e0b"; });
     }, 800);
 }
 
@@ -1025,6 +1142,9 @@ function generatePeriodStats() {
 
         if (scoreState.history[monday]) {
             scoreState.students.forEach(function(stu) {
+                // 🔥 全局模糊搜索过滤周期统计
+                if (currentSearchQuery && stu.name.toLowerCase().indexOf(currentSearchQuery) === -1) return;
+                
                 var stuData = scoreState.history[monday][stu.name];
                 if (stuData && stuData[dayIdx]) {
                     var r = stuData[dayIdx]; var st = stats[stu.name];
@@ -1040,6 +1160,9 @@ function generatePeriodStats() {
 
     var tbody = document.getElementById('periodStatsTBody'); tbody.innerHTML = '';
     scoreState.students.forEach(function(stu) {
+        // 🔥 全局模糊搜索过滤周期统计表格输出
+        if (currentSearchQuery && stu.name.toLowerCase().indexOf(currentSearchQuery) === -1) return;
+        
         var st = stats[stu.name];
         var attTotal = st.att['1'] + st.att['-1'] + st.att['缺'];
         var attRate = attTotal > 0 ? Math.round((st.att['1'] + st.att['-1']) / attTotal * 100) + '%' : '-';
