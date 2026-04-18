@@ -6,6 +6,8 @@
     <title>Gakuten</title>
     <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.5.0/lz-string.min.js"></script>
     <style>
         :root { --bg: #f4f7fb; --panel: #ffffff; --text-main: #1e293b; --text-sub: #64748b; --primary: #3b82f6; --primary-hover: #2563eb; --danger: #ef4444; --success: #10b981; --border: #e2e8f0; --radius: 12px; --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03); --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05); }
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif; }
@@ -16,7 +18,7 @@
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
         
-        .sidebar { width: 260px; background: linear-gradient(180deg, rgba(255,255,255,0.92), rgba(248,250,252,0.82)); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); border-right: 1px solid rgba(226, 232, 240, 0.9); display: flex; flex-direction: column; z-index: 50; box-shadow: 8px 0 30px -24px rgba(15,23,42,0.25); transition: background 0.3s ease, box-shadow 0.3s ease, backdrop-filter 0.3s ease; }
+        .sidebar { width: 260px; background: linear-gradient(180deg, rgba(255,255,255,0.92), rgba(248,250,252,0.82)); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); border-right: 1px solid rgba(226, 232, 240, 0.9); display: flex; flex-direction: column; z-index: 50; box-shadow: 8px 0 30px -24px rgba(15,23,42,0.25); transition: width 0.3s ease, background 0.3s ease, box-shadow 0.3s ease, backdrop-filter 0.3s ease; }
         .logo-area { padding: 25px 20px 20px; }
         .logo { font-size: 22px; font-weight: 800; color: var(--primary); letter-spacing: -0.5px; display: flex; align-items: center; gap: 8px; }
         
@@ -313,6 +315,30 @@
         .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 20px; }
         .dashboard-card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; box-shadow: var(--shadow-sm); }
         .dashboard-header { display: flex; justify-content: space-between; align-items: center; background: linear-gradient(135deg, #eff6ff, #ffffff); padding: 20px 30px; border-radius: var(--radius); border: 1px solid #bfdbfe; box-shadow: var(--shadow-sm); margin-bottom: 20px;}
+        
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+            #modal-student-profile, #modal-student-profile * {
+                visibility: visible;
+            }
+            #modal-student-profile {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+                background: white !important;
+                box-shadow: none !important;
+            }
+            .sidebar, .top-navbar, .close-button {
+                display: none !important;
+            }
+            #sp-chart-trend, #sp-chart-radar {
+                height: 300px !important;
+                width: 100% !important;
+            }
+        }
     </style>
 </head>
 <body>
@@ -321,7 +347,7 @@
 
     <aside class="sidebar">
         <div class="logo-area">
-            <div class="logo">⚡ 日语成绩分析系统</div>
+            <div class="logo"><span class="logo-icon">⚡</span><span class="logo-text"> 日语成绩分析系统</span></div>
             <div style="font-size: 11px; color: #94a3b8; margin-top: 4px; font-weight: 600;"></div>
         </div>
         
@@ -332,6 +358,7 @@
         </div>
 
         <div class="global-engine" id="global-engine-scroll">
+            <div class="global-engine-full">
             <div class="engine-title">
                 <span>⚙️ 我的教学设置 (过滤)</span>
                 <button class="secondary" style="padding: 4px 8px; font-size: 11px; font-weight: 700; color:var(--primary); background: transparent;" onclick="window.app.ui.resetGlobalFocus()" title="重置选项">清空</button>
@@ -452,6 +479,7 @@
                 <div class="top-actions" style="margin-left: auto;">
                     <input type="text" id="analysis-search-student" placeholder="🔍 搜姓名查报告..." style="width:160px; border-color:#8b5cf6;">
                     <button class="secondary" style="color: var(--primary);" onclick="window.app.ui.exportAnalysisExcel()">📥 导出综合报表</button>
+                    <button class="secondary" style="color: #0ea5e9; border-color: #7dd3fc;" onclick="window.app.ui.exportAnalysisAsImage()">📸 存为长图</button>
                 </div>
             </div>
 
@@ -459,7 +487,10 @@
                 
 
                 <div class="analysis-tabs" id="analysis-tabs-container">
-                    <div class="analysis-tab active" data-type="dist" onclick="window.app.ui.switchAnalysisTab('dist')">📊 成绩分布</div>
+                    <div class="analysis-tab active" data-type="overview" onclick="window.app.ui.switchAnalysisTab('overview')">🌌 全景数据大屏</div>
+                    <div class="analysis-tab" data-type="dist" onclick="window.app.ui.switchAnalysisTab('dist')">📊 成绩分布</div>
+                    <div class="analysis-tab" data-type="cumulative" onclick="window.app.ui.switchAnalysisTab('cumulative')">📈 累计分布曲线</div>
+                    <div class="analysis-tab" data-type="heatmap" onclick="window.app.ui.switchAnalysisTab('heatmap')">🔥 题型得分率热力图</div>
                     <div class="analysis-tab" data-type="segment" onclick="window.app.ui.switchAnalysisTab('segment')">🍰 分段统计</div>
                     <div class="analysis-tab" data-type="avg" onclick="window.app.ui.switchAnalysisTab('avg')">📈 班级均分横评</div>
                     <div class="analysis-tab" data-type="weakness" onclick="window.app.ui.switchAnalysisTab('weakness')">🩺 题型失分诊断</div>
@@ -553,8 +584,16 @@
                     </div>
                 </div>
                 
-                <div class="card" id="empty-state-card" style="display:none; box-shadow:none; border-color:var(--border);"></div>
-                <div class="card" id="chart-wrapper-card" style="padding:15px; box-shadow:none; border-color:var(--border);"><div id="chart-main" class="chart-container"></div></div>
+                                                                <div id="overview-dashboard-card" style="display: none; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 20px; box-shadow: none; background: transparent; border: none;">
+                                                    <div class="card" style="padding:10px; margin-bottom:0;"><div id="chart-ov-trend" class="chart-container" style="height:280px;"></div></div>
+                                                    <div class="card" style="padding:10px; margin-bottom:0;"><div id="chart-ov-avg" class="chart-container" style="height:280px;"></div></div>
+                                                    <div class="card" style="padding:10px; margin-bottom:0;"><div id="chart-ov-dist" class="chart-container" style="height:280px;"></div></div>
+                                                    <div class="card" style="padding:10px; margin-bottom:0;"><div id="chart-ov-normal" class="chart-container" style="height:280px;"></div></div>
+                                                    <div class="card" style="padding:10px; margin-bottom:0;"><div id="chart-ov-weakness" class="chart-container" style="height:280px;"></div></div>
+                                                    <div class="card" style="padding:10px; margin-bottom:0;"><div id="chart-ov-heatmap" class="chart-container" style="height:280px;"></div></div>
+                                                </div>
+                                <div class="card" id="empty-state-card" style="display:none; box-shadow:none; border-color:var(--border);"></div>
+                                <div class="card" id="chart-wrapper-card" style="padding:15px; box-shadow:none; border-color:var(--border);"><div id="chart-main" class="chart-container"></div></div>
                 
                 <div class="card" id="analysis-table-area" style="display:none; flex:1; margin-bottom:0; flex-direction:column; box-shadow:none;">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 15px;">
@@ -727,11 +766,33 @@
                 <div id="sp-chart-trend" style="height: 320px; width:100%;"></div>
             </div>
             <div style="border: 1px solid var(--border); border-radius: 10px; padding: 15px; box-shadow: var(--shadow-sm);">
+                <div id="sp-smart-insight" style="font-size:13px; color:#b45309; margin-bottom:10px; min-height:1.5em;"></div>
                 <div id="sp-chart-radar" style="height: 320px; width:100%;"></div>
             </div>
         </div>
         <div style="text-align:right;">
+            <button class="secondary" onclick="window.print()" style="font-size:12px; margin-right:10px;">🖨️ 打印专属报告</button>
             <button class="secondary" onclick="document.getElementById('modal-student-profile').close()">关闭档案</button>
+        </div>
+    </dialog>
+
+    </dialog>
+
+    <dialog id="paste-preview-modal" style="width: 900px; max-width: 98vw;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+            <h3 style="margin:0; font-size:16px;">粘贴预览 - 编辑并确认要写入的成绩</h3>
+            <div style="font-size:12px; color:var(--text-sub);">可在表格内编辑，勾选“自动截断超分”将在确认时截断超额值。</div>
+        </div>
+        <div id="paste-preview-body" style="max-height:420px; overflow:auto; border:1px solid var(--border); padding:12px; border-radius:6px; margin-bottom:12px; background:#fff;"></div>
+        <div id="paste-preview-overmax" style="margin-bottom:8px; font-size:13px; color:var(--danger);"></div>
+        <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px;">
+            <label style="font-size:13px;"><input type="checkbox" id="paste-preview-truncate" checked> 自动截断超分</label>
+            <span id="paste-preview-note" style="font-size:12px; color:var(--text-sub);"></span>
+        </div>
+        <div style="text-align:right; display:flex; gap:8px; justify-content:flex-end;">
+            <button id="paste-preview-undo" class="secondary">撤销</button>
+            <button id="paste-preview-cancel" class="secondary">取消</button>
+            <button id="paste-preview-confirm" class="primary">确认粘贴</button>
         </div>
     </dialog>
 
@@ -828,59 +889,45 @@
                     </div>`;
                 },
                 linearRegression: (xArr, yArr) => {
-                    // 最小二乘法计算线性回归 y = ax + b
-                    // 只使用非null的数据点
+                    // 最小二乘法计算线性回归 y = a*x + b
+                    // 只使用非 null 的数据点进行计算
                     const validPoints = [];
                     for (let i = 0; i < xArr.length; i++) {
                         if (yArr[i] !== null && yArr[i] !== undefined) {
                             validPoints.push({ x: xArr[i], y: yArr[i] });
                         }
                     }
-                    
-                    if (validPoints.length < 2) {
-                        // 数据点不足，返回无法计算的标记
-                        return null;
-                    }
-                    
+
+                    if (validPoints.length < 2) return null;
+
                     const n = validPoints.length;
                     let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
-                    
                     validPoints.forEach(p => {
                         sumX += p.x;
                         sumY += p.y;
                         sumXY += p.x * p.y;
                         sumX2 += p.x * p.x;
                     });
-                    
-                    // 计算斜率和截距
-                    const denominator = n * sumX2 - sumX * sumX;
-                    if (denominator === 0) {
-                        return null; // 无法计算（所有x值相同）
-                    }
-                    
-                    const slope = (n * sumXY - sumX * sumY) / denominator;
-                    const intercept = (sumY - slope * sumX) / n;
-                    
+
+                    const denom = (n * sumX2 - sumX * sumX);
+                    if (denom === 0) return null;
+
+                    const a = (n * sumXY - sumX * sumY) / denom;
+                    const b = (sumY - a * sumX) / n;
+
                     return {
-                        slope,
-                        intercept,
-                        predict: (x) => slope * x + intercept
+                        a,
+                        b,
+                        predict: (x) => a * x + b
                     };
                 }
             };
 
             class Store {
                 constructor() {
-                    this.KEY = 'gakuten_v43_0';
+                    this.KEY = 'gakuten_data_v1';
+                    this.state = { data: { students: [], exams: [], scores: [] }, globalFocus: { campuses: [], grades: [], phases: [], tClasses: [] }, currentAnalysisType: 'overview', trendPhases: [], currentTrendPredictSeries: [] };
                     this.scoreIndex = new Map();
-                    this.state = { 
-                        ts: Date.now(), 
-                        data: { students:[], exams:[], scores:[] },
-                        globalFocus: { campuses: [], grades: [], phases: [], tClasses: [] },
-                        currentAnalysisType: 'dist',
-                        trendPhases: [],
-                        currentTrendPredictSeries: []
-                    };
                     this.hasUnsavedChanges = false;
                     this.saveTimeout = null;
                     this.history = [];
@@ -890,81 +937,94 @@
                 }
                 load() {
                     const raw = localStorage.getItem(this.KEY);
-                    if(raw) { 
-                        try { 
-                            this.state = JSON.parse(raw); 
-                            if (!this.state.globalFocus) this.state.globalFocus = { campuses: [], grades: [], phases: [], tClasses: [] };
-                            if (!this.state.currentAnalysisType) this.state.currentAnalysisType = 'dist';
-                            if (!this.state.trendPhases) this.state.trendPhases = [];
-                            
-                            let needsSave = false;
-                            const oldStuCount = this.state.data.students.length;
-                            this.state.data.students = this.state.data.students.filter(s => {
-                                const c = (s.campus || '').trim();
-                                const g = (s.grade || '').trim();
-                                if (!c || c === '未设校区' || c === '默认校区' || c === '未分配校区') return false;
-                                if (!g || g === '未设年级' || g === '未分配年级') return false;
-                                if (s.class !== undefined) { s.teachingClass = s.class; s.adminClass = '-'; delete s.class; needsSave = true; }
-                                if (!s.teachingClass) s.teachingClass = '未分日语班';
-                                if (!s.adminClass) s.adminClass = '-';
-                                return true;
-                            });
-                            if (this.state.data.students.length !== oldStuCount) needsSave = true;
+                    if (!raw) return;
+                    try {
+                        let parsed = null;
+                        // 优先尝试解压（兼容已压缩的数据）
+                        if (typeof LZString !== 'undefined' && LZString && LZString.decompressFromUTF16) {
+                            try {
+                                const decompressed = LZString.decompressFromUTF16(raw);
+                                if (decompressed !== null && decompressed !== undefined) parsed = JSON.parse(decompressed);
+                            } catch (e) {
+                                parsed = null;
+                            }
+                        }
 
-                            const examGroups = {};
-                            const newExams = [];
-                            let didMigrateExams = false;
-                            
-                            this.state.data.exams.forEach(e => {
-                                const g = (e.grade || '').trim();
-                                if (!g || g === '未设年级') return;
-                                
-                                if (!e.campuses) {
-                                    e.campuses = e.campus ? [e.campus] : [];
-                                    needsSave = true;
-                                }
+                        // 回退：尝试直接解析原始 JSON（兼容未压缩的旧数据）
+                        if (!parsed) {
+                            try { parsed = JSON.parse(raw); } catch (e) { parsed = null; }
+                        }
 
-                                const key = g + '_' + e.name;
-                                if (!examGroups[key]) {
-                                    examGroups[key] = e;
-                                    newExams.push(e);
-                                } else {
-                                    didMigrateExams = true;
-                                    needsSave = true;
-                                    const baseExam = examGroups[key];
-                                    
-                                    if (e.campus && !baseExam.campuses.includes(e.campus)) baseExam.campuses.push(e.campus);
-                                    if (e.campuses) {
-                                        e.campuses.forEach(c => {
-                                            if (!baseExam.campuses.includes(c)) baseExam.campuses.push(c);
-                                        });
-                                    }
-                                    
-                                    if (e.date < baseExam.date) baseExam.date = e.date;
-                                    if (e.maxTotal > baseExam.maxTotal) {
-                                        baseExam.maxTotal = e.maxTotal;
-                                        baseExam.types = e.types;
-                                    }
-                                    
-                                    this.state.data.scores.forEach(s => {
-                                        if (s.examId === e.id) s.examId = baseExam.id;
-                                    });
-                                }
-                            });
-                            
-                            if (didMigrateExams || this.state.data.exams.length !== newExams.length) {
-                                this.state.data.exams = newExams;
+                        if (!parsed) throw new Error('local data parse failed');
+
+                        this.state = parsed;
+                        if (!this.state.globalFocus) this.state.globalFocus = { campuses: [], grades: [], phases: [], tClasses: [] };
+                        if (!this.state.currentAnalysisType) this.state.currentAnalysisType = 'overview';
+                        if (!this.state.trendPhases) this.state.trendPhases = [];
+
+                        let needsSave = false;
+                        const oldStuCount = this.state.data.students.length;
+                        this.state.data.students = this.state.data.students.filter(s => {
+                            const c = (s.campus || '').trim();
+                            const g = (s.grade || '').trim();
+                            if (!c || c === '未设校区' || c === '默认校区' || c === '未分配校区') return false;
+                            if (!g || g === '未设年级' || g === '未分配年级') return false;
+                            if (s.class !== undefined) { s.teachingClass = s.class; s.adminClass = '-'; delete s.class; needsSave = true; }
+                            if (!s.teachingClass) s.teachingClass = '未分日语班';
+                            if (!s.adminClass) s.adminClass = '-';
+                            return true;
+                        });
+                        if (this.state.data.students.length !== oldStuCount) needsSave = true;
+
+                        const examGroups = {};
+                        const newExams = [];
+                        let didMigrateExams = false;
+
+                        this.state.data.exams.forEach(e => {
+                            const g = (e.grade || '').trim();
+                            if (!g || g === '未设年级') return;
+
+                            if (!e.campuses) {
+                                e.campuses = e.campus ? [e.campus] : [];
                                 needsSave = true;
                             }
 
-                            if (needsSave) this.save();
-                            this.rebuildScoreIndex();
-                        } catch(e){
-                            Utils.msg('本地数据加载异常，已重置为初始状态', 'error');
-                            this.state.data = { students:[], exams:[], scores:[] };
-                            this.rebuildScoreIndex();
-                            this.save();
-                        } 
+                            const key = g + '_' + e.name;
+                            if (!examGroups[key]) {
+                                examGroups[key] = e;
+                                newExams.push(e);
+                            } else {
+                                didMigrateExams = true;
+                                needsSave = true;
+                                const baseExam = examGroups[key];
+
+                                if (e.campus && !baseExam.campuses.includes(e.campus)) baseExam.campuses.push(e.campus);
+                                if (e.campuses) {
+                                    e.campuses.forEach(c => { if (!baseExam.campuses.includes(c)) baseExam.campuses.push(c); });
+                                }
+
+                                if (e.date < baseExam.date) baseExam.date = e.date;
+                                if (e.maxTotal > baseExam.maxTotal) {
+                                    baseExam.maxTotal = e.maxTotal;
+                                    baseExam.types = e.types;
+                                }
+
+                                this.state.data.scores.forEach(s => { if (s.examId === e.id) s.examId = baseExam.id; });
+                            }
+                        });
+
+                        if (didMigrateExams || this.state.data.exams.length !== newExams.length) {
+                            this.state.data.exams = newExams;
+                            needsSave = true;
+                        }
+
+                        if (needsSave) this.save();
+                        this.rebuildScoreIndex();
+                    } catch (e) {
+                        Utils.msg('本地数据加载异常，已重置为初始状态', 'error');
+                        this.state.data = { students:[], exams:[], scores:[] };
+                        this.rebuildScoreIndex();
+                        this.save();
                     }
                 }
                 rebuildScoreIndex() {
@@ -989,7 +1049,18 @@
                     }
                     this.updateUndoButton();
                     try {
-                        localStorage.setItem(this.KEY, JSON.stringify(this.state));
+                        const serialized = JSON.stringify(this.state);
+                        try {
+                            if (typeof LZString !== 'undefined' && LZString && LZString.compressToUTF16) {
+                                const compressed = LZString.compressToUTF16(serialized);
+                                localStorage.setItem(this.KEY, compressed);
+                            } else {
+                                localStorage.setItem(this.KEY, serialized);
+                            }
+                        } catch (cz) {
+                            // 若压缩或写入失败，回退到未压缩写入以保证数据不丢失
+                            localStorage.setItem(this.KEY, serialized);
+                        }
                         this.hasUnsavedChanges = false;
                         this.updateSaveIndicator();
                         if(window.app && window.app.sync) window.app.sync.push();
@@ -1179,6 +1250,7 @@
                         if (this.chartInstance) this.chartInstance.resize(); 
                         if (this.spTrendChart) this.spTrendChart.resize();
                         if (this.spRadarChart) this.spRadarChart.resize();
+                        if (this.ovCharts) this.ovCharts.forEach(c => c.resize());
                     }, 200));
 
                     let isComposingAnalysis = false;
@@ -1664,6 +1736,8 @@
                         }
                     });
 
+                    
+
                     chart.setOption({
                         title: { text: '📈 历次考试总分变化', left: 'center' },
                         tooltip: { trigger: 'axis' },
@@ -1696,6 +1770,25 @@
                         const rawAvg = clsScores.length > 0 ? sum / clsScores.length : 0;
                         return parseFloat(((rawAvg / t.max) * 100).toFixed(1));
                     });
+
+                    // 在渲染雷达图之前生成学情短评
+                    try {
+                        const insightEl = document.getElementById('sp-smart-insight');
+                        if (insightEl) {
+                            let bestType = '';
+                            let worstType = '';
+                            let maxDiff = -Infinity;
+                            let minDiff = Infinity;
+                            ex.types.forEach((t, idx) => {
+                                const diff = (stuPct[idx] || 0) - (avgPct[idx] || 0);
+                                if (diff > maxDiff) { maxDiff = diff; bestType = t.name; }
+                                if (diff < minDiff) { minDiff = diff; worstType = t.name; }
+                            });
+                            insightEl.innerHTML = "💡 <b>学情速写</b>：本次考试中，你的 <b>[" + bestType + "]</b> 表现亮眼；但 <b>[" + worstType + "]</b> 显著低于班级均值，建议近期重点突破。";
+                        }
+                    } catch (e) {
+                        console.warn('sp insight render error', e);
+                    }
 
                     chart.setOption({
                         title: { text: `🎯 最新考试题型能力雷达 (${ex.name})`, left: 'center' },
@@ -2074,19 +2167,371 @@
                             window.app.ui.saveVal(sid, eid, field, value, `t-${sid}`, max, target);
                         }
                     };
+                    // 粘贴支持：带预览 / 自动对齐表头 / 超分处理
+                    wrapper.addEventListener('paste', (e) => {
+                        try {
+                            const target = e.target;
+                            if (!target || !target.classList.contains('score-input')) return;
+                            e.preventDefault();
+                            const raw = (e.clipboardData || window.clipboardData).getData('text') || '';
+                            if (!raw) return;
+
+                            // 解析为二维数组（行 -> 列），支持 \r\n, \n, \r 和制表符
+                            let rows = raw.split(/\r\n|\n|\r/).filter(r => r.length > 0).map(r => r.split(/\t/));
+                            const maxCols = rows.reduce((m, r) => Math.max(m, r.length), 0);
+
+                            const startTd = target.closest('td');
+                            const startTr = target.closest('tr');
+                            if (!startTd || !startTr) return;
+                            const tbody = startTr.parentElement;
+                            if (!tbody) return;
+                            const allRows = Array.from(tbody.querySelectorAll('tr'));
+                            const startRowIndex = allRows.indexOf(startTr);
+
+                            // 检测是否首行为题型表头（与 exam.types 对齐）
+                            const sanitize = (s) => String(s || '').replace(/\s+/g, '').replace(/"|'/g, '').toLowerCase();
+                            const typeNames = (exam.types || []).map(t => sanitize(t.name));
+                            let headerMap = null;
+                            if (rows.length > 0) {
+                                const maybeHeader = rows[0];
+                                let matches = 0;
+                                headerMap = {};
+                                maybeHeader.forEach((cell, idx) => {
+                                    const s = sanitize(cell);
+                                    const pos = typeNames.indexOf(s);
+                                    if (pos >= 0) { headerMap[idx] = pos; matches++; }
+                                });
+                                if (matches === 0) headerMap = null; // not a header
+                                else rows = rows.slice(1); // consume header row
+                            }
+
+                            // 单格粘贴：直接应用（无预览）
+                            if (rows.length === 1 && maxCols === 1) {
+                                const cellText = rows[0][0];
+                                const rawVal = String(cellText || '').trim().replace(/，/g, ',').replace(/\s+/g, '');
+                                const normalized = rawVal.replace(/,/g, '.');
+                                const m = normalized.match(/[+-]?\d+(?:\.\d+)?/);
+                                if (!m) return;
+                                const val = m[0];
+                                // 写入并触发保存
+                                target.value = val;
+                                const sid = target.dataset.sid;
+                                const ieid = target.dataset.eid || eid;
+                                const type = target.dataset.type;
+                                if (type === 'estimated') {
+                                    window.app.ui.saveEstimated && window.app.ui.saveEstimated(sid, ieid, val, target);
+                                } else if (type === 'detail') {
+                                    const field = target.dataset.field || '';
+                                    const max = parseFloat(target.dataset.max) || 0;
+                                    window.app.ui.saveVal && window.app.ui.saveVal(sid, ieid, field, val, `t-${sid}`, max, target);
+                                }
+                                return;
+                            }
+
+                            // 构建预览表格
+                            const previewBody = document.getElementById('paste-preview-body');
+                            const previewNote = document.getElementById('paste-preview-note');
+                            if (!previewBody) return;
+
+                            const baseTypesStartIndex = 4; // table: 0 name,1 campus,2 adminClass,3 estimated, types start at 4
+                            let colsCount = Math.max(...rows.map(r=>r.length));
+                            let tableHtml = '<table style="width:100%; border-collapse:collapse;">';
+                            // header
+                            tableHtml += '<thead><tr style="background:#fafafa;"><th style="padding:6px; border-bottom:1px solid var(--border); text-align:left;">学生</th>';
+                            for (let c=0;c<colsCount;c++){
+                                let label = `列 ${c+1}`;
+                                if (headerMap && headerMap[c] !== undefined) {
+                                    label = (exam.types[headerMap[c]]||{name:label}).name;
+                                } else {
+                                    const tci = startTd.cellIndex + c;
+                                    if (tci === 3) label = '考前预估总分';
+                                    else if (tci >= baseTypesStartIndex) label = (exam.types[tci - baseTypesStartIndex]||{name:label}).name;
+                                }
+                                tableHtml += `<th style="padding:6px; border-bottom:1px solid var(--border); text-align:left;">${label}</th>`;
+                            }
+                            tableHtml += '</tr></thead><tbody>';
+
+                            // rows
+                            rows.forEach((cols, rIdx) => {
+                                const row = allRows[startRowIndex + rIdx];
+                                const stuName = row ? (row.children[0]?.textContent || '') : '';
+                                tableHtml += `<tr><td style="padding:6px; border-bottom:1px solid var(--border); font-weight:600;">${stuName}</td>`;
+                                for (let c=0;c<colsCount;c++){
+                                    const cellText = cols[c] || '';
+                                    // determine target cell index and real input metadata
+                                    let targetCellIndex = startTd.cellIndex + c;
+                                    if (headerMap && headerMap[c] !== undefined) {
+                                        targetCellIndex = baseTypesStartIndex + headerMap[c];
+                                    }
+                                    const realRow = allRows[startRowIndex + rIdx];
+                                    const realCell = realRow ? realRow.children[targetCellIndex] : null;
+                                    const realInput = realCell?.querySelector?.('.score-input');
+
+                                    let dataSid = realInput?.dataset?.sid || '';
+                                    let dataType = realInput?.dataset?.type || 'detail';
+                                    let dataField = realInput?.dataset?.field || '';
+                                    let dataMax = parseFloat(realInput?.dataset?.max) || 0;
+
+                                    // sanitize numeric
+                                    const rawVal = String(cellText || '').trim().replace(/，/g, ',').replace(/\s+/g, '');
+                                    const normalized = rawVal.replace(/,/g, '.');
+                                    const m = normalized.match(/[+-]?\d+(?:\.\d+)?/);
+                                    const displayVal = m ? m[0] : '';
+
+                                    const overClass = (displayVal !== '' && dataMax>0 && parseFloat(displayVal) > dataMax) ? 'style="outline:1px solid var(--danger); background:#fff7f7;"' : '';
+
+                                    tableHtml += `<td style="padding:6px; border-bottom:1px solid var(--border);"><input class="preview-input" data-sid="${dataSid}" data-type="${dataType}" data-field="${dataField}" data-max="${dataMax}" data-eid="${eid}" data-target-row="${startRowIndex + rIdx}" data-target-cell="${targetCellIndex}" value="${displayVal}" style="width:100%; padding:6px; border:1px solid var(--border); border-radius:4px;" ${overClass}></td>`;
+                                }
+                                tableHtml += '</tr>';
+                            });
+
+                            tableHtml += '</tbody></table>';
+                            previewBody.innerHTML = tableHtml;
+                            if (previewNote) previewNote.textContent = `预览 ${rows.length} 行 x ${colsCount} 列；首行 ${headerMap ? '已识别为题型表头并自动对齐' : '未检测到表头'}`;
+
+                            const modal = document.getElementById('paste-preview-modal');
+                            const confirmBtn = document.getElementById('paste-preview-confirm');
+                            const cancelBtn = document.getElementById('paste-preview-cancel');
+                            const undoBtn = document.getElementById('paste-preview-undo');
+                            const truncateCheckbox = document.getElementById('paste-preview-truncate');
+                            const overmaxListEl = document.getElementById('paste-preview-overmax');
+
+                            // store initial preview state for undo
+                            const previewInitial = {};
+                            const previewLast = {};
+                            const changeStack = [];
+
+                            // initialize preview inputs metadata and initial state
+                            Array.from(previewBody.querySelectorAll('.preview-input')).forEach(pi => {
+                                const key = `${pi.dataset.targetRow}-${pi.dataset.targetCell}-${pi.dataset.eid}`;
+                                previewInitial[key] = pi.value || '';
+                                previewLast[key] = pi.value || '';
+                            });
+
+                            // render over-max list
+                            const renderOverMax = () => {
+                                const items = [];
+                                Array.from(previewBody.querySelectorAll('.preview-input')).forEach(pi => {
+                                    const val = (pi.value||'').toString().trim();
+                                    const max = parseFloat(pi.dataset.max) || 0;
+                                    if (val !== '' && max > 0 && !isNaN(parseFloat(val)) && parseFloat(val) > max) {
+                                        const rowIdx = pi.dataset.targetRow;
+                                        const cellIdx = pi.dataset.targetCell;
+                                        const stuName = (allRows[rowIdx]?.children[0]?.textContent) || '';
+                                        items.push({pi, rowIdx, cellIdx, stuName, val, max});
+                                    }
+                                });
+                                if (!overmaxListEl) return;
+                                if (items.length === 0) { overmaxListEl.innerHTML = ''; return; }
+                                overmaxListEl.innerHTML = `<div style="font-weight:600; margin-bottom:6px;">检测到超分条目（点击定位）：</div>` + items.map((it, i) => `<div class="over-item" style="padding:6px; border:1px dashed rgba(239,68,68,0.12); margin-bottom:6px; cursor:pointer;">${i+1}. ${it.stuName} — 值: ${it.val}，允许最大: ${it.max}</div>`).join('');
+                                // bind click handlers
+                                Array.from(overmaxListEl.querySelectorAll('.over-item')).forEach((el, idx) => {
+                                    el.addEventListener('click', () => {
+                                        const targetPi = items[idx].pi;
+                                        targetPi.scrollIntoView({behavior:'smooth', block:'center'});
+                                        targetPi.focus();
+                                    });
+                                });
+                            };
+
+                            // track changes in preview inputs
+                            previewBody.addEventListener('input', (ev) => {
+                                const pi = ev.target;
+                                if (!pi || !pi.classList.contains('preview-input')) return;
+                                const key = `${pi.dataset.targetRow}-${pi.dataset.targetCell}-${pi.dataset.eid}`;
+                                const prev = previewLast[key] !== undefined ? previewLast[key] : previewInitial[key] || '';
+                                const cur = (pi.value||'').toString();
+                                changeStack.push({key, prev, cur, pi});
+                                previewLast[key] = cur;
+                                renderOverMax();
+                            });
+
+                            // undo last change
+                            const undoLast = () => {
+                                const last = changeStack.pop();
+                                if (!last) return;
+                                last.pi.value = last.prev;
+                                previewLast[last.key] = last.prev;
+                                renderOverMax();
+                            };
+                            undoBtn.addEventListener('click', undoLast);
+
+                            // mapping selects: enhance header with mapping dropdowns
+                            // create selects inside header cells
+                            const headerCells = previewBody.querySelectorAll('thead th');
+                            const mappingSelects = [];
+                            for (let c=0;c<colsCount;c++) {
+                                const th = headerCells[c+1]; // +1 because first is student name
+                                if (!th) continue;
+                                const selId = `paste-map-col-${c}`;
+                                let selHtml = `<div style="margin-top:6px;"><select id="${selId}" data-col="${c}" style="font-size:12px; padding:4px;">`;
+                                selHtml += `<option value="-1">不映射</option>`;
+                                selHtml += `<option value="-2">自动映射</option>`;
+                                // estimated option
+                                selHtml += `<option value="e_estimated">考前预估总分</option>`;
+                                (exam.types || []).forEach((t, idx) => {
+                                    selHtml += `<option value="${idx}">${t.name}</option>`;
+                                });
+                                selHtml += `</select></div>`;
+                                th.innerHTML += selHtml;
+                                mappingSelects.push(document.getElementById(selId));
+                            }
+
+                            // helper to update preview-inputs dataset when mapping changes
+                            const applyMappingForCol = (col, mapVal) => {
+                                const previewInputs = Array.from(previewBody.querySelectorAll('.preview-input')).filter(pi=>parseInt(pi.getAttribute('data-preview-col')||'-1')===col);
+                                previewInputs.forEach(pi=>{
+                                    let newTargetCell = parseInt(pi.dataset.targetCell) || parseInt(pi.dataset.targetCellOriginal) || (startTd.cellIndex + col);
+                                    if (mapVal === '-1') {
+                                        // unmap: set to a negative sentinel so confirm will skip
+                                        pi.dataset.targetCell = -9999;
+                                    } else if (mapVal === '-2') {
+                                        // auto: revert to original target
+                                        pi.dataset.targetCell = pi.dataset.targetCellOriginal || (startTd.cellIndex + col);
+                                    } else if (mapVal === 'e_estimated') {
+                                        pi.dataset.targetCell = 3; // estimated column index
+                                    } else {
+                                        const idx = parseInt(mapVal);
+                                        if (!isNaN(idx)) {
+                                            pi.dataset.targetCell = (baseTypesStartIndex + idx);
+                                        }
+                                    }
+                                    // update dataset meta by probing real cell
+                                    const trIdx = parseInt(pi.dataset.targetRow);
+                                    const tc = parseInt(pi.dataset.targetCell);
+                                    const realRow = allRows[trIdx];
+                                    const realCell = realRow ? realRow.children[tc] : null;
+                                    const realInput = realCell?.querySelector?.('.score-input');
+                                    if (realInput) {
+                                        pi.dataset.sid = realInput.dataset.sid || '';
+                                        pi.dataset.type = realInput.dataset.type || '';
+                                        pi.dataset.field = realInput.dataset.field || '';
+                                        pi.dataset.max = realInput.dataset.max || '';
+                                    }
+                                });
+                                renderOverMax();
+                            };
+
+                            // attach change listeners to mapping selects
+                            mappingSelects.forEach(sel => {
+                                if (!sel) return;
+                                const col = sel.dataset.col;
+                                sel.addEventListener('change', (ev) => {
+                                    applyMappingForCol(parseInt(col), ev.target.value);
+                                });
+                            });
+
+                            // mark preview inputs with preview col index and original target for mapping
+                            Array.from(previewBody.querySelectorAll('.preview-input')).forEach((pi, idx) => {
+                                const tr = pi.closest('tr');
+                                const rowIndex = Array.from(previewBody.querySelectorAll('tbody tr')).indexOf(tr);
+                                const previewCol = Array.from(tr.querySelectorAll('.preview-input')).indexOf(pi);
+                                pi.dataset.previewCol = previewCol;
+                                // store original target cell
+                                if (!pi.dataset.targetCellOriginal) pi.dataset.targetCellOriginal = pi.dataset.targetCell;
+                            });
+
+                            renderOverMax();
+
+                            const cleanup = () => {
+                                try { modal.close(); } catch(e){}
+                                confirmBtn.removeEventListener('click', onConfirm);
+                                cancelBtn.removeEventListener('click', onCancel);
+                                undoBtn.removeEventListener('click', undoLast);
+                            };
+
+                            const onConfirm = () => {
+                                const previewInputs = Array.from(previewBody.querySelectorAll('.preview-input'));
+                                const doTruncate = !!(truncateCheckbox && truncateCheckbox.checked);
+                                previewInputs.forEach(pi => {
+                                    const valStr = (pi.value || '').toString().trim();
+                                    if (valStr === '') return;
+                                    const targetRowIdx = parseInt(pi.dataset.targetRow);
+                                    const targetCellIdx = parseInt(pi.dataset.targetCell);
+                                    if (isNaN(targetCellIdx) || targetCellIdx < 0) return; // unmapped
+                                    const realRow = allRows[targetRowIdx];
+                                    const realCell = realRow ? realRow.children[targetCellIdx] : null;
+                                    const realInput = realCell?.querySelector?.('.score-input');
+                                    if (!realInput) return;
+                                    const sid = realInput.dataset.sid;
+                                    const ieid = realInput.dataset.eid || eid;
+                                    const type = realInput.dataset.type;
+                                    const field = realInput.dataset.field || '';
+                                    const max = parseFloat(realInput.dataset.max) || 0;
+                                    let vnormalized = valStr.replace(/，/g, ',').replace(/\s+/g, '').replace(/,/g, '.');
+                                    const m = vnormalized.match(/[+-]?\d+(?:\.\d+)?/);
+                                    if (!m) return;
+                                    let v = m[0];
+                                    if (doTruncate && max > 0 && parseFloat(v) > max) v = String(max);
+                                    if (type === 'estimated') {
+                                        window.app.ui.saveEstimated && window.app.ui.saveEstimated(sid, ieid, v, realInput);
+                                    } else {
+                                        window.app.ui.saveVal && window.app.ui.saveVal(sid, ieid, field, v, `t-${sid}`, max, realInput);
+                                    }
+                                });
+                                cleanup();
+                            };
+
+                            const onCancel = () => { cleanup(); };
+
+                            confirmBtn.addEventListener('click', onConfirm);
+                            cancelBtn.addEventListener('click', onCancel);
+                            try { modal.showModal(); } catch(e) { /* dialog not supported */ }
+
+                        } catch (err) {
+                            console.warn('paste handler error', err);
+                        }
+                    });
                     wrapper.onkeydown = (event) => {
                         const target = event.target;
                         if (!target || !target.classList.contains('score-input')) return;
-                        
+
+                        // Arrow key navigation (优先处理)
+                        if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)) {
+                            event.preventDefault();
+                            const currentTd = target.closest('td');
+                            const currentTr = target.closest('tr');
+                            if (!currentTd || !currentTr) return;
+
+                            // Up / Down: 在同个 tbody 中寻找上一行/下一行相同 cellIndex 的输入框
+                            if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+                                const tbody = currentTr.parentElement;
+                                if (!tbody) return;
+                                const rows = Array.from(tbody.querySelectorAll('tr'));
+                                const rowIndex = rows.indexOf(currentTr);
+                                const targetRow = event.key === 'ArrowUp' ? rows[rowIndex - 1] : rows[rowIndex + 1];
+                                if (targetRow) {
+                                    const targetCell = targetRow.children[currentTd.cellIndex];
+                                    const targetInput = targetCell?.querySelector('.score-input');
+                                    if (targetInput) {
+                                        targetInput.focus();
+                                        targetInput.select();
+                                    }
+                                }
+                            } else {
+                                // Left / Right: 在当前行的 .score-input 列表中寻找前一个/后一个
+                                const inputsInRow = Array.from(currentTr.querySelectorAll('.score-input'));
+                                const idx = inputsInRow.indexOf(target);
+                                const next = event.key === 'ArrowLeft' ? inputsInRow[idx - 1] : inputsInRow[idx + 1];
+                                if (next) {
+                                    next.focus();
+                                    next.select();
+                                }
+                            }
+
+                            return;
+                        }
+
+                        // 保留原有 Tab / Enter 跳转逻辑
                         if (event.key === 'Tab' || event.key === 'Enter') {
                             event.preventDefault();
                             const currentTd = target.closest('td');
                             const currentTr = target.closest('tr');
                             if (!currentTd || !currentTr) return;
-                            
+
                             const allInputs = Array.from(wrapper.querySelectorAll('.score-input'));
                             const currentIndex = allInputs.indexOf(target);
-                            
+
                             let nextIndex;
                             if (event.shiftKey) {
                                 // Shift+Tab: 反向跳转
@@ -2097,7 +2542,7 @@
                                 nextIndex = currentIndex + 1;
                                 if (nextIndex >= allInputs.length) nextIndex = 0;
                             }
-                            
+
                             const nextInput = allInputs[nextIndex];
                             if (nextInput) {
                                 nextInput.focus();
@@ -2745,7 +3190,7 @@
                         sel.value = validExams[0].id;
                     }
                     
-                    this.switchAnalysisTab(this.store.state.currentAnalysisType || 'dist'); 
+                    this.switchAnalysisTab(this.store.state.currentAnalysisType || 'overview'); 
                 }
 
                 // 顺便加上联动事件
@@ -2758,7 +3203,8 @@
 
                 switchAnalysisTab(type) {
                     this.store.state.currentAnalysisType = type;
-                    this.store.markAsUnsaved();
+                    // 修复：移除 markAsUnsaved，防止启动时切换Tab触发自动保存从而覆盖云端数据
+                    try { localStorage.setItem(this.store.KEY, JSON.stringify(this.store.state)); } catch(e) {}
 
                     document.querySelectorAll('.analysis-tab').forEach(tab => {
                         tab.classList.remove('active');
@@ -2788,6 +3234,21 @@
                     trendPredictWrap.style.display = 'none';
                     avgTypeWrap.style.display = 'none';
                     baselineScopeWrap.style.display = 'none';
+
+                    // 处理 overview 视图的专属展示逻辑
+                    if (type === 'overview') {
+                        baseWrap.style.display = 'flex';
+                        compMultiExamWrap.style.display = 'none';
+                        compDimWrap.style.display = 'none';
+                        compChartTypeWrap.style.display = 'none';
+                        clsWrap.style.display = 'flex';
+                        stuWrap.style.display = 'none';
+                        trendPhaWrap.style.display = 'none';
+                        trendScoreWrap.style.display = 'none';
+                        trendPredictWrap.style.display = 'none';
+                        avgTypeWrap.style.display = 'none';
+                        baselineScopeWrap.style.display = 'none';
+                    }
 
                     if (type === 'compare') {
                         baseWrap.style.display = 'none'; 
@@ -2975,6 +3436,51 @@
                     XLSX.writeFile(wb, `${examName}_成绩明细_${dateStr}.xlsx`);
                     Utils.msg("明细表导出成功！");
                 }
+
+                    // 导出学情为高清长图（使用 html2canvas）
+                    exportAnalysisAsImage() {
+                        let originalStyles = null;
+                        try {
+                            if(!this.analysisCache || !this.analysisCache.exam) return Utils.msg('当前没有可以导出的学情视图', 'error');
+                            Utils.msg('正在生成高清长图，请稍候...', 'success');
+                            const node = document.querySelector('#view-analysis .content-body');
+                            if(!node) return Utils.msg('无法定位学情视图节点', 'error');
+
+                            // 展开所有可滚动容器以避免截图被截断
+                            const scrollContainers = node.querySelectorAll('.table-scroll-container, .content-body');
+                            originalStyles = [];
+                            scrollContainers.forEach(el => {
+                                originalStyles.push({ el, maxH: el.style.maxHeight || '', overflow: el.style.overflow || '' });
+                                el.style.maxHeight = 'none';
+                                el.style.overflow = 'visible';
+                            });
+
+                            const examName = (this.analysisCache && this.analysisCache.exam && this.analysisCache.exam.name) ? this.analysisCache.exam.name : '学情报告';
+                            html2canvas(node, { scale: 2, useCORS: true, backgroundColor: null }).then(canvas => {
+                                try {
+                                    const url = canvas.toDataURL('image/png');
+                                    const a = document.createElement('a');
+                                    const dateStr = new Date().toISOString().slice(0,10);
+                                    a.href = url;
+                                    a.download = `${examName}_学情报告_${dateStr}.png`;
+                                    document.body.appendChild(a);
+                                    a.click();
+                                    a.remove();
+                                    Utils.msg('学情长图已生成并开始下载', 'success');
+                                } finally {
+                                    // 恢复样式
+                                    if (originalStyles) originalStyles.forEach(s => { try { s.el.style.maxHeight = s.maxH; s.el.style.overflow = s.overflow; } catch(e){} });
+                                }
+                            }).catch(e => {
+                                // 恢复样式并报错
+                                if (originalStyles) originalStyles.forEach(s => { try { s.el.style.maxHeight = s.maxH; s.el.style.overflow = s.overflow; } catch(e){} });
+                                console.warn('exportAnalysisAsImage error', e); Utils.msg('生成长图失败，请重试', 'error');
+                            });
+                        } catch (e) {
+                            if (originalStyles) originalStyles.forEach(s => { try { s.el.style.maxHeight = s.maxH; s.el.style.overflow = s.overflow; } catch(e){} });
+                            console.warn('exportAnalysisAsImage outer error', e); Utils.msg('生成长图失败', 'error');
+                        }
+                    }
 
                // ================= 全新：带色彩特效的深度明细表导出引擎 =================
                 exportDetailTableExcel() {
@@ -3345,8 +3851,9 @@
                     
                     const examEl = document.getElementById('global-exam');
                     if (!examEl || !examEl.value) {
-                        // 如果没选考试，直接显示空状态，不要报错
-                        document.getElementById('analysis-stats').style.display = 'none';
+                        // 如果没选考试，安全隐藏新版的统计容器并退出，防止阻塞生命周期
+                        const compactStats = document.getElementById('analysis-compact-stats');
+                        if (compactStats) compactStats.style.display = 'none';
                         return; 
                     }
                     const eid = examEl.value; 
@@ -3356,7 +3863,11 @@
                     const type = this.store.state.currentAnalysisType;
                     const stuSelector = document.getElementById('af-stu'); 
                     const chartCard = document.getElementById('chart-wrapper-card');
-                    chartCard.style.display = 'none'; 
+                    // 保存 chart-wrapper-card 的原始结构，首次运行时记录以便安全恢复
+                    try { if (chartCard && !this._chartWrapperOriginalHTML) this._chartWrapperOriginalHTML = chartCard.innerHTML; } catch(e) {}
+                    const ovCard = document.getElementById('overview-dashboard-card');
+                    if (ovCard) ovCard.style.display = type === 'overview' ? 'grid' : 'none';
+                    chartCard.style.display = type === 'overview' ? 'none' : 'block'; 
                     const tableArea = document.getElementById('analysis-table-area');
                     if (tableArea) tableArea.style.display = 'none';
                     const tbody = document.getElementById('tbody-analysis');
@@ -3375,6 +3886,19 @@
                     if (this.chartInstance) {
                         this.chartInstance.dispose();
                         this.chartInstance = null;
+                    }
+
+                    // 离开成绩分布页时，恢复默认单图容器，避免后续分析页继续沿用双图布局
+                    if (type !== 'dist' && chartCard) {
+                        try { if (this.distSegmentChart) { this.distSegmentChart.dispose(); this.distSegmentChart = null; } } catch (e) {}
+                        try { if (this.distNormalChart) { this.distNormalChart.dispose(); this.distNormalChart = null; } } catch (e) {}
+                        // 优先使用首次保存的原始结构恢复，更稳健；若无记录则回退到默认单图容器
+                        try {
+                            if (this._chartWrapperOriginalHTML) chartCard.innerHTML = this._chartWrapperOriginalHTML;
+                            else chartCard.innerHTML = '<div id="chart-main" class="chart-container"></div>';
+                        } catch (e) {
+                            chartCard.innerHTML = '<div id="chart-main" class="chart-container"></div>';
+                        }
                     }
 
                     const focus = this.store.state.globalFocus;
@@ -3735,6 +4259,8 @@
                         return;
                     }
 
+                    
+
                     // ================= 1. 跨考次自由多选对比 =================
                     if (type === 'compare') {
                         const panel = document.getElementById('ms-compare-exams-panel');
@@ -3961,6 +4487,170 @@
                         const r = this.store.getScore(s.id, eid);
                         if(r && r.total > 0) res.push({...s, total: r.total, estimatedTotal: r.estimatedTotal || 0, details: r.details, examId: r.examId});
                     });
+
+                    // ================= 新增: 成绩累计分布曲线 (放在 res 构建之后以确保数据可用) =================
+                    if (type === 'cumulative') {
+                        const totals = res.map(r => Number(r.total)).filter(v => isFinite(v) && v >= 0).sort((a,b)=>a-b);
+                        if (!totals || totals.length === 0) {
+                            return renderEmptyState('暂无成绩数据', '当前筛选范围内没有可用于生成累计分布的数据。');
+                        }
+
+                        // 使用去重的实际分数点作为 x 值，但改为直接把数据打包为 [score, percent] 的二维数组
+                        const xPoints = [...new Set(totals)].sort((a,b)=>a-b);
+                        const totalCount = totals.length;
+
+                        const seriesPairs = xPoints.map(x => {
+                            const cnt = totals.filter(v => v <= x).length;
+                            const pct = parseFloat(((cnt / totalCount) * 100).toFixed(1));
+                            return [x, pct];
+                        });
+
+                        // x 轴范围：最小分到满分（exam.maxTotal），确保数值轴覆盖完整刻度
+                        const minScore = xPoints.length > 0 ? xPoints[0] : 0;
+                        const maxScore = (exam && exam.maxTotal) ? exam.maxTotal : Math.max(...xPoints, 0);
+
+                        document.getElementById('chart-wrapper-card').style.display = 'block';
+                        this.chartInstance = echarts.init(document.getElementById('chart-main'));
+
+                        const chartTitle = exam ? `【${Utils.escapeHTML(exam.name)}】成绩累计分布曲线 (看及格率/优秀率阈值)` : '成绩累计分布曲线';
+                        this.chartInstance.setOption({
+                            title: { text: chartTitle, left: 'center' },
+                            tooltip: {
+                                trigger: 'item',
+                                formatter: function(param) {
+                                    const d = param && param.data ? param.data : null;
+                                    if (!d) return '';
+                                    return `分数: ${d[0]} 分，累计包含全班 ${d[1]}% 的学生`;
+                                }
+                            },
+                            xAxis: { type: 'value', name: '分数', min: minScore, max: maxScore },
+                            yAxis: { type: 'value', min: 0, max: 100, name: '累计百分比 (%)' },
+                            series: [{
+                                name: '累计覆盖率',
+                                type: 'line',
+                                smooth: true,
+                                // 使用二维数组 [score, percent]
+                                data: seriesPairs,
+                                encode: { x: 0, y: 1 },
+                                areaStyle: { color: 'rgba(59,130,246,0.12)' },
+                                lineStyle: { color: '#3b82f6', width: 2 },
+                                symbol: 'none'
+                            }]
+                        });
+
+                        document.getElementById('analysis-table-area').style.display = 'flex';
+                        const thead = document.getElementById('thead-analysis');
+                        const tbody = document.getElementById('tbody-analysis');
+                        thead.innerHTML = `<tr><th style="z-index:11; width:200px;">分数</th><th>累计覆盖率 (%)</th></tr>`;
+                        tbody.innerHTML = seriesPairs.map(([x, p]) => `<tr><td style="font-weight:600;">${x}</td><td>${p}%</td></tr>`).join('');
+
+                        return;
+                    }
+
+                        // ================= 新增: 题型得分率热力图 =================
+                        if (type === 'heatmap') {
+                            // 准备数据：使用 res 中的学生与每题得分
+                            // 按总分从高到低排序（descending），并明确使用该顺序作为 y 轴从上到下的显示顺序
+                            const students = res.slice().sort((a,b) => (b.total || 0) - (a.total || 0));
+                            if (!students || students.length === 0) {
+                                return renderEmptyState('暂无成绩数据', '当前筛选范围内没有可用于生成热力图的数据。');
+                            }
+
+                            const typeList = (exam && Array.isArray(exam.types)) ? exam.types : [];
+                            if (!typeList.length) {
+                                return renderEmptyState('题型信息缺失', '当前考试未包含题型信息，热力图无法生成。');
+                            }
+
+                            const xAxisNames = typeList.map(t => Utils.escapeHTML(t.name));
+                            // yAxisNames 顺序与 students 保持一致（students[0] 应为最高分，显示在顶部）
+                            const yAxisNames = students.map(s => Utils.escapeHTML(s.name));
+
+                            // 构建 heatmap 格式的数据 [xIndex, yIndex, value]
+                            const heatData = [];
+                            students.forEach((stu, yIdx) => {
+                                const details = stu.details || {};
+                                typeList.forEach((t, xIdx) => {
+                                    const raw = details[t.name];
+                                    const got = Number(raw);
+                                    const score = isFinite(got) ? got : 0;
+                                    const maxForType = (t && (t.max || t.maxScore || t.full || t.fullScore)) ? (t.max || t.maxScore || t.full || t.fullScore) : 0;
+                                    const pct = maxForType > 0 ? parseFloat(((score / maxForType) * 100).toFixed(1)) : 0;
+                                    heatData.push([xIdx, yIdx, pct]);
+                                });
+                            });
+
+                            // 使用固定高度以避免图表过长（可改为 100% 或由外层容器控制）
+                            const chartEl = document.getElementById('chart-main');
+                            chartEl.style.height = '500px';
+
+                            // 计算 dataZoom 初始 end 值以显示约 15 条学生记录（若学生较少则显示全部）
+                            const visibleCount = 15;
+                            const endPercent = students.length <= visibleCount ? 100 : Math.round((visibleCount / students.length) * 100);
+
+                            document.getElementById('chart-wrapper-card').style.display = 'block';
+                            this.chartInstance = echarts.init(chartEl);
+
+                            this.chartInstance.setOption({
+                                title: { text: `【${Utils.escapeHTML(exam.name)}】题型得分率热力图`, left: 'center' },
+                                tooltip: {
+                                    formatter: function (params) {
+                                        const xIdx = params.value[0];
+                                        const yIdx = params.value[1];
+                                        const val = params.value[2];
+                                        const tName = xAxisNames[xIdx] || params.name || xIdx;
+                                        const sName = yAxisNames[yIdx] || yIdx;
+                                        return `学生: ${sName}, 题型: ${tName}, 得分率: ${val}%`;
+                                    }
+                                },
+                                grid: { left: '120', right: 100, top: 80, bottom: 60 },
+                                dataZoom: [
+                                    {
+                                        type: 'slider',
+                                        yAxisIndex: 0,
+                                        orient: 'vertical',
+                                        right: 12,
+                                        start: 0,
+                                        end: endPercent
+                                    }
+                                ],
+                                // 将横坐标放在图表顶端（标题下方一侧）
+                                xAxis: { position: 'top', type: 'category', data: xAxisNames, name: '题型', axisLabel: { interval: 0, rotate: 30 } },
+                                // 保证 y 轴从上到下按 students 的顺序（已按总分降序排列）显示
+                                yAxis: { type: 'category', data: yAxisNames, name: '学生', axisLabel: { interval: 0 }, inverse: true },
+                                visualMap: {
+                                    type: 'piecewise',
+                                    dimension: 2,
+                                    pieces: [
+                                        { min: 85, max: 100, color: '#047857', label: '85-100' },
+                                        { min: 70, max: 85, color: '#86efac', label: '70-85' },
+                                        { min: 55, max: 70, color: '#fef3c7', label: '55-70' },
+                                        { min: 40, max: 55, color: '#fb923c', label: '40-55' },
+                                        { min: 0,  max: 40, color: '#ef4444', label: '<40' }
+                                    ],
+                                    orient: 'horizontal',
+                                    bottom: 10,
+                                    left: 'center',
+                                    itemWidth: 40,
+                                    itemHeight: 12,
+                                    textStyle: { fontSize: 12 }
+                                },
+                                series: [{
+                                    name: '得分率',
+                                    type: 'heatmap',
+                                    data: heatData,
+                                    label: { show: false },
+                                    itemStyle: { borderColor: '#e5e7eb', borderWidth: 1 },
+                                    emphasis: { itemStyle: { borderColor: '#000', borderWidth: 1 } }
+                                }]
+                            });
+
+                            // 同步显示明细表（复用现有明细渲染）
+                            this.analysisCache = { exam, pool: res.filter(r=>r.total>0), prevRanks: {}, sortCol: 'total', sortAsc: false };
+                            document.getElementById('analysis-table-area').style.display = 'flex';
+                            document.getElementById('table-title').innerHTML = `🔥 题型得分率明细 <small style="color:var(--text-sub); font-weight:normal;">(表格列可排序)</small>`;
+                            this.renderAnalysisTableRows();
+                            return;
+                        }
 
                     // V43: New Target needs estimatedTotal check as well
                     if (type === 'target') {
@@ -4348,6 +5038,340 @@
 
                     this.chartInstance = echarts.init(document.getElementById('chart-main'));
                     
+                    // Overview 大屏渲染拦截
+                    if (type === 'overview') {
+                        try {
+                        // 清理旧图表
+                        if (this.ovCharts) { this.ovCharts.forEach(c => c.dispose()); }
+                        this.ovCharts = [];
+                        document.getElementById('analysis-table-area').style.display = 'none';
+
+                        // 为 Overview 独立准备数据快照，避免依赖后续才定义的 `exam`/`res` 变量
+                        const ovExam = this.store.state.data.exams.find(i => i.id === eid);
+                        const ovMaxScore = (ovExam && ovExam.maxTotal) ? ovExam.maxTotal : 150;
+                        let ovValidStudentsForExam = [];
+                        if (ovExam) ovValidStudentsForExam = getValidStudentsForExam(ovExam);
+                        const ovRes = [];
+                        ovValidStudentsForExam.forEach(s => {
+                            const r = this.store.getScore(s.id, eid);
+                            if (r && r.total > 0) ovRes.push({ ...s, total: r.total, estimatedTotal: r.estimatedTotal || 0, details: r.details || {}, examId: r.examId });
+                        });
+
+                        // 1. 成绩分布
+                        const p1 = Math.floor(ovMaxScore*0.6), p2 = Math.floor(ovMaxScore*0.7), p3 = Math.floor(ovMaxScore*0.8), p4 = Math.floor(ovMaxScore*0.9);
+                        const bins = [0,0,0,0,0];
+                        ovRes.filter(r=>r.total>0).forEach(v => { const t = v.total; if(t < p1) bins[0]++; else if(t < p2) bins[1]++; else if(t < p3) bins[2]++; else if(t < p4) bins[3]++; else bins[4]++; });
+                        const c1 = echarts.init(document.getElementById('chart-ov-dist'));
+                        c1.setOption({ title: { text: '全班成绩分布', left: 'center', textStyle:{fontSize:14, color:'#3b82f6'}, triggerEvent: true }, tooltip: { trigger: 'axis' },
+                            grid: { top: 40, bottom: 25, left: 35, right: 15, containLabel: true },
+                            xAxis:{type:'category', data:[`<${p1}`,`${p1}-${p2-1}`,`${p2}-${p3-1}`,`${p3}-${p4-1}`,`≥${p4}`]}, yAxis:{type:'value'},
+                            series:[{data:[{value:bins[0],itemStyle:{color:'#ef4444'}},{value:bins[1],itemStyle:{color:'#f59e0b'}},{value:bins[2],itemStyle:{color:'#eab308'}},{value:bins[3],itemStyle:{color:'#10b981'}},{value:bins[4],itemStyle:{color:'#3b82f6'}}], type:'bar', label:{show:true, position:'top'}, itemStyle:{borderRadius: [4, 4, 0, 0]}}]
+                        });
+
+                        // 2. 渲染历次考试均分变化趋势（年级主线 + 各班级对比）
+                        const trendExams = this.store.state.data.exams.filter(e => ovExam && e.grade === ovExam.grade).sort((a, b) => (a.date||'').localeCompare(b.date||''));
+                        const tX = [];
+                        const overallAvg = [];
+                        const classAverages = {};
+
+                        // 修复1：必须通过 studentId 去 students 库里映射班级和校区，因为 scores 表里没有这两个字段
+                        const validStuIds = new Set(this.store.state.data.scores.filter(s => s.total > 0 && trendExams.some(e=>e.id===s.examId)).map(s=>s.studentId));
+                        const validStudents = this.store.state.data.students.filter(s => validStuIds.has(s.id));
+                        
+                        // 组合 "校区 - 班级" 作为唯一键
+                        const allClassNames = [...new Set(validStudents.map(s => `${(s.campus||'').trim()} - ${(s.teachingClass||'').trim()}`).filter(n => n !== ' - '))].sort((a,b)=>a.localeCompare(b,'zh-CN',{numeric:true}));
+                        allClassNames.forEach(c => classAverages[c] = []);
+
+                        // 核心计算引擎：双层遍历计算各级均分
+                        trendExams.forEach(ex => {
+                            const exScores = this.store.state.data.scores.filter(s => s.examId === ex.id && s.total > 0);
+                            if(exScores.length > 0) {
+                                tX.push(ex.name);
+                                // 年级总均分
+                                overallAvg.push(parseFloat((exScores.reduce((a,b)=>a+b.total,0)/exScores.length).toFixed(1)));
+                                // 每个班级的均分
+                                allClassNames.forEach(cls => {
+                                    const [campus, tClass] = cls.split(' - ');
+                                    // 找出属于这个班级的学生 ID 集合
+                                    const clsStuIds = new Set(validStudents.filter(s => s.campus === campus && s.teachingClass === tClass).map(s=>s.id));
+                                    // 从当前考试的成绩中过滤出这个班级的成绩
+                                    const clsScores = exScores.filter(s => clsStuIds.has(s.studentId));
+                                    
+                                    if (clsScores.length > 0) {
+                                        classAverages[cls].push(parseFloat((clsScores.reduce((a,b)=>a+b.total,0)/clsScores.length).toFixed(1)));
+                                    } else {
+                                        classAverages[cls].push(null); // 该次考试无该班数据时断开折线
+                                    }
+                                });
+                            }
+                        });
+
+                        // 构建图表 Series（系列）数据
+                        const seriesList = [
+                            { 
+                                name: '年级总均分', type: 'line', data: overallAvg, smooth: true, 
+                                symbol: 'circle', symbolSize: 8, itemStyle: { color: '#f59e0b' }, lineStyle: { width: 4 }, 
+                                label: { show: true, position: 'top', color: '#b45309', fontWeight: 'bold' },
+                                z: 10 // 确保年级主线始终覆盖在最上层
+                            }
+                        ];
+                        
+                        // 动态装载各班级支线（每班一色，便于区分）
+                        const trendColorList = ['#3b82f6', '#10b981', '#8b5cf6', '#ec4899', '#f59e0b', '#06b6d4', '#14b8a6', '#f97316', '#7c3aed', '#06b6d4'];
+                        allClassNames.forEach((cls, idx) => {
+                            const clsColor = trendColorList[idx % trendColorList.length];
+                            seriesList.push({
+                                name: cls,
+                                type: 'line',
+                                data: classAverages[cls],
+                                smooth: true,
+                                symbol: 'circle',
+                                symbolSize: 6,
+                                lineStyle: { width: 2, color: clsColor, opacity: 0.9 },
+                                itemStyle: { color: clsColor },
+                                label: { show: false } // 隐藏具体分数以防重叠，依靠 Tooltip 悬浮查看
+                            });
+                        });
+
+                        const c2 = echarts.init(document.getElementById('chart-ov-trend'));
+                        c2.setOption({
+                            title: { text: '历次考试均分变化趋势', left: 'center', top: 0, textStyle:{fontSize:14, color:'#3b82f6'}, triggerEvent: true },
+                            tooltip: { trigger: 'axis' },
+                            legend: { data: ['年级总均分', ...allClassNames], bottom: 2, type: 'scroll', padding: [10, 0, 0, 0] },
+                            grid: { top: 40, bottom: 25, left: 35, right: 15, containLabel: true },
+                            xAxis: { type: 'category', data: tX, axisLabel: { interval: 0, rotate: 20, margin: 12 } },
+                            yAxis: { type: 'value', scale: true, name: '均分' },
+                            series: seriesList
+                        });
+
+                        // 3. 题型失分横评
+                        const typeRates = [];
+                        ((ovExam && ovExam.types) || []).forEach(t => { let sum = 0, count = 0; ovRes.forEach(r => { if (r.total > 0 && r.details[t.name] !== undefined) { sum += r.details[t.name]; count++; } }); const avg = count > 0 ? sum / count : 0; typeRates.push({ name: t.name, rate: parseFloat((t.max > 0 ? (avg / t.max) * 100 : 0).toFixed(1)) }); });
+                        typeRates.sort((a,b) => a.rate - b.rate);
+                        const c3 = echarts.init(document.getElementById('chart-ov-weakness'));
+                        c3.setOption({ title: { text: '班级薄弱题型诊断', left: 'center', textStyle:{fontSize:14, color:'#3b82f6'}, triggerEvent: true }, tooltip: { formatter: function(p){ return p.name + ': ' + p.value + '%'; } }, grid: { top: 40, bottom: 25, left: 35, right: 15, containLabel: true }, xAxis: { type: 'value', max: 100 }, yAxis: { type: 'category', data: typeRates.map(t=>t.name), inverse: true }, series: [{ type: 'bar', data: typeRates.map(t=>t.rate), label:{show:true, position:'right', formatter:'{c}%'}, itemStyle:{color:(params)=>{ const v = params.value; if (v < 60) return '#ef4444'; if (v <= 80) return '#f59e0b'; return '#10b981'; }, borderRadius:[0,4,4,0]} }] });
+
+                        // 4. 渲染各班级均分与箱线图分布 (带一键切换功能)
+                    
+                    const cMap = {}; 
+                    ovRes.filter(r=>r.total>0).forEach(r => { 
+                        const clsKey = r.teachingClass || '未分班'; 
+                        if(!cMap[clsKey]) cMap[clsKey]=[]; 
+                        cMap[clsKey].push(r.total); 
+                    });
+                    const clsKeys = Object.keys(cMap).sort((a,b)=>a.localeCompare(b,'zh-CN',{numeric:true}));
+                    
+                    // 基础计算：均分柱状图数据
+                    const avgData = clsKeys.map(k => parseFloat((cMap[k].reduce((a,b)=>a+b,0)/cMap[k].length).toFixed(1)));
+                    const ovOverallAvgNum = avgData.length > 0 ? parseFloat((avgData.reduce((a,b)=>a+b,0)/avgData.length).toFixed(1)) : 0;
+                    
+                    // 进阶计算：箱线图专用数据结构 [min, Q1, median, Q3, max]
+                    const boxData = clsKeys.map(k => {
+                        const sorted = cMap[k].slice().sort((a,b)=>a-b);
+                        const len = sorted.length;
+                        if(len === 0) return [0,0,0,0,0];
+                        return [
+                            sorted[0], 
+                            sorted[Math.floor((len-1)*0.25)], 
+                            sorted[Math.floor((len-1)*0.5)], 
+                            sorted[Math.floor((len-1)*0.75)], 
+                            sorted[len-1]
+                        ];
+                    });
+
+                    const c4 = echarts.init(document.getElementById('chart-ov-avg'));
+                    let isBoxplot = false;
+
+                    // 动态注入右上角的切换按钮
+                    const c4Card = document.getElementById('chart-ov-avg').parentElement;
+                    c4Card.style.position = 'relative';
+                    let toggleBtn = document.getElementById('ov-btn-toggle-box');
+                    if(!toggleBtn) {
+                        toggleBtn = document.createElement('button');
+                        toggleBtn.id = 'ov-btn-toggle-box';
+                        toggleBtn.className = 'secondary';
+                        toggleBtn.style.cssText = 'position:absolute; right:15px; top:15px; z-index:10; font-size:12px; padding:4px 8px; cursor:pointer; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); color: #475569;';
+                        c4Card.appendChild(toggleBtn);
+                    }
+
+                    // 独立渲染函数
+                    const renderC4 = () => {
+                        toggleBtn.innerHTML = isBoxplot ? '📊 切换为均分对比' : '📦 切换为离散箱线';
+                        c4.setOption({
+                            title: { text: isBoxplot ? '各班级成绩离散度箱线图' : '各班级均分对比', left: 'center', textStyle:{fontSize:14, color:'#3b82f6'}, triggerEvent: true },
+                            grid: { top: 40, bottom: 25, left: 35, right: 15, containLabel: true },
+                            tooltip: isBoxplot ? { 
+                                trigger: 'item',
+                                // 自定义箱线图的中文提示框
+                                formatter: function (params) {
+                                    return `<div style="font-weight:bold;margin-bottom:5px;">${params.name}</div>` +
+                                           `最大值: &nbsp;&nbsp;<b>${params.value[5]}</b><br/>` +
+                                           `上四分位数: <b>${params.value[4]}</b><br/>` +
+                                           `中位数: &nbsp;&nbsp;<b>${params.value[3]}</b><br/>` +
+                                           `下四分位数: <b>${params.value[2]}</b><br/>` +
+                                           `最小值: &nbsp;&nbsp;<b>${params.value[1]}</b>`;
+                                }
+                            } : { trigger: 'axis' },
+                            xAxis: { type: 'category', data: clsKeys, axisLabel:{interval:0, rotate:15} }, 
+                            // 强制锁定 Y 轴视口为 0-150，取消 scale 自动拉伸
+                            yAxis: { type: 'value', min: 0, max: 150 },
+                            series: [{ 
+                                type: isBoxplot ? 'boxplot' : 'bar', 
+                                data: isBoxplot ? boxData : avgData, 
+                                itemStyle: {
+                                    // 强制性地设置 color 为透明以覆盖任何默认填充（箱线图模式）
+                                    color: isBoxplot ? 'transparent' : function(params) {
+                                        const colors = ['#3b82f6', '#10b981', '#8b5cf6', '#ec4899', '#f59e0b', '#06b6d4', '#14b8a6', '#f97316'];
+                                        return colors[params.dataIndex % colors.length];
+                                    },
+                                    // 动态映射每个班级的边框颜色（针对箱线图）
+                                    borderColor: function(params) {
+                                        const colors = ['#3b82f6', '#10b981', '#8b5cf6', '#ec4899', '#f59e0b', '#06b6d4', '#14b8a6', '#f97316'];
+                                        return isBoxplot ? colors[params.dataIndex % colors.length] : 'transparent';
+                                    },
+                                    borderWidth: isBoxplot ? 2 : 0,
+                                    borderRadius: isBoxplot ? 0 : [4, 4, 0, 0]
+                                }, 
+                                label: {show:!isBoxplot, position:'top'}, 
+                                markLine: { data: [{ yAxis: ovOverallAvgNum, name: '总均分' }], lineStyle:{color:'#f59e0b', type:'dashed'}, tooltip: { show: false }, silent: true } 
+                            }]
+                        }, true);
+                    };
+                    
+                    renderC4();
+                    toggleBtn.onclick = () => { isBoxplot = !isBoxplot; renderC4(); };
+
+                        // 为四个大屏图表绑定“点击标题下钻跳转”的路由事件
+                        const bindTitleNav = (chartInstance, tabName) => {
+                            try {
+                                chartInstance.off('click');
+                            } catch(e) {}
+                            chartInstance.on('click', (params) => {
+                                if (params && params.componentType === 'title') {
+                                    window.app.ui.switchAnalysisTab(tabName);
+                                }
+                            });
+                        };
+                        bindTitleNav(c1, 'dist');       // 成绩分布
+                        bindTitleNav(c2, 'trend');      // 成绩变化轨迹
+                        bindTitleNav(c3, 'weakness');   // 题型失分诊断
+                        bindTitleNav(c4, 'avg');        // 班级均分横评
+                        // Overview 新增图表跳转绑定
+                        try { if (typeof c5 !== 'undefined' && c5) bindTitleNav(c5, 'dist'); } catch (e) {}
+                        try { if (typeof c6 !== 'undefined' && c6) bindTitleNav(c6, 'heatmap'); } catch (e) {}
+
+                        // 设置标题为可点提示（手型）并添加 hover 下划线效果
+                        const setTitlePointer = (chart) => {
+                            try {
+                                const dom = chart.getDom ? chart.getDom() : (chart.getZr ? chart.getZr().painter.getViewportRoot() : null);
+                                if (!dom) return;
+                                const titleEl = dom.querySelector && dom.querySelector('.echarts-title');
+                                if (titleEl) {
+                                    titleEl.style.cursor = 'pointer';
+                                    titleEl.addEventListener('mouseenter', () => { titleEl.style.textDecoration = 'underline'; });
+                                    titleEl.addEventListener('mouseleave', () => { titleEl.style.textDecoration = 'none'; });
+                                }
+                            } catch (e) { /* ignore */ }
+                        };
+                        // 5. Overview: 正态拟合分布 (chart-ov-normal)
+                        let c5 = null;
+                        try {
+                            const normalEl = document.getElementById('chart-ov-normal');
+                            if (normalEl) {
+                                c5 = echarts.init(normalEl);
+                                const validScores = ovRes.filter(r=>typeof r.total==='number' && isFinite(r.total)).map(r=>r.total);
+                                const totalN = validScores.length;
+                                if (totalN > 0) {
+                                    const maxScoreVal = ovMaxScore || Math.max(...validScores);
+                                    const binCount = 10;
+                                    const binWidth = maxScoreVal / binCount;
+                                    const bins = new Array(binCount).fill(0);
+                                    validScores.forEach(s => {
+                                        let idx = Math.floor(s / (binWidth || 1));
+                                        if (idx >= binCount) idx = binCount - 1;
+                                        if (idx < 0) idx = 0;
+                                        bins[idx]++;
+                                    });
+                                    const mean = validScores.reduce((a,b)=>a+b,0) / totalN;
+                                    const variance = validScores.reduce((a,b)=> a + Math.pow(b-mean,2), 0) / totalN;
+                                    const stdDev = Math.sqrt(variance) || (maxScoreVal/50);
+                                    const curvePoints = [];
+                                    const steps = 100;
+                                    for (let i=0;i<=steps;i++){
+                                        const x = (i/steps) * maxScoreVal;
+                                        const expo = Math.exp(-0.5 * Math.pow((x - mean)/stdDev, 2));
+                                        const pdf = (1 / (stdDev * Math.sqrt(2 * Math.PI))) * expo;
+                                        const y = pdf * totalN * binWidth;
+                                        curvePoints.push([x, parseFloat(y.toFixed(3))]);
+                                    }
+                                    const barData = bins.map((cnt,i)=>[(i+0.5)*binWidth, cnt]);
+                                    c5.setOption({ title:{text:'正态拟合分布', left:'center', triggerEvent: true, textStyle:{fontSize: 14, color: '#3b82f6'}}, tooltip:{trigger:'axis'}, grid: { top: 40, bottom: 25, left: 35, right: 15, containLabel: true }, xAxis:{type:'value', min:0, max:maxScoreVal, name:'分数'}, yAxis:{type:'value', name:'人数'}, series:[{name:'频数', type:'bar', data:barData, itemStyle:{color:'#60a5fa'}},{name:'正态拟合', type:'line', smooth:true, showSymbol:false, data:curvePoints, lineStyle:{color:'#f97316', width:2}}] });
+                                }
+                            }
+                        } catch (e) { console.warn('ov normal render error', e); }
+
+                        // 6. Overview: 题型得分率热力图 (chart-ov-heatmap)
+                        let c6 = null;
+                        try {
+                            const heatEl = document.getElementById('chart-ov-heatmap');
+                            if (heatEl && ovExam && Array.isArray(ovExam.types)) {
+                                c6 = echarts.init(heatEl);
+                                const typeList = ovExam.types;
+                                const students = ovRes.slice().sort((a,b)=> (b.total||0)-(a.total||0));
+                                // 原始完整题型名称，用于 tooltip 显示
+                                const xAxisFullNames = typeList.map(t => String(t.name || ''));
+                                // 仅显示首字以缓解重叠
+                                const xAxisShort = xAxisFullNames.map(n => (n || '').trim().charAt(0) || '');
+                                const yAxisNames = students.map(s=>Utils.escapeHTML(s.name));
+                                const heatData = [];
+                                students.forEach((stu,yIdx)=>{
+                                    const details = stu.details || {};
+                                    typeList.forEach((t,xIdx)=>{
+                                        const raw = details[t.name];
+                                        const got = Number(raw);
+                                        const score = isFinite(got)?got:0;
+                                        const maxForType = (t && (t.max || t.maxScore || t.full || t.fullScore)) ? (t.max || t.maxScore || t.full || t.fullScore) : 0;
+                                        const pct = maxForType>0 ? parseFloat(((score/maxForType)*100).toFixed(1)) : 0;
+                                        heatData.push([xIdx, yIdx, pct]);
+                                    });
+                                });
+                                // 增加 dataZoom 以便在高度受限时滚动查看学生（初始显示约 8 名）
+                                const initialVisible = 8;
+                                const endPct = students.length <= initialVisible ? 100 : Math.round((initialVisible / students.length) * 100);
+                                c6.setOption({
+                                    title: { text: '题型得分率热力图', left: 'center', triggerEvent: true, textStyle: { fontSize: 14, color: '#3b82f6' } },
+                                    tooltip: { formatter: function (params) { const t = xAxisFullNames[params.value[0]] || params.name; const s = yAxisNames[params.value[1]] || params.value[1]; return `学生: ${s}<br/>题型: ${Utils.escapeHTML(t)}<br/>得分率: ${params.value[2]}%`; } },
+                                    grid: { left: 100, right: 40, top: 45, bottom: 60 },
+                                    dataZoom: [{ type: 'slider', yAxisIndex: 0, orient: 'vertical', right: 6, start: 0, end: endPct }],
+                                    xAxis: { type: 'category', data: xAxisShort, position: 'top', axisLabel: { interval: 0 } },
+                                    yAxis: { type: 'category', data: yAxisNames, inverse: true, axisLabel: { interval: 0 } },
+                                    visualMap: { type: 'piecewise', dimension: 2, pieces: [ { min: 85, max: 100, color: '#047857' }, { min: 70, max: 85, color: '#86efac' }, { min: 55, max: 70, color: '#fef3c7' }, { min: 40, max: 55, color: '#fb923c' }, { min: 0, max: 40, color: '#ef4444' } ], orient: 'horizontal', bottom: 6, left: 'center' },
+                                    series: [{ name: '得分率', type: 'heatmap', data: heatData, itemStyle: { borderColor: '#e5e7eb', borderWidth: 1 } }]
+                                });
+                            }
+                        } catch (e) { console.warn('ov heatmap render error', e); }
+
+                        setTitlePointer(c1); setTitlePointer(c2); setTitlePointer(c3); setTitlePointer(c4); setTitlePointer(c5); setTitlePointer(c6);
+
+                        bindTitleNav(c5, 'dist');
+                        bindTitleNav(c6, 'heatmap');
+
+                        this.ovCharts.push(c1, c2, c3, c4, c5, c6);
+                        return; // 拦截后续单图表渲染
+                        } catch (e) {
+                            console.error('Overview render error', e);
+                            try {
+                                const ovCard = document.getElementById('overview-dashboard-card');
+                                if (ovCard) {
+                                    const msg = (typeof Utils !== 'undefined' && Utils.escapeHTML) ? Utils.escapeHTML(e && e.stack ? e.stack : String(e)) : String(e);
+                                    ovCard.innerHTML = '<div class="card" style="padding:20px; color:#ef4444; box-shadow:none; background:#fff;">' +
+                                        '<strong>Overview 渲染出错：</strong><pre style="white-space:pre-wrap; color:#111;">' + msg + '</pre></div>';
+                                }
+                            } catch (inner) { console.error('Failed to render overview error message', inner); }
+                            return;
+                        }
+                    }
+
                     if(type === 'dist') {
                         const p1 = Math.floor(maxScore*0.6), p2 = Math.floor(maxScore*0.7), p3 = Math.floor(maxScore*0.8), p4 = Math.floor(maxScore*0.9);
                         const bins = [0,0,0,0,0]; 
@@ -4366,13 +5390,117 @@
                             itemStyle: { color: colors[idx], borderRadius: [4, 4, 0, 0] }
                         }));
                         
-                        this.chartInstance.setOption({ 
+                        // 将 chart-wrapper-card 替换为两个容器：上方为五梯队分布，下方为正态拟合直方图
+                        const wrapper = document.getElementById('chart-wrapper-card');
+                        wrapper.style.display = 'block';
+                        wrapper.innerHTML = '<div id="chart-dist-segment" class="chart-container" style="height:320px;"></div>' +
+                                            '<div id="chart-dist-normal" class="chart-container" style="height:400px; margin-top:16px;"></div>';
+
+                        // 清理旧的实例（如存在）
+                        try { if (this.distSegmentChart) { this.distSegmentChart.dispose(); this.distSegmentChart = null; } } catch(e){}
+                        try { if (this.distNormalChart) { this.distNormalChart.dispose(); this.distNormalChart = null; } } catch(e){}
+
+                        // 五梯队分布渲染到 chart-dist-segment（保留原有样式和交互）
+                        const segEl = document.getElementById('chart-dist-segment');
+                        this.distSegmentChart = echarts.init(segEl);
+                        this.distSegmentChart.setOption({ 
                             title: { text: `【${exam.name}】全班成绩分布`, subtext: '直观了解不及格、及格与优秀的人数', left: 'center' },
                             tooltip: { trigger: 'axis' },
                             xAxis:{type:'category', data:[`不及格(<${p1})`,`及格(${p1}-${p2-1})`,`中等(${p2}-${p3-1})`,`良好(${p3}-${p4-1})`,`优秀(≥${p4})`]}, 
                             yAxis:{type:'value', min: 0, name:'人数'}, 
                             series:[{data:barsData, type:'bar', label:{show:true, position:'top'}, itemStyle:{borderRadius: [4, 4, 0, 0]}}] 
                         });
+
+                        // 点击分布图柱子后，按分段过滤下方表格（并展示提示）
+                        try {
+                            this.distSegmentChart.off('click');
+                            this.distSegmentChart.on('click', (params) => {
+                                try {
+                                    const idx = params.dataIndex;
+                                    let low = Number.NEGATIVE_INFINITY, high = Number.POSITIVE_INFINITY;
+                                    if (idx === 0) { low = 0; high = p1 - 1; }
+                                    else if (idx === 1) { low = p1; high = p2 - 1; }
+                                    else if (idx === 2) { low = p2; high = p3 - 1; }
+                                    else if (idx === 3) { low = p3; high = p4 - 1; }
+                                    else { low = p4; high = Number.POSITIVE_INFINITY; }
+
+                                    const filtered = res.filter(r => (r.total || 0) >= low && (r.total || 0) <= high);
+                                        // 备份原始 pool，避免重复覆盖导致的数据死锁
+                                        this.analysisCache = this.analysisCache || {};
+                                        if (!this.analysisCache.originalPool) this.analysisCache.originalPool = this.analysisCache.pool;
+                                        this.analysisCache.pool = filtered;
+
+                                        document.getElementById('analysis-table-area').style.display = 'flex';
+                                        document.getElementById('table-title').innerHTML = `📊 分段过滤结果 <small style="color:var(--text-sub); font-weight:normal;">(共 ${filtered.length} 人)</small><span style="color:#ef4444; margin-left:10px;">已过滤显示: ${params.name} 段的学生 (点击表头排序可重置)</span>` +
+                                            ` <button class="secondary" style="padding: 2px 6px; font-size: 11px; margin-left: 10px;" onclick="if(window.app.ui.analysisCache && window.app.ui.analysisCache.originalPool){ window.app.ui.analysisCache.pool = window.app.ui.analysisCache.originalPool; delete window.app.ui.analysisCache.originalPool; window.app.ui.renderAnalysisTableRows(); document.getElementById('table-title').innerHTML = '成绩数据明细 <small style="font-weight:normal; font-size:12px; color:var(--text-sub); background: #f1f5f9; padding: 4px 8px; border-radius: 4px;">已恢复全班数据</small>'; }">✖ 清除过滤</button>`;
+                                        this.renderAnalysisTableRows();
+                                } catch (innerE) { console.warn('dist click inner error', innerE); }
+                            });
+                        } catch(e) { console.warn('bind dist click error', e); }
+
+                        // 正态分布拟合图（等距直方图 + 高斯拟合曲线）渲染到 chart-dist-normal
+                        try {
+                            const normalEl = document.getElementById('chart-dist-normal');
+                            if (normalEl) {
+                                // 清理旧实例
+                                try { if (this.distNormalChart) { this.distNormalChart.dispose(); this.distNormalChart = null; } } catch(e){}
+                                const normalChart = echarts.init(normalEl);
+
+                                const validScores = res.filter(r => typeof r.total === 'number' && isFinite(r.total)).map(r => r.total);
+                                const totalN = validScores.length;
+                                if (totalN > 0) {
+                                    const maxScoreVal = (typeof maxScore === 'number' && isFinite(maxScore)) ? maxScore : (exam && exam.maxTotal) ? exam.maxTotal : Math.max(...validScores);
+                                    const binCount = 10;
+                                    const binWidth = maxScoreVal / binCount;
+                                    const bins = new Array(binCount).fill(0);
+                                    validScores.forEach(s => {
+                                        let idx = Math.floor(s / (binWidth || 1));
+                                        if (idx >= binCount) idx = binCount - 1;
+                                        if (idx < 0) idx = 0;
+                                        bins[idx]++;
+                                    });
+
+                                    // 计算均值与标准差
+                                    const mean = validScores.reduce((a,b)=>a+b,0) / totalN;
+                                    const variance = validScores.reduce((a,b)=> a + Math.pow(b-mean,2), 0) / totalN;
+                                    const stdDev = Math.sqrt(variance) || (maxScoreVal/50);
+
+                                    // 生成曲线（100 个点），并按 (n * binWidth) 缩放到直方图量级
+                                    const curvePoints = [];
+                                    const steps = 100;
+                                    for (let i=0;i<=steps;i++){
+                                        const x = (i/steps) * maxScoreVal;
+                                        const expo = Math.exp(-0.5 * Math.pow((x - mean)/stdDev, 2));
+                                        const pdf = (1 / (stdDev * Math.sqrt(2 * Math.PI))) * expo;
+                                        const y = pdf * totalN * binWidth;
+                                        curvePoints.push([x, parseFloat(y.toFixed(3))]);
+                                    }
+
+                                    // 直方图数据：使用每段中心点作为 x 值
+                                    const barData = bins.map((cnt, i) => {
+                                        const center = (i + 0.5) * binWidth;
+                                        return [parseFloat(center.toFixed(3)), cnt];
+                                    });
+
+                                    // 计算合适的 barWidth（像素），基于容器宽度与数值域比例
+                                    const containerW = normalEl.clientWidth || 800;
+                                    const approxBarPx = Math.max(6, Math.floor((binWidth / (maxScoreVal || 1)) * containerW * 0.9));
+
+                                    normalChart.setOption({
+                                        title: { text: `【${Utils.escapeHTML(exam.name)}】成绩直方与正态拟合`, left: 'center' },
+                                        tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
+                                        xAxis: { type: 'value', min: 0, max: maxScoreVal, name: '分数' },
+                                        yAxis: { type: 'value', name: '人数' },
+                                        series: [
+                                            { name: '频数', type: 'bar', data: barData, barWidth: approxBarPx, itemStyle: { color: '#60a5fa' } },
+                                            { name: '正态拟合', type: 'line', smooth: true, showSymbol: false, data: curvePoints, lineStyle: { color: '#f97316', width: 2 } }
+                                        ]
+                                    });
+                                    // 保存实例以便后续 dispose
+                                    this.distNormalChart = normalChart;
+                                }
+                            }
+                        } catch (eNorm) { console.warn('normal fit render error', eNorm); }
                     } else if (type === 'avg') {
                         const avgType = document.getElementById('a-avg-type').value; 
                         
@@ -4537,7 +5665,35 @@
 
                         const nameLink = `<a href="#" class="student-link" onclick="event.preventDefault(); window.app.ui.openStudentProfile('${d.id}')" title="查看档案">${Utils.escapeHTML(d.name)}</a>`;
 
-                        let trHtml = `<tr class="${rowClass}"><td class="sticky-col-left">${rankHtml}</td><td class="sticky-col-left" style="left:80px; font-weight:700;">${nameLink}${warnBadge}</td><td>${Utils.escapeHTML(d.campus||'-')}</td><td>${Utils.escapeHTML(d.teachingClass||'-')}</td><td style="color:var(--text-sub); font-size:12px;">${Utils.escapeHTML(d.adminClass||'-')}</td>`;
+                        // 智能动态诊断标签
+                        let diagLabels = '';
+                        try {
+                            const types = cache.exam.types || [];
+                            const rates = types.map(t => {
+                                const s = d.details[t.name] || 0; return t.max > 0 ? (s / t.max) : 0;
+                            });
+                            const maxRate = rates.length ? Math.max(...rates) : 0;
+                            const minRate = rates.length ? Math.min(...rates) : 0;
+                            // 严重偏科：最高与最低差>40% 且 存在低于50%的题型
+                            if ((maxRate - minRate) > 0.4 && rates.some(r => r < 0.5)) {
+                                diagLabels += `<span style="background:#fee2e2;color:#dc2626;padding:2px 6px;border-radius:4px;font-size:10px;margin-left:6px;">偏科警告</span>`;
+                            }
+                            // 进步飞速：相比上次名次上升 > 班级总人数的20%
+                            const totalStudents = (cache.pool || []).length || 0;
+                            if (cache.prevRanks && cache.prevRanks[d.id]) {
+                                const prev = cache.prevRanks[d.id];
+                                const diffRank = prev - currentRanks[d.id];
+                                if (diffRank > Math.max(1, Math.floor(totalStudents * 0.2))) {
+                                    diagLabels += `<span style="background:#d1fae5;color:#059669;padding:2px 6px;border-radius:4px;font-size:10px;margin-left:6px;">进步飞速</span>`;
+                                }
+                            }
+                            // 踩线生：落在及格线上下±2分
+                            if (Math.abs(d.total - passLine) <= 2) {
+                                diagLabels += `<span style="background:#fef3c7;color:#d97706;padding:2px 6px;border-radius:4px;font-size:10px;margin-left:6px;">踩线生</span>`;
+                            }
+                        } catch (diagE) { console.warn('diag label error', diagE); }
+
+                        let trHtml = `<tr class="${rowClass}"><td class="sticky-col-left">${rankHtml}</td><td class="sticky-col-left" style="left:80px; font-weight:700;">${nameLink}${diagLabels}${warnBadge}</td><td>${Utils.escapeHTML(d.campus||'-')}</td><td>${Utils.escapeHTML(d.teachingClass||'-')}</td><td style="color:var(--text-sub); font-size:12px;">${Utils.escapeHTML(d.adminClass||'-')}</td>`;
                         (cache.exam.types||[]).forEach(t => {
                             const stuScore = d.details[t.name] || 0;
                             const stuRate = t.max > 0 ? (stuScore / t.max) : 0;
@@ -4961,6 +6117,19 @@
                     }
                 }
             });
+
+                window.resizeAllCharts = function() {
+                    try {
+                        const elems = document.querySelectorAll('#sp-chart-trend, #sp-chart-radar, .chart-container, .chart');
+                        elems.forEach(el => {
+                            try { const inst = echarts.getInstanceByDom(el); if (inst) inst.resize(); } catch(e){}
+                        });
+                        // a couple of delayed resizes for safety
+                        setTimeout(() => elems.forEach(el=>{ try{ const inst = echarts.getInstanceByDom(el); if (inst) inst.resize(); }catch(e){} }), 500);
+                    } catch (e) { console.warn('resizeAllCharts error', e); }
+                };
+
+                
 
             // 新用户引导
             if (window.app.store.state.data.students.length === 0 && window.app.store.state.data.exams.length === 0) {
