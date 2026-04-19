@@ -5163,7 +5163,8 @@
                     
                     // 基础计算：均分柱状图数据
                     const avgData = clsKeys.map(k => parseFloat((cMap[k].reduce((a,b)=>a+b,0)/cMap[k].length).toFixed(1)));
-                    const ovOverallAvgNum = avgData.length > 0 ? parseFloat((avgData.reduce((a,b)=>a+b,0)/avgData.length).toFixed(1)) : 0;
+                    const allOvValidScores = ovRes.filter(r=>r.total>0).map(r=>r.total);
+                    const ovOverallAvgNum = allOvValidScores.length > 0 ? parseFloat((allOvValidScores.reduce((a,b)=>a+b,0)/allOvValidScores.length).toFixed(1)) : 0;
                     
                     // 进阶计算：箱线图专用数据结构 [min, Q1, median, Q3, max]
                     const boxData = clsKeys.map(k => {
@@ -5233,7 +5234,13 @@
                                     borderRadius: isBoxplot ? 0 : [4, 4, 0, 0]
                                 }, 
                                 label: {show:!isBoxplot, position:'top'}, 
-                                markLine: { data: [{ yAxis: ovOverallAvgNum, name: '总均分' }], lineStyle:{color:'#f59e0b', type:'dashed'}, tooltip: { show: false }, silent: true } 
+                                markLine: {
+                                    symbol: 'none',
+                                    label: { show: true, position: 'insideEndTop', formatter: '总均分: {c}', backgroundColor: '#f59e0b', color: '#fff', padding: [3, 6], borderRadius: 4, fontWeight: 'bold', fontSize: 11 },
+                                    lineStyle: { color: '#f59e0b', type: 'dashed', width: 2 },
+                                    data: [{ yAxis: ovOverallAvgNum, name: '总均分' }],
+                                    silent: true
+                                } 
                             }]
                         }, true);
                     };
