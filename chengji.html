@@ -118,6 +118,134 @@
             }
         })();
     </script>
+    <script>
+        (function() {
+            const AUTH_KEY = 'gakuten_auth';
+            const CAMPUS_MAP = {
+                ss: '师上',
+                // TODO: 请在此处继续补充其他校区，格式为 缩写: '真实校区名'
+            };
+
+            const getOverlay = () => document.getElementById('auth-overlay');
+            const getErrorBox = () => document.getElementById('auth-error');
+
+            const getAuth = () => {
+                try {
+                    const raw = localStorage.getItem(AUTH_KEY);
+                    if (!raw) return null;
+                    const parsed = JSON.parse(raw);
+                    if (!parsed || !parsed.mode) return null;
+                    return parsed;
+                } catch (e) {
+                    return null;
+                }
+            };
+
+            const saveAuth = (auth) => {
+                localStorage.setItem(AUTH_KEY, JSON.stringify(auth));
+            };
+
+            const clearAuth = () => {
+                localStorage.removeItem(AUTH_KEY);
+            };
+
+            const parseAuth = (password) => {
+                const raw = String(password || '').trim();
+                if (!raw) return null;
+                if (raw.toLowerCase() === 'nekosensei') {
+                    return { mode: 'admin' };
+                }
+                const match = raw.match(/^([a-zA-Z]+)(\d{2})(.+)$/);
+                if (!match) return null;
+                const campusCode = match[1].toLowerCase();
+                const campus = CAMPUS_MAP[campusCode] || campusCode.toUpperCase();
+                const grade = `20${match[2]}级`;
+                const classId = match[3].trim();
+                if (!classId) return null;
+                return { mode: 'teacher', campus, grade, classId };
+            };
+
+            const setErrorVisible = (visible, text) => {
+                const box = getErrorBox();
+                if (!box) return;
+                box.textContent = text || '口令错误，请检查后重试。';
+                box.style.display = visible ? 'block' : 'none';
+            };
+
+            const syncOverlayState = () => {
+                const auth = getAuth();
+                const body = document.body;
+                const overlay = getOverlay();
+                if (!body || !overlay) return auth;
+                const locked = !auth;
+                body.classList.toggle('auth-locked', locked);
+                body.classList.toggle('auth-ready', !locked);
+                overlay.style.display = locked ? 'flex' : 'none';
+                if (!locked) setErrorVisible(false);
+                return auth;
+            };
+
+            const applyAuthToUI = () => {
+                const auth = syncOverlayState();
+                if (auth && window.app && window.app.ui && typeof window.app.ui.applyAuthAccessControl === 'function') {
+                    try { window.app.ui.applyAuthAccessControl(auth); } catch (e) {}
+                }
+                return auth;
+            };
+
+            const login = () => {
+                const input = document.getElementById('auth-password');
+                const auth = parseAuth(input ? input.value : '');
+                if (!auth) {
+                    setErrorVisible(true);
+                    return false;
+                }
+                saveAuth(auth);
+                setErrorVisible(false);
+                syncOverlayState();
+                if (window.app && window.app.ui) {
+                    try {
+                        window.app.ui.applyAuthAccessControl(auth);
+                        window.app.ui.refresh();
+                    } catch (e) {}
+                }
+                return true;
+            };
+
+            const logout = () => {
+                clearAuth();
+                try {
+                    const STORE_KEY = 'gakuten_data_v1';
+                    const raw = localStorage.getItem(STORE_KEY);
+                    if (raw) {
+                        const data = JSON.parse(raw);
+                        if (data && data.globalFocus !== undefined) {
+                            data.globalFocus = { campuses: [], grades: [], phases: [], tClasses: [], tags: [] };
+                            localStorage.setItem(STORE_KEY, JSON.stringify(data));
+                        }
+                    }
+                } catch (e) {}
+                location.reload();
+            };
+
+            window.__gakutenAuth = { getAuth, saveAuth, clearAuth, parseAuth, syncOverlayState, applyAuthToUI, login, logout };
+            window.__gakutenLogin = login;
+            window.__gakutenLogout = logout;
+
+            document.addEventListener('DOMContentLoaded', () => {
+                const input = document.getElementById('auth-password');
+                if (input) {
+                    input.addEventListener('keydown', (e) => {
+                        if (e.key === 'Enter') {
+                            e.preventDefault();
+                            login();
+                        }
+                    });
+                }
+                syncOverlayState();
+            });
+        })();
+    </script>
     <style>
         :root {
             --bg: #f2f2f7;
@@ -178,6 +306,16 @@
         .filter-label { font-size: 11px; color: #64748b; margin-bottom: 4px; font-weight: 500; display: block; padding-left: 2px; line-height: 1.2; }
         
         .sidebar-bottom { margin-top: auto; padding: 8px 10px 10px; border-top: 1px solid var(--border); background: rgba(242,242,247,0.78); backdrop-filter: saturate(180%) blur(16px); -webkit-backdrop-filter: saturate(180%) blur(16px); display: flex; flex-direction: column; gap: 6px; position: relative; z-index: 60; }
+        body.auth-locked { overflow: hidden; }
+        body.auth-locked > :not(#auth-overlay) { visibility: hidden !important; pointer-events: none !important; }
+        #auth-overlay { position: fixed; inset: 0; z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 24px; background: rgba(242,242,247,0.72); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+        .auth-card { width: min(420px, 100%); background: rgba(255,255,255,0.92); border: 1px solid rgba(255,255,255,0.65); border-radius: 20px; box-shadow: 0 24px 80px rgba(15, 23, 42, 0.18); padding: 28px 26px 22px; }
+        .auth-title { font-size: 22px; font-weight: 800; color: var(--text-main); text-align: center; margin-bottom: 8px; }
+        .auth-subtitle { font-size: 13px; color: var(--text-sub); text-align: center; line-height: 1.6; margin-bottom: 18px; }
+        .auth-row { display: flex; flex-direction: column; gap: 10px; }
+        .auth-input { width: 100%; font-size: 14px; padding: 12px 14px; border-radius: 12px; }
+        .auth-btn { width: 100%; justify-content: center; padding: 12px 16px; border-radius: 12px; font-size: 14px; font-weight: 700; }
+        .auth-error { display: none; color: var(--danger); background: rgba(255, 59, 48, 0.08); border: 1px solid rgba(255, 59, 48, 0.16); border-radius: 10px; padding: 10px 12px; font-size: 13px; text-align: center; margin-top: 10px; }
         
         .main-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: var(--bg); position: relative;}
         
@@ -663,7 +801,19 @@
         }
     </style>
 </head>
-<body>
+<body class="auth-locked">
+
+    <div id="auth-overlay">
+        <div class="auth-card">
+            <div class="auth-title">Gakuten 登录</div>
+            <div class="auth-subtitle">如需教务管理权限，请联系系统管理员。</div>
+            <div class="auth-row">
+                <input id="auth-password" class="auth-input" type="password" placeholder="请输入登录口令" autocomplete="current-password">
+                <button class="auth-btn" type="button" onclick="window.__gakutenLogin && window.__gakutenLogin()">登录</button>
+                <div id="auth-error" class="auth-error">口令错误，请检查后重试。</div>
+            </div>
+        </div>
+    </div>
 
     <button id="mobile-menu-btn" class="mobile-menu-btn" onclick="document.querySelector('.sidebar').classList.toggle('sidebar-open')">☰</button>
 
@@ -733,6 +883,7 @@
                 <button class="secondary" style="flex:1; padding: 8px 0; font-size:12px; justify-content:center;" onclick="document.getElementById('file-backup').click()" title="从电脑恢复数据">📂 恢复</button>
                 <input type="file" id="file-backup" style="display:none" onchange="window.app.store.importBackup(event)" accept=".json">
                 <button class="danger" style="flex:1; padding: 8px 0; font-size:12px; justify-content:center; background: transparent; border-style: dashed;" onclick="window.app.store.reset()" title="清空本机缓存的所有数据">☢️ 清空</button>
+                <button class="secondary" style="flex:1; padding: 8px 0; font-size:12px; justify-content:center; color: var(--danger); border-color: rgba(255,59,48,0.18); background: rgba(255,59,48,0.04);" onclick="window.__gakutenLogout && window.__gakutenLogout()" title="退出登录并清除登录状态">🚪 退出登录</button>
             </div>
         </div>
     </aside>
@@ -817,7 +968,7 @@
                 <div class="analysis-tabs" id="analysis-tabs-container">
                     <div class="analysis-tab active" data-type="overview" onclick="window.app.ui.switchAnalysisTab('overview')">🌌 全景数据大屏</div>
                     <div class="analysis-tab" data-type="radar" style="display:none;" onclick="window.app.ui.switchAnalysisTab('radar')">🎯 单人能力雷达</div>
-                    <div class="analysis-tab" data-type="trend" onclick="window.app.ui.switchAnalysisTab('trend')">📉 成绩变化轨迹</div>
+                    <div class="analysis-tab" data-type="trend" style="display:none;" onclick="window.app.ui.switchAnalysisTab('trend')">📉 成绩变化轨迹</div>
                     <div class="analysis-tab compare-tab" data-type="compare" onclick="window.app.ui.switchAnalysisTab('compare')">⚔️ 跨考次对比</div>
                     <div class="analysis-tab target-tab" data-type="target" style="display:none;" onclick="window.app.ui.switchAnalysisTab('target')">🎯 目标达成情况</div>
                     <div class="analysis-tab alert-tab" data-type="borderline" style="display:none;" onclick="window.app.ui.switchAnalysisTab('borderline')">⚠️ 临界生重点关注</div>
@@ -2015,7 +2166,9 @@
                     const optionsChanged = JSON.stringify(currentOptions) !== JSON.stringify(optionsValues);
 
                     if (optionsChanged || isFirstTime) {
-                        let html = '';
+                        // 选项内容发生变化时，使用 fragment 逐项更新而非整体替换 innerHTML，
+                        // 避免 DOM 重建导致的鼠标事件丢失
+                        const fragment = document.createDocumentFragment();
                         options.forEach(opt => {
                             let val, label;
                             if (isExamSelect) {
@@ -2026,10 +2179,26 @@
                                 label = opt;
                             }
                             const isChecked = oldChecked.includes(val) || ((isFirstTime || (!storedValues || storedValues.length===0)) && defaultAll);
-                            const checkedAttr = isChecked ? 'checked' : '';
-                            html += `<label class="ms-item"><input type="checkbox" value="${val}" ${checkedAttr} onchange="${callbackStr}; window.app.ui._updateMsHeader('${panelId}', '${headerId}', '${placeholder}', ${isExamSelect})"> ${label}</label>`;
+                            const labelEl = document.createElement('label');
+                            labelEl.className = 'ms-item';
+                            const cb = document.createElement('input');
+                            cb.type = 'checkbox';
+                            cb.value = val;
+                            cb.checked = isChecked;
+                            cb.addEventListener('change', () => {
+                                eval(callbackStr);
+                                window.app.ui._updateMsHeader(panelId, headerId, placeholder, isExamSelect);
+                            });
+                            labelEl.appendChild(cb);
+                            labelEl.appendChild(document.createTextNode(' ' + label));
+                            fragment.appendChild(labelEl);
                         });
-                        panel.innerHTML = html || `<div style="padding: 15px; color:#94a3b8; font-size:12px; text-align:center;">暂无选项</div>`;
+                        panel.innerHTML = '';
+                        if (options.length === 0) {
+                            panel.innerHTML = `<div style="padding: 15px; color:#94a3b8; font-size:12px; text-align:center;">暂无选项</div>`;
+                        } else {
+                            panel.appendChild(fragment);
+                        }
                     } else {
                         panel.querySelectorAll('input[type="checkbox"]').forEach(cb => {
                             let valToMatch = isExamSelect ? cb.value : cb.value.replace(/&quot;/g, '"');
@@ -2074,10 +2243,47 @@
                     const focus = this.store.state.globalFocus;
                     const students = this.store.state.data.students;
                     const exams = this.store.state.data.exams;
+                    const auth = window.__gakutenAuth && typeof window.__gakutenAuth.getAuth === 'function' ? window.__gakutenAuth.getAuth() : null;
+
+                    if (auth && auth.mode === 'teacher') {
+                        focus.campuses = [auth.campus];
+                        focus.grades = [auth.grade];
+                        focus.tClasses = (focus.tClasses && focus.tClasses.length > 0) ? focus.tClasses : [auth.classId];
+                    }
+
+                    if (auth && auth.mode === 'admin') {
+                        // 用 sessionStorage 标记是否真正是首次加载（页面刷新后重置）
+                        // 教务主动点击清空后不再自动回填，避免清空按钮失效
+                        const SESSION_KEY = 'gakuten_admin_inited';
+                        const isFirstLoad = !sessionStorage.getItem(SESSION_KEY) &&
+                                            !sessionStorage.getItem('gakuten_admin_user_cleared') &&
+                                            (!focus.campuses || focus.campuses.length === 0) &&
+                                            (!focus.grades || focus.grades.length === 0) &&
+                                            (!focus.tClasses || focus.tClasses.length === 0);
+                        if (isFirstLoad) {
+                            sessionStorage.setItem(SESSION_KEY, '1');
+                            const latestExam = this.store.state.data.exams
+                                .filter(e => e.date)
+                                .sort((a, b) => (b.date || '').localeCompare(a.date || ''))[0];
+                            if (latestExam) {
+                                if (latestExam.grade) focus.grades = [latestExam.grade];
+                                const examCamps = this._getExamCampuses(latestExam);
+                                if (examCamps.length > 0) focus.campuses = examCamps;
+                            }
+                        }
+                    }
 
                     // 1. Campus
                     const allCampuses = [...new Set(students.map(s => s.campus).filter(Boolean))].sort();
                     focus.campuses = (focus.campuses || []).filter(c => allCampuses.includes(c)); // 清理幽灵校区
+                    if (auth && auth.mode === 'teacher' && focus.campuses.length === 0 && allCampuses.length > 0) {
+                        const normalize = s => String(s || '').trim().replace(/\s/g, '').toLowerCase();
+                        const matched = allCampuses.find(c => normalize(c) === normalize(auth.campus));
+                        if (matched) {
+                            focus.campuses = [matched];
+                            auth.campus = matched;
+                        }
+                    }
                     this._buildMultiSelect('sb-cam-panel', 'sb-cam-head', allCampuses, 'window.app.ui.onGlobalFilterChange()', '查看全校区', false, focus.campuses, true);
 
                     // 2. Grade
@@ -2123,6 +2329,86 @@
 
                     // 如果发生了自愈清理，静默同步底层存储
                     try { this.store.silentSave(); } catch(e) {}
+
+                    this.applyAuthAccessControl(auth);
+                }
+
+                applyAuthAccessControl(auth = null) {
+                    const currentAuth = auth || (window.__gakutenAuth && typeof window.__gakutenAuth.getAuth === 'function' ? window.__gakutenAuth.getAuth() : null);
+                    const camPanel = document.getElementById('sb-cam-panel');
+                    const grdPanel = document.getElementById('sb-grd-panel');
+                    const clsPanel = document.getElementById('sb-cls-panel');
+                    const camHeader = document.getElementById('sb-cam-head');
+                    const grdHeader = document.getElementById('sb-grd-head');
+
+                    const setPanelLockState = (panel, header, locked) => {
+                        if (header) {
+                            header.style.pointerEvents = locked ? 'none' : '';
+                            header.style.opacity = locked ? '0.68' : '';
+                            header.style.cursor = locked ? 'not-allowed' : '';
+                        }
+                        if (!panel) return;
+                        panel.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                            cb.disabled = !!locked;
+                        });
+                    };
+
+                    if (!currentAuth) {
+                        setPanelLockState(camPanel, camHeader, false);
+                        setPanelLockState(grdPanel, grdHeader, false);
+                        if (clsPanel) {
+                            clsPanel.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.disabled = false);
+                        }
+                        return;
+                    }
+
+                    if (currentAuth.mode === 'admin') {
+                        setPanelLockState(camPanel, camHeader, false);
+                        setPanelLockState(grdPanel, grdHeader, false);
+                        if (clsPanel) {
+                            clsPanel.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.disabled = false);
+                        }
+                        return;
+                    }
+
+                    const focus = this.store.state.globalFocus || { campuses: [], grades: [], phases: [], tClasses: [], tags: [] };
+                    focus.campuses = [currentAuth.campus];
+                    focus.grades = [currentAuth.grade];
+
+                    const classValues = clsPanel ? Array.from(clsPanel.querySelectorAll('input[type="checkbox"]')).map(cb => cb.value.replace(/&quot;/g, '"')) : [];
+                    const normalize = s => String(s || '').trim().replace(/\s/g, '').toLowerCase();
+                    const matchedClass = classValues.find(v => normalize(v) === normalize(currentAuth.classId));
+                    const currentTClasses = (focus.tClasses || []).filter(v => classValues.includes(v));
+                    if (currentTClasses.length === 0) {
+                        focus.tClasses = matchedClass ? [matchedClass] : (classValues[0] ? [classValues[0]] : []);
+                    } else {
+                        focus.tClasses = currentTClasses;
+                    }
+                    this.store.state.globalFocus = focus;
+
+                    setPanelLockState(camPanel, camHeader, true);
+                    setPanelLockState(grdPanel, grdHeader, true);
+                    if (camPanel) {
+                        camPanel.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                            cb.checked = cb.value.replace(/&quot;/g, '"') === currentAuth.campus;
+                        });
+                        this._updateMsHeader('sb-cam-panel', 'sb-cam-head', '查看全校区', false);
+                    }
+                    if (grdPanel) {
+                        grdPanel.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                            cb.checked = cb.value.replace(/&quot;/g, '"') === currentAuth.grade;
+                        });
+                        this._updateMsHeader('sb-grd-panel', 'sb-grd-head', '查看全年级', false);
+                    }
+                    if (clsPanel) {
+                        clsPanel.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                            cb.disabled = false;
+                            cb.checked = focus.tClasses.includes(cb.value.replace(/&quot;/g, '"'));
+                        });
+                        this._updateMsHeader('sb-cls-panel', 'sb-cls-head', '查看全班级', false);
+                    }
+
+                    try { this.store.silentSave(); } catch(e) {}
                 }
 
                 onGlobalFilterChange() {
@@ -2133,6 +2419,12 @@
         tClasses: this._getSelectedClasses('sb-cls-panel'),
         tags: this._getSelectedClasses('sb-tags-panel')
     };
+    const _authGuard = window.__gakutenAuth && typeof window.__gakutenAuth.getAuth === 'function'
+        ? window.__gakutenAuth.getAuth() : null;
+    if (_authGuard && _authGuard.mode === 'teacher') {
+        this.store.state.globalFocus.campuses = [_authGuard.campus];
+        this.store.state.globalFocus.grades = [_authGuard.grade];
+    }
     this.store.save();
     
     this.initGlobalFilters();
@@ -2157,6 +2449,9 @@
 }
 
                 resetGlobalFocus() {
+                    // 清除首次加载标记，但同时写入"用户主动清空"标记，防止 initGlobalFilters 自动回填
+                    sessionStorage.removeItem('gakuten_admin_inited');
+                    sessionStorage.setItem('gakuten_admin_user_cleared', '1');
                     this.store.state.globalFocus = { campuses: [], grades: [], phases: [], tClasses: [], tags: [] };
                     this.store.save();
                     this.initGlobalFilters(); 
@@ -2400,7 +2695,7 @@
 
                     
 
-                    chart.setOption({
+                    this._deferredChartSetOption(chart, {
                         title: { text: '📈 历次考试总分变化', left: 'center' },
                         tooltip: { trigger: 'axis', confine: true, backgroundColor: 'rgba(28,28,30,0.92)', borderColor: 'rgba(255,255,255,0.08)', borderWidth: 0.5, textStyle: { color: '#f2f2f7' }, extraCssText: 'backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); border-radius:10px;' },
                         legend: { data: ['个人得分', '班级均分'], bottom: 0, textStyle: { color: '#6c6c70' } },
@@ -2452,7 +2747,7 @@
                         console.warn('sp insight render error', e);
                     }
 
-                    chart.setOption({
+                    this._deferredChartSetOption(chart, {
                         title: { text: `🎯 最新考试题型能力雷达 (${ex.name})`, left: 'center' },
                         tooltip: { formatter: (p) => { 
                             let str = `<b>${p.name}</b><br>`; 
@@ -4261,6 +4556,15 @@
                     exportAnalysisAsImage() {
                         let originalStyles = null;
                         try {
+                            // ——— Overview 大屏专用导出 ———
+                            const ovCard = document.getElementById('overview-dashboard-card');
+                            const isOverviewMode = ovCard && ovCard.style.display !== 'none';
+                            if (isOverviewMode) {
+                                this._exportOverviewAsImage();
+                                return;
+                            }
+                            // ——— 以下为原有导出逻辑，不做任何修改 ———
+
                             if(!this.analysisCache || !this.analysisCache.exam) return Utils.msg('当前没有可以导出的学情视图', 'error');
                             Utils.msg('正在生成高清长图，请稍候...', 'success');
                             const node = document.querySelector('#view-analysis .content-body');
@@ -4326,6 +4630,148 @@
                         } catch (e) {
                             if (originalStyles) originalStyles.forEach(s => { try { s.el.style.maxHeight = s.maxH; s.el.style.overflow = s.overflow; } catch(e){} });
                             console.warn('exportAnalysisAsImage outer error', e); Utils.msg('生成长图失败', 'error');
+                        }
+                    }
+
+                    _exportOverviewAsImage() {
+                        try {
+                            Utils.msg('正在合成全景大屏图片，请稍候...', 'success');
+
+                            // 8个图表的容器id，顺序对应布局中的位置（4列2行）
+                            const chartIds = [
+                                'chart-ov-trend', 'chart-ov-avg',
+                                'chart-ov-dist',  'chart-ov-segment',
+                                'chart-ov-heatmap','chart-ov-weakness',
+                                'chart-ov-normal', 'chart-ov-cumulative'
+                            ];
+
+                            // 从 ECharts 实例获取图表图片数据（避免 html2canvas 截 canvas 为空白的问题）
+                            const chartImages = chartIds.map(id => {
+                                const el = document.getElementById(id);
+                                if (!el) return null;
+                                const chartInstance = echarts.getInstanceByDom(el);
+                                if (!chartInstance) return null;
+                                return chartInstance.getDataURL({
+                                    type: 'png',
+                                    pixelRatio: 2,
+                                    backgroundColor: '#ffffff'
+                                });
+                            });
+
+                            if (chartImages.every(img => img === null)) {
+                                Utils.msg('图表尚未渲染完成，请稍后再试', 'error');
+                                return;
+                            }
+
+                            // ---- 严格 16:9 画布尺寸 ----
+                            const COLS     = 4;
+                            const ROWS     = 2;
+                            const PADDING  = 20;
+                            const HEADER_H = 80;
+                            const totalW   = 3840;
+                            const totalH   = 2160;   // totalW / (16/9) = 2160，严格 16:9
+                            const CELL_W   = (totalW - (COLS + 1) * PADDING) / COLS;   // 935
+                            const CELL_H   = (totalH - HEADER_H - (ROWS + 1) * PADDING) / ROWS; // 1010
+
+                            const outputCanvas = document.createElement('canvas');
+                            outputCanvas.width = totalW;
+                            outputCanvas.height = totalH;
+                            const ctx = outputCanvas.getContext('2d');
+
+                            // 深色背景
+                            ctx.fillStyle = '#0f172a';
+                            ctx.fillRect(0, 0, totalW, totalH);
+
+                            // 顶部标题栏
+                            ctx.fillStyle = '#1e293b';
+                            ctx.fillRect(0, 0, totalW, HEADER_H);
+
+                            // 标题文字
+                            const examSelector = document.getElementById('a-exam-select');
+                            const examName = examSelector && examSelector.options[examSelector.selectedIndex]
+                                ? examSelector.options[examSelector.selectedIndex].text
+                                : '全景数据大屏';
+                            const dateStr = new Date().toISOString().slice(0, 10);
+
+                            ctx.fillStyle = '#f1f5f9';
+                            ctx.font = 'bold 36px sans-serif';
+                            ctx.textBaseline = 'middle';
+                            ctx.fillText('📊  ' + examName + ' · 全景数据大屏', PADDING * 2, HEADER_H / 2);
+
+                            ctx.fillStyle = '#64748b';
+                            ctx.font = '24px sans-serif';
+                            const rightText = 'Gakuten · 导出于 ' + dateStr;
+                            const rightTextW = ctx.measureText(rightText).width;
+                            ctx.fillText(rightText, totalW - rightTextW - PADDING * 2, HEADER_H / 2);
+
+                            // 绘制各图表到对应格子
+                            const loadPromises = chartImages.map((dataUrl, index) => {
+                                return new Promise((resolve) => {
+                                    const col = index % COLS;
+                                    const row = Math.floor(index / COLS);
+                                    const x = PADDING + col * (CELL_W + PADDING);
+                                    const y = HEADER_H + PADDING + row * (CELL_H + PADDING);
+
+                                    // 白色圆角卡片背景
+                                    ctx.fillStyle = '#ffffff';
+                                    ctx.beginPath();
+                                    const r = 12;
+                                    ctx.moveTo(x + r, y);
+                                    ctx.lineTo(x + CELL_W - r, y);
+                                    ctx.quadraticCurveTo(x + CELL_W, y, x + CELL_W, y + r);
+                                    ctx.lineTo(x + CELL_W, y + CELL_H - r);
+                                    ctx.quadraticCurveTo(x + CELL_W, y + CELL_H, x + CELL_W - r, y + CELL_H);
+                                    ctx.lineTo(x + r, y + CELL_H);
+                                    ctx.quadraticCurveTo(x, y + CELL_H, x, y + CELL_H - r);
+                                    ctx.lineTo(x, y + r);
+                                    ctx.quadraticCurveTo(x, y, x + r, y);
+                                    ctx.closePath();
+                                    ctx.fill();
+
+                                    if (!dataUrl) { resolve(); return; }
+
+                                    const img = new Image();
+                                    img.onload = () => {
+                                        // 保持图表自身比例居中裁切填充到格子内
+                                        ctx.save();
+                                        ctx.beginPath();
+                                        ctx.moveTo(x + r, y);
+                                        ctx.lineTo(x + CELL_W - r, y);
+                                        ctx.quadraticCurveTo(x + CELL_W, y, x + CELL_W, y + r);
+                                        ctx.lineTo(x + CELL_W, y + CELL_H - r);
+                                        ctx.quadraticCurveTo(x + CELL_W, y + CELL_H, x + CELL_W - r, y + CELL_H);
+                                        ctx.lineTo(x + r, y + CELL_H);
+                                        ctx.quadraticCurveTo(x, y + CELL_H, x, y + CELL_H - r);
+                                        ctx.lineTo(x, y + r);
+                                        ctx.quadraticCurveTo(x, y, x + r, y);
+                                        ctx.closePath();
+                                        ctx.clip();
+                                        ctx.drawImage(img, x, y, CELL_W, CELL_H);
+                                        ctx.restore();
+                                        resolve();
+                                    };
+                                    img.onerror = () => resolve();
+                                    img.src = dataUrl;
+                                });
+                            });
+
+                            Promise.all(loadPromises).then(() => {
+                                const url = outputCanvas.toDataURL('image/png');
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.download = examName + '_全景大屏_' + dateStr + '.png';
+                                document.body.appendChild(a);
+                                a.click();
+                                a.remove();
+                                Utils.msg('全景大屏图片已生成并开始下载', 'success');
+                            }).catch(e => {
+                                console.warn('_exportOverviewAsImage error', e);
+                                Utils.msg('生成图片失败，请重试', 'error');
+                            });
+
+                        } catch (e) {
+                            console.warn('_exportOverviewAsImage outer error', e);
+                            Utils.msg('生成图片失败', 'error');
                         }
                     }
 
@@ -4926,6 +5372,24 @@
                     }
                 }
 
+                _deferredChartSetOption(chart, option, delay = 50) {
+                    if (!chart || typeof chart.setOption !== 'function') return;
+                    try {
+                        if (chart.__gakutenDeferredRenderTimer) clearTimeout(chart.__gakutenDeferredRenderTimer);
+                    } catch (e) {}
+                    chart.__gakutenDeferredRenderTimer = setTimeout(() => {
+                        try {
+                            if (chart && typeof chart.isDisposed === 'function' && chart.isDisposed()) return;
+                            if (typeof chart.clear === 'function') chart.clear();
+                            chart.setOption(option);
+                        } catch (e) {
+                            console.warn('deferred chart render failed', e);
+                        } finally {
+                            chart.__gakutenDeferredRenderTimer = null;
+                        }
+                    }, delay);
+                }
+
                 _renderProfileTrendChart(stu) {
                     const dom = document.getElementById('sp-chart-trend');
                     if(this.spTrendChart) { this.spTrendChart.dispose(); }
@@ -4964,7 +5428,7 @@
                     }
 
                     const profileMax = Math.max(100, ...stuScores.filter(v => v !== null), ...avgScores.filter(v => v !== null));
-                    this.spTrendChart.setOption({
+                    this._deferredChartSetOption(this.spTrendChart, {
                         title: { text: '历史总分轨迹', left: 'center', textStyle: {fontSize: 14} },
                         tooltip: { trigger: 'axis' },
                         legend: { data: ['个人得分', '班级均分'], bottom: 0 },
@@ -5079,7 +5543,7 @@
                         }
                     } catch (e) { console.warn('sp insight render error', e); }
 
-                    this.spRadarChart.setOption({
+                    this._deferredChartSetOption(this.spRadarChart, {
                         title: { text: `能力雷达 (${latestExam.name})`, left: 'center', textStyle: {fontSize: 14} },
                         tooltip: { formatter: (p) => { 
                             let str = `<b>${p.name}</b><br>`; 
@@ -5147,7 +5611,7 @@
                         });
                     });
 
-                    this.spQuadChart.setOption({
+                    this._deferredChartSetOption(this.spQuadChart, {
                         title: { text: '🧩 模块优劣势四象限', left: 'center', top: 0 },
                         grid: { top: 60, bottom: 40, left: 40, right: 40, containLabel: true },
                         tooltip: {
@@ -5533,7 +5997,7 @@
                         
                         const allSeries = [...trendSeries, ...predictSeries];
 
-                        this.chartInstance.setOption({
+                        this._deferredChartSetOption(this.chartInstance, {
                             title: { text: chartTitle, left: 'center' },
                             tooltip: {
                                 trigger: 'axis',
@@ -5737,7 +6201,7 @@
                         if (scoreType === 'pct') { yName = '得分率'; yAxisConfig.name = '得分率 (%)'; ttipFormatter = `{b}<br/><span style="display:inline-block;margin-right:4px;border-radius:10px;width:10px;height:10px;background-color:{color};"></span>{a}: {c}%`; }
                         if (scoreType === 'ratio') { yName = '均分指数'; delete yAxisConfig.max; yAxisConfig.name = '均分指数 (基准100)'; ttipFormatter = `{b}<br/><span style="display:inline-block;margin-right:4px;border-radius:10px;width:10px;height:10px;background-color:{color};"></span>{a}: {c}`; }
 
-                        this.chartInstance.setOption({
+                        this._deferredChartSetOption(this.chartInstance, {
                             title: { text: `多考次联考对比矩阵 (${yName})`, left: 'center' },
                             tooltip: { trigger: 'axis', formatter: function(params) {
                                 let res = `<b>${params[0].name}</b><br/>`;
@@ -5837,7 +6301,7 @@
                         this.chartInstance = echarts.init(document.getElementById('chart-main'));
 
                         const chartTitle = exam ? `【${Utils.escapeHTML(exam.name)}】成绩累计分布曲线 (看及格率/优秀率阈值)` : '成绩累计分布曲线';
-                        this.chartInstance.setOption({
+                        this._deferredChartSetOption(this.chartInstance, {
                             title: { text: chartTitle, left: 'center' },
                             tooltip: {
                                 trigger: 'item',
@@ -5914,7 +6378,7 @@
                             document.getElementById('chart-wrapper-card').style.display = 'block';
                             this.chartInstance = echarts.init(chartEl);
 
-                            this.chartInstance.setOption({
+                            this._deferredChartSetOption(this.chartInstance, {
                                 title: { text: `【${Utils.escapeHTML(exam.name)}】题型得分率热力图`, left: 'center' },
                                 tooltip: {
                                     formatter: function (params) {
@@ -6135,7 +6599,7 @@
                         const yData = typeRates.map(t => t.name);
                         const sData = typeRates.map(t => t.rate);
 
-                        this.chartInstance.setOption({
+                        this._deferredChartSetOption(this.chartInstance, {
                             title: { text: `【${exam.name}】题型得分率横评诊断`, subtext: '一眼看出班级薄弱模块 (得分率越低越靠前)', left: 'center' },
                             tooltip: { formatter: (p) => {
                                 const t = typeRates[p.dataIndex];
@@ -6348,7 +6812,7 @@
                             return parseFloat(((score / t.max) * 100).toFixed(1));
                         });
 
-                        this.chartInstance.setOption({
+                        this._deferredChartSetOption(this.chartInstance, {
                             title: { text: `学生【${stuData.name}】各模块能力雷达`, subtext: `绝对总分: ${stuData.total} / ${maxScore}\n总得分率: ${((stuData.total/maxScore)*100).toFixed(1)}%`, left: 'center' },
                             tooltip: { formatter: (p) => { 
                                 let str = `${p.name}<br>`; 
@@ -6392,7 +6856,7 @@
                         const bins = [0,0,0,0,0];
                         ovRes.filter(r=>r.total>0).forEach(v => { const t = v.total; if(t < p1) bins[0]++; else if(t < p2) bins[1]++; else if(t < p3) bins[2]++; else if(t < p4) bins[3]++; else bins[4]++; });
                         const c1 = echarts.init(document.getElementById('chart-ov-dist'));
-                        c1.setOption({ title: { text: '全班成绩分布', left: 'center', textStyle:{fontSize:14, color:'#3b82f6'}, triggerEvent: true }, tooltip: { trigger: 'axis' },
+                        this._deferredChartSetOption(c1, { title: { text: '全班成绩分布', left: 'center', textStyle:{fontSize:14, color:'#3b82f6'}, triggerEvent: true }, tooltip: { trigger: 'axis' },
                             grid: { top: 45, bottom: 30, left: '12%', right: '12%' },
                             xAxis:{type:'category', data:[`<${p1}`,`${p1}-${p2-1}`,`${p2}-${p3-1}`,`${p3}-${p4-1}`,`≥${p4}`]}, yAxis:{type:'value'},
                             series:[{data:[{value:bins[0],itemStyle:{color:'#ef4444'}},{value:bins[1],itemStyle:{color:'#f59e0b'}},{value:bins[2],itemStyle:{color:'#eab308'}},{value:bins[3],itemStyle:{color:'#10b981'}},{value:bins[4],itemStyle:{color:'#3b82f6'}}], type:'bar', label:{show:true, position:'top'}, itemStyle:{borderRadius: [4, 4, 0, 0]}}]
@@ -6464,12 +6928,12 @@
                         });
 
                         const c2 = echarts.init(document.getElementById('chart-ov-trend'));
-                        c2.setOption({
+                        this._deferredChartSetOption(c2, {
                             title: { text: '历次考试均分变化趋势', left: 'center', top: 0, textStyle:{fontSize:14, color:'#3b82f6'}, triggerEvent: true },
                             tooltip: { trigger: 'axis' },
                             legend: { data: ['年级总均分', ...allClassNames], bottom: 2, type: 'scroll', padding: [10, 0, 0, 0] },
                             grid: { top: 45, bottom: 50, left: '12%', right: '12%' },
-                            xAxis: { type: 'category', data: tX, axisLabel: { interval: 0, rotate: 20, margin: 12 } },
+                            xAxis: { type: 'category', data: tX, axisLabel: { interval: 0, rotate: 20, margin: 12, fontSize: 8 } },
                             yAxis: { type: 'value', scale: true, name: '均分' },
                             series: seriesList
                         });
@@ -6479,12 +6943,31 @@
                         ((ovExam && ovExam.types) || []).forEach(t => { let sum = 0, count = 0; ovRes.forEach(r => { if (r.total > 0 && r.details[t.name] !== undefined) { sum += r.details[t.name]; count++; } }); const avg = count > 0 ? sum / count : 0; typeRates.push({ name: t.name, rate: parseFloat((t.max > 0 ? (avg / t.max) * 100 : 0).toFixed(1)) }); });
                         typeRates.sort((a,b) => a.rate - b.rate);
                         const c3 = echarts.init(document.getElementById('chart-ov-weakness'));
-                        c3.setOption({ title: { text: '班级薄弱题型诊断', left: 'center', textStyle:{fontSize:14, color:'#3b82f6'}, triggerEvent: true }, tooltip: { formatter: function(p){ return p.name + ': ' + p.value + '%'; } }, grid: { top: 45, bottom: 30, left: '22%', right: '12%' }, xAxis: { type: 'value', max: 100 }, yAxis: { type: 'category', data: typeRates.map(t=>t.name), inverse: true, axisLabel: { interval: 0, margin: 12, rotate: 45, align: 'right' } }, series: [{ type: 'bar', data: typeRates.map(t=>t.rate), label:{show:true, position:'right', formatter:'{c}%'}, itemStyle:{color:(params)=>{ const v = params.value; if (v < 60) return '#ef4444'; if (v <= 80) return '#f59e0b'; return '#10b981'; }, borderRadius:[0,4,4,0]} }] });
+                        this._deferredChartSetOption(c3, { title: { text: '班级薄弱题型诊断', left: 'center', textStyle:{fontSize:14, color:'#3b82f6'}, triggerEvent: true }, tooltip: { formatter: function(p){ return p.name + ': ' + p.value + '%'; } }, grid: { top: 45, bottom: 30, left: '22%', right: '12%' }, xAxis: { type: 'value', max: 100 }, yAxis: { type: 'category', data: typeRates.map(t=>t.name), inverse: true, axisLabel: { interval: 0, margin: 12, rotate: 45, align: 'right' } }, series: [{ type: 'bar', data: typeRates.map(t=>t.rate), label:{show:true, position:'right', formatter:'{c}%'}, itemStyle:{color:(params)=>{ const v = params.value; if (v < 60) return '#ef4444'; if (v <= 80) return '#f59e0b'; return '#10b981'; }, borderRadius:[0,4,4,0]} }] });
 
                         // 4. 渲染各班级均分与箱线图分布 (带一键切换功能)
+                        // 均分对比图和箱线图专用数据：绕过 tClasses 筛选，始终显示本次考试所有班级
+                        // 仅保留 campuses 和 grades 的筛选（校区/年级锁定仍然有效），忽略 tClasses
+                        const ovResAllClasses = (() => {
+                            const actualCamps = this._getExamCampuses(ovExam);
+                            const allStudentsForExam = this.store.state.data.students.filter(s => {
+                                if (s.grade !== ovExam.grade) return false;
+                                if (focus.campuses.length > 0 && !focus.campuses.includes(s.campus)) return false;
+                                if (actualCamps.length > 0 && !actualCamps.includes(s.campus)) return false;
+                                if (focus.grades.length > 0 && !focus.grades.includes(s.grade)) return false;
+                                // 注意：故意不加 focus.tClasses 的过滤，让所有班级都参与对比
+                                return true;
+                            });
+                            const result = [];
+                            allStudentsForExam.forEach(s => {
+                                const r = this.store.getScore(s.id, ovExam.id);
+                                if (r && r.total > 0) result.push({ ...s, total: r.total });
+                            });
+                            return result;
+                        })();
                     
                     const cMap = {}; 
-                    ovRes.filter(r=>r.total>0).forEach(r => { 
+                    ovResAllClasses.filter(r=>r.total>0).forEach(r => { 
                         const clsKey = r.teachingClass || '未分班'; 
                         if(!cMap[clsKey]) cMap[clsKey]=[]; 
                         cMap[clsKey].push(r.total); 
@@ -6493,7 +6976,7 @@
                     
                     // 基础计算：均分柱状图数据
                     const avgData = clsKeys.map(k => parseFloat((cMap[k].reduce((a,b)=>a+b,0)/cMap[k].length).toFixed(1)));
-                    const allOvValidScores = ovRes.filter(r=>r.total>0).map(r=>r.total);
+                    const allOvValidScores = ovResAllClasses.filter(r=>r.total>0).map(r=>r.total);
                     const ovOverallAvgNum = allOvValidScores.length > 0 ? parseFloat((allOvValidScores.reduce((a,b)=>a+b,0)/allOvValidScores.length).toFixed(1)) : 0;
                     
                     // 进阶计算：箱线图专用数据结构 [min, Q1, median, Q3, max]
@@ -6528,7 +7011,7 @@
                     // 独立渲染函数
                     const renderC4 = () => {
                         toggleBtn.innerHTML = isBoxplot ? '📊 切换' : '📦 切换';
-                        c4.setOption({
+                        this._deferredChartSetOption(c4, {
                             title: { text: isBoxplot ? '各班级成绩离散度箱线图' : '各班级均分对比', left: 'center', textStyle:{fontSize:14, color:'#3b82f6'}, triggerEvent: true },
                             grid: { top: 45, bottom: 30, left: '12%', right: '12%' },
                             tooltip: isBoxplot ? { 
@@ -6543,7 +7026,7 @@
                                            `最小值: &nbsp;&nbsp;<b>${params.value[1]}</b>`;
                                 }
                             } : { trigger: 'axis' },
-                            xAxis: { type: 'category', data: clsKeys, axisLabel:{interval:0, rotate:15} }, 
+                            xAxis: { type: 'category', data: clsKeys, axisLabel:{interval:0, rotate:0} }, 
                             // 强制锁定 Y 轴视口为 0-150，取消 scale 自动拉伸
                             yAxis: { type: 'value', min: 0, max: 150 },
                             series: [{ 
@@ -6572,7 +7055,7 @@
                                     silent: true
                                 } 
                             }]
-                        }, true);
+                        });
                     };
                     
                     renderC4();
@@ -6642,7 +7125,7 @@
                                         curvePoints.push([x, parseFloat(y.toFixed(3))]);
                                     }
                                     const barData = bins.map((cnt,i)=>[(i+0.5)*binWidth, cnt]);
-                                    c5.setOption({ title:{text:'正态拟合分布', left:'center', triggerEvent: true, textStyle:{fontSize: 14, color: '#3b82f6'}}, tooltip:{trigger:'axis'}, grid: { top: 45, bottom: 30, left: '12%', right: '12%' }, xAxis:{type:'value', min:0, max:maxScoreVal, name:'分数'}, yAxis:{type:'value', name:'人数'}, series:[{name:'频数', type:'bar', data:barData, itemStyle:{color:'#60a5fa'}},{name:'正态拟合', type:'line', smooth:true, showSymbol:false, data:curvePoints, lineStyle:{color:'#f97316', width:2}}] });
+                                                this._deferredChartSetOption(c5, { title:{text:'正态拟合分布', left:'center', triggerEvent: true, textStyle:{fontSize: 14, color: '#3b82f6'}}, tooltip:{trigger:'axis'}, grid: { top: 45, bottom: 30, left: '12%', right: '12%' }, xAxis:{type:'value', min:0, max:maxScoreVal, name:'分数'}, yAxis:{type:'value', name:'人数'}, series:[{name:'频数', type:'bar', data:barData, itemStyle:{color:'#60a5fa'}},{name:'正态拟合', type:'line', smooth:true, showSymbol:false, data:curvePoints, lineStyle:{color:'#f97316', width:2}}] });
                                 }
                             }
                         } catch (e) { console.warn('ov normal render error', e); }
@@ -6675,7 +7158,7 @@
                                 // 增加 dataZoom 以便在高度受限时滚动查看学生（初始显示约 8 名）
                                 const initialVisible = 8;
                                 const endPct = students.length <= initialVisible ? 100 : Math.round((initialVisible / students.length) * 100);
-                                c6.setOption({
+                                this._deferredChartSetOption(c6, {
                                     title: { text: '题型得分率热力图', left: 'center', triggerEvent: true, textStyle: { fontSize: 14, color: '#3b82f6' } },
                                     tooltip: { formatter: function (params) { const t = xAxisFullNames[params.value[0]] || params.name; const s = yAxisNames[params.value[1]] || params.value[1]; return `学生: ${s}<br/>题型: ${Utils.escapeHTML(t)}<br/>得分率: ${params.value[2]}%`; } },
                                     grid: { top: 55, bottom: 30, left: '16%', right: '16%' },
@@ -6707,7 +7190,7 @@
                                         cumulative.push([s, parseFloat(((acc / n) * 100).toFixed(1))]);
                                     });
                                 }
-                                c7.setOption({
+                                this._deferredChartSetOption(c7, {
                                     title: { text: '累计得分分布', left: 'center', textStyle: { fontSize: 14, color: '#3b82f6' }, triggerEvent: true },
                                     tooltip: { trigger: 'axis', formatter: function (p) { const v = (p && p[0] && p[0].value) ? p[0].value : []; return `分数: ${v[0] || '-'}<br/>累计: ${v[1] || 0}%`; } },
                                     grid: { top: 45, bottom: 30, left: '16%', right: '12%' },
@@ -6740,7 +7223,7 @@
                                     { name: '困难', value: counts.poor }
                                 ];
                                 const segColors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444'];
-                                c8.setOption({
+                                this._deferredChartSetOption(c8, {
                                     title: { text: '成绩梯队分布', left: 'center', textStyle: { fontSize: 14, color: '#3b82f6' }, triggerEvent: true },
                                     color: segColors,
                                     tooltip: { trigger: 'item', formatter: '{b}: {c} ({d}%)' },
@@ -6809,7 +7292,7 @@
                         // 五梯队分布渲染到 chart-dist-segment（保留原有样式和交互）
                         const segEl = document.getElementById('chart-dist-segment');
                         this.distSegmentChart = echarts.init(segEl);
-                        this.distSegmentChart.setOption({ 
+                        this._deferredChartSetOption(this.distSegmentChart, { 
                             title: { text: `【${exam.name}】全班成绩分布`, subtext: '直观了解不及格、及格与优秀的人数', left: 'center' },
                             tooltip: { trigger: 'axis' },
                             xAxis:{type:'category', data:[`不及格(<${p1})`,`及格(${p1}-${p2-1})`,`中等(${p2}-${p3-1})`,`良好(${p3}-${p4-1})`,`优秀(≥${p4})`]}, 
@@ -6892,7 +7375,7 @@
                                     const containerW = normalEl.clientWidth || 800;
                                     const approxBarPx = Math.max(6, Math.floor((binWidth / (maxScoreVal || 1)) * containerW * 0.9));
 
-                                    normalChart.setOption({
+                                    this._deferredChartSetOption(normalChart, {
                                         title: { text: `【${Utils.escapeHTML(exam.name)}】成绩直方与正态拟合`, left: 'center' },
                                         tooltip: { trigger: 'axis', axisPointer: { type: 'cross' } },
                                         xAxis: { type: 'value', min: 0, max: maxScoreVal, name: '分数' },
@@ -6929,7 +7412,7 @@
 
                             const avgYAxisConfig = { type:'value', min: 0, scale: false, name:'班级平均分', max: exam.maxTotal };
 
-                            this.chartInstance.setOption({ 
+                            this._deferredChartSetOption(this.chartInstance, { 
                                 title: { text: `【${Utils.escapeHTML(exam.name)}】各班级平均分对比`, left: 'center' },
                                 tooltip: { trigger: 'axis' },
                                 xAxis:{type:'category', data:x, axisLabel: { interval: 0, rotate: 15 }}, 
@@ -6956,7 +7439,7 @@
 
                             const boxYAxisConfig = { type:'value', min:0, scale:false, name:'分数极差分布', max: exam.maxTotal };
 
-                            this.chartInstance.setOption({
+                            this._deferredChartSetOption(this.chartInstance, {
                                 title: { text: `【${Utils.escapeHTML(exam.name)}】各班两极分化情况 (箱线图)`, subtext: '箱子越长代表分差越大；横线越低代表差生越多', left: 'center' },
                                 tooltip: { 
                                     trigger: 'item', axisPointer: { type: 'shadow' },
@@ -7573,7 +8056,7 @@
                         }
                     });
 
-                    chart.setOption({
+                    this._deferredChartSetOption(chart, {
                         title: { text: '📈 历史总分长线轨迹', left: 'center' },
                         tooltip: { trigger: 'axis' },
                         legend: { data: ['个人得分', '班级均分'], bottom: 0 },
@@ -7607,7 +8090,7 @@
                         return parseFloat(((rawAvg / t.max) * 100).toFixed(1));
                     });
 
-                    chart.setOption({
+                    this._deferredChartSetOption(chart, {
                         title: { text: `🎯 六边形能力雷达 (${ex.name})`, left: 'center' },
                         tooltip: { formatter: (p) => { 
                             let str = `<b>${p.name}</b><br>`; 
@@ -7659,7 +8142,7 @@
                         });
                     });
 
-                    chart.setOption({
+                    this._deferredChartSetOption(chart, {
                         title: { text: `🧩 模块优劣势四象限诊断`, subtext: '对比班级均分，定位提分突破口', left: 'center', top: 0 },
                         grid: { top: 65, bottom: '28%', left: 40, right: 40, containLabel: true },
                         tooltip: {
