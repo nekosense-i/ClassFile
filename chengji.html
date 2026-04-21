@@ -8,6 +8,7 @@
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.5.0/lz-string.min.js"></script>
+    <script src="https://unpkg.com/pinyin-pro"></script>
     <script>
         (function() {
             if (window.__gakutenEChartsThemePatched) return;
@@ -119,11 +120,31 @@
         })();
     </script>
     <script>
+        // 多音字修正词典（可按校区/姓名持续扩充）
+        const POLYPHONE_DICT = {
+            '成都': 'cheng du',
+            '重庆': 'chong qing',
+            '曾': 'zeng',
+            '查': 'zha',
+            '区': 'qu',
+            '长': 'chang',
+            '行': 'hang',
+            '师上': 'shi shang',
+            '育才': 'yu cai'
+        };
+
         (function() {
             const AUTH_KEY = 'gakuten_auth';
-            const CAMPUS_MAP = {
-                ss: '师上',
-                // TODO: 请在此处继续补充其他校区，格式为 缩写: '真实校区名'
+            let __polyphoneInited = false;
+
+            const ensurePolyphoneDict = () => {
+                if (__polyphoneInited) return true;
+                if (!window.pinyinPro) return false;
+                const { customPinyin } = window.pinyinPro;
+                if (typeof customPinyin !== 'function') return false;
+                customPinyin(POLYPHONE_DICT);
+                __polyphoneInited = true;
+                return true;
             };
 
             const getOverlay = () => document.getElementById('auth-overlay');
@@ -149,20 +170,80 @@
                 localStorage.removeItem(AUTH_KEY);
             };
 
-            const parseAuth = (password) => {
+            const createEmptyFilters = () => ({ campuses: [], grades: [], phases: [], tClasses: [], tags: [] });
+
+            const resetCachedFilters = () => {
+                try {
+                    const STORE_KEY = 'gakuten_data_v1';
+                    const raw = localStorage.getItem(STORE_KEY);
+                    if (raw) {
+                        const data = JSON.parse(raw);
+                        if (data && typeof data === 'object') {
+                            data.globalFocus = createEmptyFilters();
+                            if (data.filters !== undefined) {
+                                data.filters = createEmptyFilters();
+                            }
+                            localStorage.setItem(STORE_KEY, JSON.stringify(data));
+                        }
+                    }
+                } catch (e) {}
+                sessionStorage.removeItem('gakuten_admin_inited');
+                sessionStorage.removeItem('gakuten_admin_user_cleared');
+            };
+
+            const buildAuthCandidates = () => {
+                if (!ensurePolyphoneDict()) return [];
+                const students = (window.app && window.app.ui && window.app.ui.store && window.app.ui.store.state && window.app.ui.store.state.data)
+                    ? (window.app.ui.store.state.data.students || [])
+                    : [];
+                const { pinyin } = window.pinyinPro || {};
+                if (typeof pinyin !== 'function') return [];
+
+                const unique = new Map();
+                students.forEach(s => {
+                    const campus = String((s && s.campus) || '').trim();
+                    const grade = String((s && s.grade) || '').trim();
+                    const classId = String((s && (s.teachingClass || s.classId || s.class)) || '').trim();
+                    if (!campus || !grade || !classId) return;
+
+                    const key = `${campus}__${grade}__${classId}`;
+                    if (unique.has(key)) return;
+
+                    const campusCode = pinyin(campus, { pattern: 'first', toneType: 'none', type: 'array' })
+                        .join('')
+                        .toLowerCase()
+                        .replace(/\s+/g, '');
+                    const gradeDigits = ((grade.match(/\d+/g) || []).join('')).slice(-2);
+                    const classCode = pinyin(classId, { toneType: 'none', type: 'array', nonZh: 'consecutive' })
+                        .join('')
+                        .replace(/\s+/g, '');
+                    const expectedPassword = `${campusCode}${gradeDigits}${classCode}`;
+
+                    unique.set(key, { campus, grade, classId, expectedPassword });
+                });
+
+                return [...unique.values()];
+            };
+
+            const resolveAuthByPassword = (password) => {
                 const raw = String(password || '').trim();
                 if (!raw) return null;
-                if (raw.toLowerCase() === 'nekosensei') {
-                    return { mode: 'admin' };
+                if (raw === 'nekosensei') return { mode: 'admin' };
+
+                if (!ensurePolyphoneDict() || !window.pinyinPro || typeof window.pinyinPro.pinyin !== 'function') {
+                    return { __error: 'PINYIN_UNAVAILABLE' };
                 }
-                const match = raw.match(/^([a-zA-Z]+)(\d{2})(.+)$/);
-                if (!match) return null;
-                const campusCode = match[1].toLowerCase();
-                const campus = CAMPUS_MAP[campusCode] || campusCode.toUpperCase();
-                const grade = `20${match[2]}级`;
-                const classId = match[3].trim();
-                if (!classId) return null;
-                return { mode: 'teacher', campus, grade, classId };
+
+                const candidates = buildAuthCandidates();
+                const matched = candidates.find(item => item.expectedPassword === raw);
+                if (!matched) return null;
+
+                return {
+                    mode: 'teacher',
+                    campus: matched.campus,
+                    grade: matched.grade,
+                    classId: matched.classId
+                };
             };
 
             const setErrorVisible = (visible, text) => {
@@ -195,16 +276,36 @@
 
             const login = () => {
                 const input = document.getElementById('auth-password');
-                const auth = parseAuth(input ? input.value : '');
-                if (!auth) {
-                    setErrorVisible(true);
+                const auth = resolveAuthByPassword(input ? input.value : '');
+                if (auth && auth.__error === 'PINYIN_UNAVAILABLE') {
+                    setErrorVisible(true, '鉴权组件加载失败，请刷新页面重试。');
                     return false;
                 }
+                if (!auth) {
+                    setErrorVisible(true, '账号或密码错误（请注意大小写）');
+                    return false;
+                }
+
+                resetCachedFilters();
                 saveAuth(auth);
                 setErrorVisible(false);
                 syncOverlayState();
                 if (window.app && window.app.ui) {
                     try {
+                        const emptyFilters = createEmptyFilters();
+                        if (window.app.ui.store && window.app.ui.store.state) {
+                            if (auth.mode === 'teacher') {
+                                const forcedFilters = { ...emptyFilters, campuses: [auth.campus], grades: [auth.grade], tClasses: [auth.classId] };
+                                window.app.ui.store.state.globalFocus = { ...forcedFilters };
+                                window.app.ui.store.state.filters = { ...forcedFilters };
+                            } else {
+                                window.app.ui.store.state.globalFocus = { ...emptyFilters };
+                                window.app.ui.store.state.filters = { ...emptyFilters };
+                            }
+                            if (typeof window.app.ui.store.save === 'function') {
+                                window.app.ui.store.save();
+                            }
+                        }
                         window.app.ui.applyAuthAccessControl(auth);
                         window.app.ui.refresh();
                     } catch (e) {}
@@ -213,22 +314,26 @@
             };
 
             const logout = () => {
+                if (!confirm('确定要退出登录吗？')) return;
                 clearAuth();
-                try {
-                    const STORE_KEY = 'gakuten_data_v1';
-                    const raw = localStorage.getItem(STORE_KEY);
-                    if (raw) {
-                        const data = JSON.parse(raw);
-                        if (data && data.globalFocus !== undefined) {
-                            data.globalFocus = { campuses: [], grades: [], phases: [], tClasses: [], tags: [] };
-                            localStorage.setItem(STORE_KEY, JSON.stringify(data));
+                resetCachedFilters();
+                if (window.app && window.app.ui && window.app.ui.store && window.app.ui.store.state) {
+                    try {
+                        const emptyFilters = createEmptyFilters();
+                        window.app.ui.store.state.globalFocus = emptyFilters;
+                        window.app.ui.store.state.filters = emptyFilters;
+                        if (typeof window.app.ui.store.save === 'function') {
+                            window.app.ui.store.save();
                         }
-                    }
+                    } catch (e) {}
+                }
+                try {
+                    window.app && window.app.ui && window.app.ui.refresh && window.app.ui.refresh();
                 } catch (e) {}
                 location.reload();
             };
 
-            window.__gakutenAuth = { getAuth, saveAuth, clearAuth, parseAuth, syncOverlayState, applyAuthToUI, login, logout };
+            window.__gakutenAuth = { getAuth, saveAuth, clearAuth, resolveAuthByPassword, syncOverlayState, applyAuthToUI, login, logout };
             window.__gakutenLogin = login;
             window.__gakutenLogout = logout;
 
@@ -1985,14 +2090,23 @@
 
                 _getExamCampuses(exam) {
                     if (!exam) return [];
+
+                    // 1. 获取建考时配置的初始校区数组（主数据基准）
+                    const configuredCamps = exam.campuses && exam.campuses.length > 0
+                        ? exam.campuses
+                        : (exam.campus ? [exam.campus] : []);
+
+                    // 2. 获取已有成绩学生推算出的校区（动态流水数据兜底）
                     const scores = this.store.state.data.scores.filter(s => s.examId === exam.id && (s.total > 0 || s.estimatedTotal > 0));
+                    let scoreCamps = [];
                     if (scores.length > 0) {
                         const stuIds = scores.map(s => s.studentId);
                         const stus = this.store.state.data.students.filter(s => stuIds.includes(s.id));
-                        const camps = [...new Set(stus.map(s => s.campus))].filter(Boolean);
-                        if (camps.length > 0) return camps;
+                        scoreCamps = stus.map(s => s.campus).filter(Boolean);
                     }
-                    return exam.campuses && exam.campuses.length > 0 ? exam.campuses : (exam.campus ? [exam.campus] : []);
+
+                    // 3. 将静态配置和动态推算的校区合并去重，确保联考校区不会因为某一方没录成绩而丢失可见权限
+                    return [...new Set([...configuredCamps, ...scoreCamps])];
                 }
 
                 toggleDropdown(headerElement) {
@@ -2248,7 +2362,7 @@
                     if (auth && auth.mode === 'teacher') {
                         focus.campuses = [auth.campus];
                         focus.grades = [auth.grade];
-                        focus.tClasses = (focus.tClasses && focus.tClasses.length > 0) ? focus.tClasses : [auth.classId];
+                        focus.tClasses = [auth.classId];
                     }
 
                     if (auth && auth.mode === 'admin') {
@@ -2378,13 +2492,10 @@
                     const classValues = clsPanel ? Array.from(clsPanel.querySelectorAll('input[type="checkbox"]')).map(cb => cb.value.replace(/&quot;/g, '"')) : [];
                     const normalize = s => String(s || '').trim().replace(/\s/g, '').toLowerCase();
                     const matchedClass = classValues.find(v => normalize(v) === normalize(currentAuth.classId));
-                    const currentTClasses = (focus.tClasses || []).filter(v => classValues.includes(v));
-                    if (currentTClasses.length === 0) {
-                        focus.tClasses = matchedClass ? [matchedClass] : (classValues[0] ? [classValues[0]] : []);
-                    } else {
-                        focus.tClasses = currentTClasses;
-                    }
+                    const forcedClass = matchedClass || currentAuth.classId;
+                    focus.tClasses = [forcedClass];
                     this.store.state.globalFocus = focus;
+                    this.store.state.filters = { campuses: [currentAuth.campus], grades: [currentAuth.grade], phases: [], tClasses: [forcedClass], tags: [] };
 
                     setPanelLockState(camPanel, camHeader, true);
                     setPanelLockState(grdPanel, grdHeader, true);
