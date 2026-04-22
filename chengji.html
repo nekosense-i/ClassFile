@@ -1033,7 +1033,7 @@
                     <input type="text" id="dashboard-search-student" placeholder="🔍 搜姓名或首字母直接生成报告..." style="width:240px; border-color:#8b5cf6;" oninput="window.app.ui.handleDashboardSearch(this.value)">
                 </div>
             </div>
-            <div class="content-body" style="padding-top: 20px;">
+            <div class="content-body" style="padding-top: 20px; display:none;">
                 <div id="student-dashboard-empty" class="empty-state" style="margin-top: 10vh; border:none; background:transparent;">
                     <div class="empty-state-icon">👤</div>
                     <div class="empty-state-title">学生个人专属学情大屏</div>
@@ -2021,12 +2021,15 @@
                         });
                         analysisSearchInput.addEventListener('compositionend', (e) => {
                             isComposingAnalysis = false;
-                            this.handleAnalysisSearch(e.target.value);
                         });
                         analysisSearchInput.addEventListener('input', (e) => {
-                            if (!isComposingAnalysis) {
-                                this.handleAnalysisSearch(e.target.value);
-                            }
+                        });
+                        analysisSearchInput.addEventListener('keydown', (e) => {
+                            if (e.key !== 'Enter') return;
+                            e.preventDefault();
+                            const kw = analysisSearchInput.value.trim();
+                            if (!kw) return;
+                            window.app.ui.handleAnalysisSearch(kw);
                         });
                     }
                     
@@ -7796,7 +7799,7 @@
                     if (matchingStudents.length === 0) return;
 
                     emptyState.style.display = 'none';
-                    this.renderStudentDashboard(matchingStudents[0]);
+                    this.openStudentProfile(matchingStudents[0].id);
                 }
 
                 renderStudentDashboard(stu) {
