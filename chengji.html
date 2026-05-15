@@ -1182,6 +1182,60 @@
             min-height: 0 !important;
             width: 100%;
         }
+        @media (max-width: 767px) {
+            #view-analysis .content-body.overview-mode {
+                overflow-y: auto !important;
+                -webkit-overflow-scrolling: touch;
+                display: block !important;
+                padding-bottom: 24px;
+            }
+            #view-analysis .content-body.overview-mode > #overview-dashboard-card {
+                display: grid !important;
+                grid-template-columns: 1fr !important;
+                grid-template-rows: auto auto repeat(4, auto) !important;
+                grid-auto-rows: auto !important;
+                gap: 14px !important;
+                height: auto !important;
+                min-height: auto !important;
+                overflow: visible !important;
+                flex: none !important;
+            }
+            #view-analysis .content-body.overview-mode #overview-dashboard-card .overview-summary,
+            #view-analysis .content-body.overview-mode #overview-dashboard-card .overview-mobile-nav,
+            #view-analysis .content-body.overview-mode #overview-dashboard-card .overview-chart-card {
+                grid-column: 1 / -1 !important;
+            }
+            #view-analysis .content-body.overview-mode #overview-dashboard-card .overview-summary {
+                grid-template-columns: repeat(8, minmax(72px, 1fr));
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+                padding-bottom: 10px;
+            }
+            #view-analysis .content-body.overview-mode #overview-dashboard-card .overview-mobile-nav {
+                display: flex;
+                gap: 10px;
+                overflow-x: auto;
+                padding: 0 2px 2px;
+            }
+            #view-analysis .content-body.overview-mode #overview-dashboard-card .overview-mobile-nav button {
+                min-width: 72px;
+                min-height: 72px;
+                border-radius: 999px;
+                background: rgba(255,255,255,0.92);
+                box-shadow: var(--shadow-sm);
+            }
+            #view-analysis .content-body.overview-mode #overview-dashboard-card .overview-chart-card {
+                min-height: 320px !important;
+                height: 320px !important;
+                overflow: hidden !important;
+            }
+            #view-analysis .content-body.overview-mode #overview-dashboard-card .chart-container {
+                flex: none !important;
+                height: 290px !important;
+                min-height: 290px !important;
+                width: 100% !important;
+            }
+        }
         .mobile-menu-btn:hover { transform: none; }
 
         @media (min-width: 769px) and (max-width: 1199px) {
@@ -1650,15 +1704,6 @@
         <section id="view-analysis" class="view-section active">
             <div class="top-navbar top-navbar--wrap">
                 <div class="page-title items-center page-title--nowrap"><span>🎯</span> 班级学情诊断</div>
-                <div class="compact-stats-wrapper is-hidden" id="analysis-compact-stats">
-                    <div class="compact-stat-row">
-                        <!-- 试卷满分 removed -->
-                        <span class="compact-stat-pill">平均分 <span class="val" id="st-avg">0</span></span>
-                        <span class="compact-stat-pill">及格率 <span class="val" id="st-pass">0%</span></span>
-                        <span class="compact-stat-pill">优秀率 <span class="val" id="st-exc">0%</span></span>
-                        <span class="compact-stat-pill">中位数 <span class="val" id="st-med">0</span></span>
-                    </div>
-                </div>
                 <div class="top-actions top-actions--push">
                     <span class="search-with-status"><input type="text" id="analysis-search-student" class="input--compact" placeholder="🔍 搜姓名查报告..."><span class="pinyin-status-dot" title="拼音组件正在加载"></span></span>
                     <button class="secondary" onclick="window.app.ui.exportAnalysisExcel()">📥 导出综合报表</button>
@@ -1979,7 +2024,7 @@
             </div>
             <div class="card-shell card-shell--white">
                 <div class="dialog-header dialog-header--compact">
-                    <h4 class="dialog-title dialog-title--md">✨深度学情总结</h4>
+                    <h4 class="dialog-title dialog-title--md">✨ 深度学情总结</h4>
                     <button class="primary no-export btn--icon-only" onclick="window.app.ui.generateAISummary(document.getElementById('sp-name').innerText, this)" style="font-size:12px; border:none; border-radius:4px; cursor:pointer; transition:all 0.2s; display:inline-flex; align-items:center; gap:6px;">生成分析</button>
                 </div>
                 <div id="ai-summary-content" style="font-size:13px; color:var(--text-sub); line-height:1.6; white-space:pre-wrap; min-height:100px; height:auto; padding:10px; background:var(--bg-secondary); border-radius:6px;">
@@ -3376,8 +3421,7 @@
                         document.querySelector('#exam-search-student')?.classList.add('tour-highlight');
                         return;
                     }
-                    localStorage.setItem('gakuten_tour_step', 'analysis');
-                    document.querySelector('.nav-item[onclick*="analysis"]')?.classList.add('tour-highlight');
+                    localStorage.removeItem('gakuten_tour_step');
                 }
 
                 expandAllExamCards(expand = true) {
@@ -3685,6 +3729,7 @@
                 }
 
                 switchView(vid, el) {
+                    document.querySelectorAll('.tour-highlight').forEach(node => node.classList.remove('tour-highlight'));
                     document.querySelectorAll('.view-section').forEach(s => s.classList.remove('active'));
                     document.querySelectorAll('.nav-item').forEach(n => {
                         n.classList.remove('active');
@@ -3723,16 +3768,17 @@
                     }
                 }
 
-                _buildMultiSelect(panelId, headerId, options, callbackStr, placeholder = '请选择...', defaultAll = false, storedValues = null, isSidebar = false, isExamSelect = false) {
+                _buildMultiSelect(panelId, headerId, options, callbackStr, placeholder = '请选择...', defaultAll = false, storedValues = null, isSidebar = false, isExamSelect = false, singleSelect = false) {
                     const panel = document.getElementById(panelId);
                     if(!panel) return;
                     
                     const isFirstTime = panel.innerHTML === '';
                     let oldChecked = [];
                     if (storedValues && storedValues.length > 0) {
-                        oldChecked = storedValues;
+                        oldChecked = singleSelect ? storedValues.slice(0, 1) : storedValues;
                     } else if (!isFirstTime) {
                         oldChecked = Array.from(panel.querySelectorAll('input:checked')).map(cb => cb.value);
+                        if (singleSelect) oldChecked = oldChecked.slice(0, 1);
                     }
                     
                     const currentOptionsNodes = Array.from(panel.querySelectorAll('.ms-item input'));
@@ -3762,6 +3808,11 @@
                             cb.value = val;
                             cb.checked = isChecked;
                             cb.addEventListener('change', () => {
+                                if (singleSelect && cb.checked) {
+                                    panel.querySelectorAll('input[type="checkbox"]').forEach(other => {
+                                        if (other !== cb) other.checked = false;
+                                    });
+                                }
                                 eval(callbackStr);
                                 window.app.ui._updateMsHeader(panelId, headerId, placeholder, isExamSelect);
                             });
@@ -3780,6 +3831,10 @@
                             let valToMatch = isExamSelect ? cb.value : cb.value.replace(/&quot;/g, '"');
                             cb.checked = oldChecked.includes(valToMatch) || ((isFirstTime || (!storedValues || storedValues.length===0)) && defaultAll);
                         });
+                        if (singleSelect) {
+                            const checked = Array.from(panel.querySelectorAll('input[type="checkbox"]:checked'));
+                            checked.slice(1).forEach(cb => { cb.checked = false; });
+                        }
                     }
                     this._updateMsHeader(panelId, headerId, placeholder, isExamSelect);
                 }
@@ -3894,14 +3949,15 @@
                             auth.campus = matched;
                         }
                     }
-                    this._buildMultiSelect('sb-cam-panel', 'sb-cam-head', allCampuses, 'window.app.ui.onGlobalFilterChange()', '查看全校区', false, focus.campuses, true);
+                    this._buildMultiSelect('sb-cam-panel', 'sb-cam-head', allCampuses, "window.app.ui.onGlobalFilterChange('campuses')", '查看全校区', false, focus.campuses, true);
 
                     // 2. Grade
                     const selectedCampuses = focus.campuses || [];
                     let poolGrd = selectedCampuses.length > 0 ? students.filter(s => selectedCampuses.includes(s.campus)) : students;
                     const availableGrades = [...new Set(poolGrd.map(s => s.grade).filter(Boolean))].sort();
                     focus.grades = (focus.grades || []).filter(g => availableGrades.includes(g)); // 清理幽灵年级
-                    this._buildMultiSelect('sb-grd-panel', 'sb-grd-head', availableGrades, 'window.app.ui.onGlobalFilterChange()', '查看全年级', false, focus.grades, true);
+                    focus.grades = focus.grades.slice(0, 1); // 年级过滤器为单选，可取消选择
+                    this._buildMultiSelect('sb-grd-panel', 'sb-grd-head', availableGrades, "window.app.ui.onGlobalFilterChange('grades')", '查看全年级', false, focus.grades, true, false, true);
 
                     // 3. Phase
                     const selectedGrades = focus.grades || [];
@@ -3925,19 +3981,19 @@
                     });
                     const availablePhases = [...phasesSet].sort(Utils.sortPhaseStrict);
                     focus.phases = (focus.phases || []).filter(p => availablePhases.includes(p)); // 清理幽灵学段
-                    this._buildMultiSelect('sb-pha-panel', 'sb-pha-head', availablePhases, 'window.app.ui.onGlobalFilterChange()', '查看全学段', false, focus.phases, true);
+                    this._buildMultiSelect('sb-pha-panel', 'sb-pha-head', availablePhases, "window.app.ui.onGlobalFilterChange('phases')", '查看全学段', false, focus.phases, true);
 
                     // 4. Class
                     const availableClasses = [...new Set(poolPha.map(s => s.teachingClass).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'zh-CN',{numeric:true}));
                     focus.tClasses = (focus.tClasses || []).filter(c => availableClasses.includes(c)); // 清理幽灵班级
-                    this._buildMultiSelect('sb-cls-panel', 'sb-cls-head', availableClasses, 'window.app.ui.onGlobalFilterChange()', '查看全班级', false, focus.tClasses, true);
+                    this._buildMultiSelect('sb-cls-panel', 'sb-cls-head', availableClasses, "window.app.ui.onGlobalFilterChange('tClasses')", '查看全班级', false, focus.tClasses, true);
 
                     // 5. Tags
                     const selectedClasses = focus.tClasses || [];
                     const poolTags = selectedClasses.length > 0 ? poolPha.filter(s => selectedClasses.includes(s.teachingClass)) : poolPha;
                     const allTags = [...new Set(poolTags.flatMap(s => (s.tags||[])).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'zh-CN',{numeric:true}));
                     focus.tags = (focus.tags || []).filter(t => allTags.includes(t)); // 清理幽灵标签
-                    this._buildMultiSelect('sb-tags-panel', 'sb-tags-head', allTags, 'window.app.ui.onGlobalFilterChange()', '查看所有标签', false, focus.tags, true);
+                    this._buildMultiSelect('sb-tags-panel', 'sb-tags-head', allTags, "window.app.ui.onGlobalFilterChange('tags')", '查看所有标签', false, focus.tags, true);
                     this._decorateSidebarFilterFeedback();
 
                     // 如果发生了自愈清理，静默同步底层存储
@@ -4027,14 +4083,34 @@
                     if (note) note.style.display = currentAuth && currentAuth.mode === 'teacher' ? 'block' : 'none';
                 }
 
-                onGlobalFilterChange() {
-    this.store.state.globalFocus = {
-        campuses: this._getSelectedClasses('sb-cam-panel'),
-        grades: this._getSelectedClasses('sb-grd-panel'),
-        phases: this._getSelectedClasses('sb-pha-panel'),
-        tClasses: this._getSelectedClasses('sb-cls-panel'),
-        tags: this._getSelectedClasses('sb-tags-panel')
-    };
+                _readSidebarFocusFromDom(changedKey = '') {
+                    const next = {
+                        campuses: this._getSelectedClasses('sb-cam-panel'),
+                        grades: this._getSelectedClasses('sb-grd-panel').slice(0, 1),
+                        phases: this._getSelectedClasses('sb-pha-panel'),
+                        tClasses: this._getSelectedClasses('sb-cls-panel'),
+                        tags: this._getSelectedClasses('sb-tags-panel')
+                    };
+                    if (changedKey === 'campuses') {
+                        next.grades = [];
+                        next.phases = [];
+                        next.tClasses = [];
+                        next.tags = [];
+                    } else if (changedKey === 'grades') {
+                        next.phases = [];
+                        next.tClasses = [];
+                        next.tags = [];
+                    } else if (changedKey === 'phases') {
+                        next.tClasses = [];
+                        next.tags = [];
+                    } else if (changedKey === 'tClasses') {
+                        next.tags = [];
+                    }
+                    return next;
+                }
+
+                onGlobalFilterChange(changedKey = '') {
+    this.store.state.globalFocus = this._readSidebarFocusFromDom(changedKey);
     const _authGuard = window.__gakutenAuth && typeof window.__gakutenAuth.getAuth === 'function'
         ? window.__gakutenAuth.getAuth() : null;
     if (_authGuard && _authGuard.mode === 'teacher') {
@@ -4048,13 +4124,21 @@
     if(this.cur === 'exams') this.renderExamsWorkflow();
     // 🌟 修复：无论在分析视图还是详情视图，只要全局下拉框存在，就必须同步刷新它
     if(this.cur === 'analysis' || this.cur === 'details') {
-        this.initGlobalExamsDropdown();
+        this.initGlobalExamsDropdown(true);
     }
     if(this.cur === 'analysis') {
         this.updateAnalysisMultiSelect();
         if (this.store.state.currentAnalysisType === 'compare') {
             this.updateCompareExamsMultiSelect();
         }
+        requestAnimationFrame(() => {
+            this.runAnalysis();
+            if (this.store.state.currentAnalysisType === 'overview') {
+                requestAnimationFrame(() => {
+                    if (window.resizeAllCharts) window.resizeAllCharts();
+                });
+            }
+        });
     }
     if(this.cur === 'students') this.renderStudents();
     
@@ -6030,7 +6114,31 @@
                     );
                 }
 
-                initGlobalExamsDropdown() {
+                _getExamScoreCountForFocus(exam, focus = this.store.state.globalFocus || {}) {
+                    if (!exam) return 0;
+                    const actualCamps = this._getExamCampuses(exam);
+                    const validStudentIds = new Set((this.store.state.data.students || []).filter(s => {
+                        if (s.grade !== exam.grade) return false;
+                        if (focus.campuses && focus.campuses.length > 0 && !focus.campuses.includes(s.campus)) return false;
+                        if (actualCamps.length > 0 && !actualCamps.includes(s.campus)) return false;
+                        if (focus.grades && focus.grades.length > 0 && !focus.grades.includes(s.grade)) return false;
+                        if (focus.tClasses && focus.tClasses.length > 0 && !focus.tClasses.includes(s.teachingClass)) return false;
+                        if (focus.tags && focus.tags.length > 0) {
+                            const tags = s.tags || [];
+                            if (!tags.some(t => focus.tags.includes(t))) return false;
+                        }
+                        return true;
+                    }).map(s => s.id));
+                    if (validStudentIds.size === 0) return 0;
+                    return (this.store.state.data.scores || []).filter(sc => (
+                        sc.examId === exam.id &&
+                        validStudentIds.has(sc.studentId) &&
+                        Number(sc.total) > 0 &&
+                        !sc.isEstimated
+                    )).length;
+                }
+
+                initGlobalExamsDropdown(forceLatest = false) {
     const focus = this.store.state.globalFocus;
     const sel = document.getElementById('global-exam'); 
     if (!sel) return;
@@ -6073,8 +6181,12 @@
         });
     }
 
+    const latestWithScores = validExams.find(e => this._getExamScoreCountForFocus(e, focus) > 0);
+
     // 🌟 修复：严谨安全的备用回退逻辑
-    if (oldVal && validExams.some(e => e.id === oldVal)) {
+    if (forceLatest && validExams.length > 0) {
+        sel.value = (latestWithScores || validExams[0]).id; // 左侧筛选变化时，优先切到当前条件下最近且有成绩的考试
+    } else if (oldVal && validExams.some(e => e.id === oldVal)) {
         sel.value = oldVal; // 若原考试在当前过滤下依然合法，则保持选中
     } else if (validExams.length > 0) {
         sel.value = validExams[0].id; // 若原考试不合法，强制顶替为合法列表中的第一项
@@ -6116,9 +6228,13 @@
                 _hideAnalysisSkeletonSoon() {
                     clearTimeout(this._analysisSkeletonTimer);
                     this._analysisSkeletonTimer = setTimeout(() => {
-                        const overlay = document.getElementById('analysis-loading-overlay');
-                        if (overlay) overlay.remove();
+                        this._clearAnalysisSkeleton();
                     }, 180);
+                }
+
+                _clearAnalysisSkeleton() {
+                    clearTimeout(this._analysisSkeletonTimer);
+                    document.querySelectorAll('#analysis-loading-overlay').forEach(overlay => overlay.remove());
                 }
 
                 _syncToolbarMoreMenu() {
@@ -7702,6 +7818,7 @@
                 }
 
                 runAnalysis() {
+                    this._clearAnalysisSkeleton();
                     
                     if (this.chartInstance) {
                         try { this.chartInstance.dispose(); } catch(e) {}
@@ -7815,10 +7932,11 @@
                         });
                     };
 
-                    const renderEmptyState = (title, desc) => {
+                    const renderEmptyState = (title, desc, actionHtml = '<button class="secondary" onclick="window.app.ui.openExamModal()">➕ 新建考试</button>') => {
+                        this._clearAnalysisSkeleton();
                         const emptyCard = document.getElementById('empty-state-card');
                         emptyCard.style.display = 'block';
-                        emptyCard.innerHTML = Utils.getEmptyStateHTML(title, desc, '📊', '<button class="secondary" onclick="window.app.ui.openExamModal()">➕ 新建考试</button>');
+                        emptyCard.innerHTML = Utils.getEmptyStateHTML(title, desc, '📊', actionHtml);
                     };
 
                     const hideEmptyState = () => {
@@ -8345,7 +8463,7 @@
                     }
 
                     // ====== 后续为单次特定考试分析 ======
-                    if(!eid) return renderEmptyState("还没有选择考试", "您正在进行单次考试的分析。\n👆 请先在上方选择一场考试。");
+                    if(!eid) return renderEmptyState("还没有选择考试", "您正在进行单次考试的分析。\n👆 请先在上方选择一场考试。", type === 'radar' ? '' : undefined);
                     const exam = this.store.state.data.exams.find(i=>i.id===eid);
                     let validStudentsForExam = getValidStudentsForExam(exam);
                     const maxScore = exam.maxTotal;
@@ -8362,14 +8480,14 @@
                         if (currStu && validStudentsForExam.some(s => s.id === currStu)) stuSelector.value = currStu;
                         
                         if (!stuSelector.value) {
-                            return renderEmptyState("准备生成雷达图", "👆 请在工具栏的【查看特定学生】中选择一位学生，系统将自动描绘其各题型的优劣势。"); 
+                            return renderEmptyState("准备生成雷达图", "👆 请在工具栏的【查看特定学生】中选择一位学生，系统将自动描绘其各题型的优劣势。", ''); 
                         }
                         validStudentsForExam = validStudentsForExam.filter(s => s.id === stuSelector.value);
                     }
 
                     const msPanel = document.getElementById('ms-analysis-panel');
                     const checkedClasses = msPanel ? Array.from(msPanel.querySelectorAll('input:checked')).map(cb => cb.value.replace(/&quot;/g, '"')) : [];
-                    if (checkedClasses.length > 0) {
+                    if (type !== 'radar' && checkedClasses.length > 0) {
                         validStudentsForExam = validStudentsForExam.filter(s => checkedClasses.includes(`${s.campus} - ${s.teachingClass}`));
                     }
 
@@ -8568,7 +8686,10 @@
                         });
                     }
 
-                    if(!res.length) return renderEmptyState("未录入成绩", "您关注的班级在这场考试中，目前还没有录入任何成绩。"); 
+                    if(!res.length) {
+                        const radarEmptyAction = type === 'radar' ? '' : undefined;
+                        return renderEmptyState("未录入成绩", "您关注的班级在这场考试中，目前还没有录入任何成绩。", radarEmptyAction);
+                    }
                     // ================= 核心修复：点亮常驻的极简数据模块 =================
                     const allValidScores = res.filter(r=>r.total>0).map(i=>i.total);
                     const overallAvgNum = allValidScores.length > 0 ? parseFloat((allValidScores.reduce((a,b)=>a+b,0)/allValidScores.length).toFixed(1)) : 0;
@@ -8906,7 +9027,15 @@
 
                     // ================= 5. 单科雷达 =================
                     if (type === 'radar') {
-                        this.chartInstance = echarts.init(document.getElementById('chart-main'));
+                        this._clearAnalysisSkeleton();
+                        const radarWrap = document.getElementById('chart-wrapper-card');
+                        if (radarWrap && !document.getElementById('chart-main')) {
+                            radarWrap.innerHTML = '<div id="chart-main" class="chart-container"></div>';
+                        }
+                        if (radarWrap) radarWrap.style.display = 'block';
+                        const radarDom = document.getElementById('chart-main');
+                        if (!radarDom) return renderEmptyState('图表容器异常', '当前图表容器未能正确初始化，请重新切换一次分析视图。', '');
+                        this.chartInstance = echarts.init(radarDom);
                         const stuData = res[0]; 
                         
                         const indicator = (exam.types||[]).map(t => ({ name: t.name, max: 100 })); 
@@ -8914,20 +9043,69 @@
                             let score = stuData.details[t.name] || 0;
                             return parseFloat(((score / t.max) * 100).toFixed(1));
                         });
+                        const gradeScores = this.store.state.data.scores.filter(score => {
+                            if (score.examId !== exam.id || !(Number(score.total) > 0) || score.isEstimated) return false;
+                            const stu = this.store.state.data.students.find(s => s.id === score.studentId);
+                            if (!stu || stu.grade !== exam.grade) return false;
+                            const examCampuses = this._getExamCampuses(exam);
+                            if (examCampuses.length > 0 && !examCampuses.includes(stu.campus)) return false;
+                            if (focus.campuses.length > 0 && !focus.campuses.includes(stu.campus)) return false;
+                            if (focus.tags && focus.tags.length > 0) {
+                                const tags = stu.tags || [];
+                                if (!tags.some(t => focus.tags.includes(t))) return false;
+                            }
+                            return true;
+                        });
+                        const gradeAvgValues = (exam.types||[]).map(t => {
+                            if (!gradeScores.length) return 0;
+                            const sum = gradeScores.reduce((acc, score) => acc + Number((score.details || {})[t.name] || 0), 0);
+                            return parseFloat((((sum / gradeScores.length) / t.max) * 100).toFixed(1));
+                        });
 
-                        this._deferredChartSetOption(this.chartInstance, {
+                        const makeRadarSeriesData = (personalVals, gradeVals) => ([
+                            { value: personalVals, name: '个人能力(%)', areaStyle: { color: this._radarAreaGradient(), opacity: 0.92 }, lineStyle: { color: '#0072B2', width: 2.5 } },
+                            { value: gradeVals, name: '年级均分(%)', symbol: 'circle', symbolSize: 6, itemStyle: { color: '#16a34a', borderColor: '#ffffff', borderWidth: 2 }, areaStyle: { color: 'rgba(142, 142, 147, 0.08)' }, lineStyle: { color: '#8e8e93', width: 2, type: 'dashed' } }
+                        ]);
+                        const radarOption = {
+                            animation: false,
                             title: { text: `学生【${stuData.name}】各模块能力雷达`, subtext: `绝对总分: ${stuData.total} / ${maxScore}\n总得分率: ${((stuData.total/maxScore)*100).toFixed(1)}%`, left: 'center' },
                             tooltip: { formatter: (p) => { 
                                 let str = `${p.name}<br>`; 
                                 p.value.forEach((v, idx) => str += `${indicator[idx].name} 掌握率: ${v}%<br>`); 
                                 return str; 
                             }},
+                            legend: { data: ['个人能力(%)', '年级均分(%)'], bottom: 0 },
                             radar: { indicator: indicator, center: ['50%', '55%'], radius: '65%' },
                             series: [{
                                 name: '模块得分率', type: 'radar',
-                                data: [{ value: values, name: stuData.name, areaStyle: { color: this._radarAreaGradient(), opacity: 0.92 }, lineStyle: { color: '#0072B2', width: 2.5 } }]
+                                data: makeRadarSeriesData(values.map(() => 0), gradeAvgValues.map(() => 0))
                             }]
+                        };
+                        this.chartInstance.setOption(radarOption, true);
+                        this.chartInstance.off('click');
+                        this.chartInstance.on('click', (params) => {
+                            if (params && (params.name || params.seriesName)) Utils.msg(`已选中：${params.name || params.seriesName}`);
                         });
+                        const radarChart = this.chartInstance;
+                        const radarAnimToken = Symbol('radar-animation');
+                        this._radarAnimToken = radarAnimToken;
+                        const startTs = performance.now();
+                        const duration = 560;
+                        const easeOutCubic = t => 1 - Math.pow(1 - t, 3);
+                        const tweenValues = (arr, k) => arr.map(v => parseFloat((v * k).toFixed(1)));
+                        const animateRadar = now => {
+                            if (this._radarAnimToken !== radarAnimToken) return;
+                            if (!radarChart || (typeof radarChart.isDisposed === 'function' && radarChart.isDisposed())) return;
+                            const progress = Math.min(1, (now - startTs) / duration);
+                            const k = easeOutCubic(progress);
+                            radarChart.setOption({
+                                series: [{
+                                    data: makeRadarSeriesData(tweenValues(values, k), tweenValues(gradeAvgValues, k))
+                                }]
+                            }, false);
+                            if (progress < 1) requestAnimationFrame(animateRadar);
+                        };
+                        requestAnimationFrame(animateRadar);
                         return; 
                     }
 
