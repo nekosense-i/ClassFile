@@ -1048,6 +1048,7 @@
             flex-direction: column;
             gap: 3px;
             transition: background .15s ease, box-shadow .15s ease;
+            position: relative;
         }
         #overview-dashboard-card .overview-stat-card:hover { box-shadow: var(--shadow-sm); }
         #overview-dashboard-card .overview-stat-label {
@@ -1067,6 +1068,14 @@
             line-height: 1;
             letter-spacing: 0;
         }
+        #overview-dashboard-card .overview-stat-value .stat-denominator {
+            font-size: 11px;
+            font-weight: 700;
+            color: var(--text-hint);
+            opacity: .78;
+            margin-left: 2px;
+            vertical-align: baseline;
+        }
         #overview-dashboard-card .overview-stat-sub {
             font-size: 9px;
             opacity: .55;
@@ -1074,6 +1083,33 @@
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+        }
+        #overview-dashboard-card .overview-attendance-hover {
+            position: absolute;
+            left: 8px;
+            right: 8px;
+            top: calc(100% + 6px);
+            z-index: 20;
+            display: none;
+            padding: 7px 8px;
+            border-radius: 8px;
+            border: 1px solid rgba(148,163,184,0.22);
+            background: rgba(255,255,255,0.96);
+            box-shadow: 0 10px 24px rgba(15,23,42,0.12);
+            color: var(--text-sub);
+            font-size: 10px;
+            line-height: 1.55;
+            text-align: left;
+            white-space: normal;
+            max-height: 120px;
+            overflow: auto;
+        }
+        #overview-dashboard-card .ov-kpi-c1:hover .overview-attendance-hover {
+            display: block;
+        }
+        #overview-dashboard-card .overview-attendance-hover b {
+            color: var(--text-main);
+            font-weight: 800;
         }
         #overview-dashboard-card .ov-kpi-c1,
         #overview-dashboard-card .ov-kpi-c2,
@@ -1598,7 +1634,9 @@
         }
         #chart-wrapper-card { position: relative; }
         #analysis-table-area::before { content: ''; display: block; height: 4px; width: 100%; background: linear-gradient(90deg, var(--primary), rgba(0,122,255,0)); border-radius: 999px; margin-bottom: 10px; }
-        #analysis-table-area.heatmap-table-page::before { display: none; }
+        #analysis-table-area.heatmap-table-page::before,
+        #analysis-table-area.table-fill-page::before { display: none; }
+        #analysis-table-area.table-fill-page { border-top: 0 !important; }
         #chart-wrapper-card + #analysis-table-area { margin-top: 12px; }
         #chart-wrapper-card .chart-container, #overview-dashboard-card .chart-container, #modal-student-profile .card-shell > div[id^="sp-chart"] { width: 100%; }
         #view-analysis .content-body.analysis-detail-mode { display: flex; flex-direction: column; overflow-y: auto !important; overflow-x: hidden; min-height: 0; }
@@ -1618,6 +1656,108 @@
         #view-analysis .content-body.analysis-heatmap-mode #analysis-table-area { padding-bottom: 20px !important; }
         #view-analysis .content-body.analysis-heatmap-mode #analysis-table-area .dialog-header { flex: 0 0 auto; }
         #view-analysis .content-body.analysis-heatmap-mode #analysis-table-area .table-scroll-container { flex: 1 1 auto; min-height: 0; max-height: none; }
+        #view-analysis .content-body.analysis-table-fill-mode,
+        #view-analysis .content-body.analysis-table-fill-with-chart {
+            display: flex;
+            flex-direction: column;
+            overflow: hidden !important;
+            min-height: 0;
+        }
+        #view-analysis .content-body.analysis-table-fill-mode > #chart-wrapper-card { display: none !important; }
+        #view-analysis .content-body.analysis-table-fill-mode > #analysis-table-area,
+        #view-analysis .content-body.analysis-table-fill-with-chart > #analysis-table-area {
+            flex: 1 1 0 !important;
+            min-height: 0 !important;
+            height: 100%;
+            margin-top: 0 !important;
+            margin-bottom: 0 !important;
+            overflow: hidden;
+        }
+        #view-analysis .content-body.analysis-table-fill-with-chart > #chart-wrapper-card {
+            flex: 0 0 auto;
+            margin-bottom: 12px;
+        }
+        #view-analysis .content-body.analysis-table-fill-mode #analysis-table-area .dialog-header,
+        #view-analysis .content-body.analysis-table-fill-with-chart #analysis-table-area .dialog-header { flex: 0 0 auto; }
+        #view-analysis .content-body.analysis-table-fill-mode #analysis-table-area .table-scroll-container,
+        #view-analysis .content-body.analysis-table-fill-with-chart #analysis-table-area .table-scroll-container {
+            flex: 1 1 auto;
+            min-height: 0;
+            max-height: none;
+        }
+        .heatmap-tile-overlay {
+            position: absolute;
+            inset: 0;
+            z-index: 3;
+            pointer-events: none;
+            overflow: hidden;
+            contain: paint;
+        }
+        .heatmap-fly-tile {
+            position: absolute;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 0;
+            border: 1px solid rgba(255,255,255,0.94);
+            color: rgba(15,23,42,0.72);
+            font: 700 10px/1 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            opacity: 0;
+            pointer-events: auto;
+            transform: translate3d(var(--tx, -26px), var(--ty, 26px), 0) scale(0.68) rotate(var(--rot, -1deg));
+            transform-origin: 50% 58%;
+            box-shadow: none;
+            animation: heatmapMetroTileFly var(--dur, 620ms) cubic-bezier(.17,.89,.26,1.18) forwards;
+            animation-delay: var(--delay, 0ms);
+            will-change: transform, opacity, filter;
+        }
+        .heatmap-fly-tile:hover {
+            z-index: 2;
+            box-shadow: 0 0 0 2px rgba(15,23,42,0.18);
+        }
+        .heatmap-fly-tile::after {
+            display: none;
+        }
+        .heatmap-tile-tooltip {
+            position: absolute;
+            z-index: 5;
+            transform: translate(-50%, calc(-100% - 10px));
+            padding: 7px 9px;
+            border-radius: 9px;
+            background: rgba(15,23,42,0.92);
+            color: #fff;
+            font-size: 12px;
+            line-height: 1.45;
+            box-shadow: 0 12px 30px rgba(15,23,42,0.18);
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity .14s ease, transform .18s cubic-bezier(.2,.8,.2,1);
+            white-space: nowrap;
+        }
+        .heatmap-tile-tooltip.is-visible {
+            opacity: 1;
+            transform: translate(-50%, calc(-100% - 14px));
+        }
+        @keyframes heatmapMetroTileFly {
+            0% {
+                opacity: 0;
+                filter: saturate(0.86) brightness(1.08);
+                transform: translate3d(var(--tx, -26px), var(--ty, 26px), 0) scale(0.68) rotate(var(--rot, -1deg));
+            }
+            42% {
+                opacity: 1;
+                filter: saturate(1.06) brightness(1.03);
+            }
+            72% {
+                opacity: 1;
+                transform: translate3d(-2px, 1px, 0) scale(1.045) rotate(0deg);
+            }
+            100% {
+                opacity: 1;
+                filter: none;
+                transform: translate3d(0, 0, 0) scale(1) rotate(0deg);
+            }
+        }
         .heatmap-page-actions { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin: -8px 0 8px; min-height: 34px; flex: 0 0 auto; }
         .heatmap-page-actions .secondary { border-color: rgba(0,122,255,0.24); color: var(--primary); background: rgba(255,255,255,0.9); box-shadow: none; }
         .heatmap-table-back { margin-left: 10px; padding: 4px 9px !important; font-size: 12px !important; border-color: rgba(0,122,255,0.24) !important; color: var(--primary) !important; background: rgba(255,255,255,0.92) !important; box-shadow: none !important; vertical-align: middle; }
@@ -2046,7 +2186,6 @@
                         <div class="analysis-tab alert-tab" data-type="borderline" data-tab-group="deep" title="回答：哪些学生最接近及格线或优秀线？" onclick="window.app.ui.switchAnalysisTab('borderline')">⚠️ 临界生</div>
                     </div>
                     <button class="secondary" onclick="window.app.ui.exportAnalysisExcel()">📥 导出综合报表</button>
-                    <button class="secondary" onclick="window.app.ui.exportAnalysisAsImage()">📸 存为长图</button>
                 </div>
             </div>
 
@@ -4097,7 +4236,7 @@
                         more.style.display = buttons.length > 2 ? '' : 'none';
                         menu.innerHTML = '';
                         buttons.forEach((btn, idx) => {
-                            const collapse = idx > 1 || /展开|折叠|导出|长图/.test(btn.textContent || '');
+                            const collapse = idx > 1 || /展开|折叠|导出/.test(btn.textContent || '');
                             btn.style.display = collapse ? 'none' : '';
                             if (collapse) {
                                 const clone = btn.cloneNode(true);
@@ -7609,302 +7748,60 @@
                     this._buildMultiSelect('ms-analysis-panel', 'ms-analysis-header', classes, 'window.app.ui.runAnalysis()', '查看所有班级', true);
                 }
 
-                // V43: Dedicated Export Excel logic inside UI
-                exportAnalysisExcel() {
-                    if(!this.analysisCache || !this.analysisCache.exam) return Utils.msg("当前没有可以导出的数据表", "error");
-                    const table = document.getElementById('table-analysis');
-                    if(!table || !table.querySelector('tbody').innerHTML) return Utils.msg("空视图无法萃取", "error");
-                    
-                    const cloneTable = table.cloneNode(true);
-                    cloneTable.querySelectorAll('th .sort-icon').forEach(icon => icon.remove());
-                    cloneTable.querySelectorAll('.rank-up, .rank-down').forEach(span => span.remove());
-                    // Strip emojis
-                    cloneTable.querySelectorAll('td:first-child').forEach(td => {
-                        td.innerText = td.innerText.replace(/[🥇🥈🥉]/g, '');
-                    });
-                    // Strip anomaly icons
-                    cloneTable.querySelectorAll('span[title*="请核查"]').forEach(span => span.remove());
+                _buildCurrentExamDetailExportContext() {
+                    const selectedExamId = document.getElementById('global-exam')?.value || '';
+                    const fallbackExamId = this.analysisCache && this.analysisCache.exam ? this.analysisCache.exam.id : '';
+                    const exam = (this.store.state.data.exams || []).find(e => e.id === (selectedExamId || fallbackExamId));
+                    if (!exam) return null;
 
-                    // 追加汇总行
-                    const analysisTbody = cloneTable.querySelector('tbody');
-                    if (analysisTbody && this.analysisCache && this.analysisCache.pool) {
-                        const pool = this.analysisCache.pool;
-                        const allTotals = pool.map(p => p.total).filter(t => t > 0);
-                        if (allTotals.length > 0) {
-                            const avg = (allTotals.reduce((a, b) => a + b, 0) / allTotals.length).toFixed(1);
-                            const maxVal = Math.max(...allTotals);
-                            const minVal = Math.min(...allTotals);
-                            const types = this.analysisCache.exam.types || [];
-                            const summaryRow = document.createElement('tr');
-                            summaryRow.innerHTML = `<td></td><td style="font-weight:bold;">汇总统计</td><td></td><td></td><td></td>`;
-                            types.forEach(t => {
-                                const typeScores = pool.map(p => p.details[t.name] || 0).filter(v => v > 0);
-                                const typeAvg = typeScores.length > 0 ? (typeScores.reduce((a, b) => a + b, 0) / typeScores.length).toFixed(1) : '-';
-                                summaryRow.innerHTML += `<td>${typeAvg}</td>`;
-                            });
-                            summaryRow.innerHTML += `<td>均:${avg} 高:${maxVal} 低:${minVal}</td>`;
-                            analysisTbody.appendChild(summaryRow);
-                        }
-                    }
-                    
-                    const wb = XLSX.utils.table_to_book(cloneTable, {sheet: "成绩明细"});
-                    const examName = this.analysisCache.exam.name;
-                    const dateStr = new Date().toISOString().slice(0,10);
-                    XLSX.writeFile(wb, `${examName}_成绩明细_${dateStr}.xlsx`);
-                    Utils.msg("明细表导出成功！");
+                    const focus = this.store.state.globalFocus || { campuses: [], grades: [], tClasses: [], tags: [] };
+                    const examCampuses = this._getExamCampuses(exam);
+                    const studentsById = new Map((this.store.state.data.students || []).map(s => [s.id, s]));
+                    const pool = (this.store.state.data.scores || [])
+                        .filter(sc => sc.examId === exam.id && Number(sc.total) > 0 && !sc.examAbsent)
+                        .map(sc => {
+                            const stu = studentsById.get(sc.studentId);
+                            if (!stu) return null;
+                            return {
+                                ...stu,
+                                id: stu.id,
+                                total: Number(sc.total || 0),
+                                estimatedTotal: Number(sc.estimatedTotal || 0),
+                                details: sc.details || {}
+                            };
+                        })
+                        .filter(row => {
+                            if (!row) return false;
+                            if (examCampuses.length > 0 && !examCampuses.includes(row.campus)) return false;
+                            if (focus.campuses && focus.campuses.length > 0 && !focus.campuses.includes(row.campus)) return false;
+                            if (focus.grades && focus.grades.length > 0 && !focus.grades.includes(row.grade)) return false;
+                            if (focus.tClasses && focus.tClasses.length > 0 && !focus.tClasses.includes(row.teachingClass)) return false;
+                            if (focus.tags && focus.tags.length > 0 && !(row.tags || []).some(t => focus.tags.includes(t))) return false;
+                            return true;
+                        });
+                    return { exam, pool };
                 }
 
-                    // 导出学情为高清长图（使用 html2canvas）
-                    exportAnalysisAsImage() {
-                        let originalStyles = null;
-                        try {
-                            // ——— Overview 大屏专用导出 ———
-                            const ovCard = document.getElementById('overview-dashboard-card');
-                            const isOverviewMode = ovCard && ovCard.style.display !== 'none';
-                            if (isOverviewMode) {
-                                this._exportOverviewAsImage();
-                                return;
-                            }
-                            // ——— 以下为原有导出逻辑，不做任何修改 ———
+                // V43: Dedicated Export Excel logic inside UI
+                exportAnalysisExcel() {
+                    const context = this._buildCurrentExamDetailExportContext();
+                    if (!context || !context.exam) return Utils.msg("请先选择一场考试，再导出成绩明细表。", "error");
+                    if (!context.pool || context.pool.length === 0) return Utils.msg("当前考试在筛选范围内暂无可导出的成绩明细。", "error");
 
-                            if(!this.analysisCache || !this.analysisCache.exam) return Utils.msg('当前没有可以导出的学情视图', 'error');
-                            Utils.msg('正在生成高清长图，请稍候...', 'success');
-                            const node = document.querySelector('#view-analysis .content-body');
-                            if(!node) return Utils.msg('无法定位学情视图节点', 'error');
-
-                            // 展开所有可滚动容器以避免截图被截断（仅调整尺寸，不隐藏元素）
-                            const scrollContainers = node.querySelectorAll('.table-scroll-container, .content-body');
-                            originalStyles = [];
-                            scrollContainers.forEach(el => {
-                                originalStyles.push({ el, maxH: el.style.maxHeight || '', overflow: el.style.overflow || '' });
-                                el.style.maxHeight = 'none';
-                                el.style.overflow = 'visible';
-                            });
-
-                            const examName = (this.analysisCache && this.analysisCache.exam && this.analysisCache.exam.name) ? this.analysisCache.exam.name : '学情报告';
-                            // 使用 ignoreElements 跳过不导出的控件，避免修改其 visibility 导致的闪烁
-                            html2canvas(node, {
-                                scale: 2,
-                                useCORS: true,
-                                backgroundColor: null,
-                                ignoreElements: (el) => {
-                                    if (!el || !el.classList) return false;
-                                    return el.classList.contains('no-export') || el.classList.contains('smart-toolbar') || el.classList.contains('top-navbar') || el.classList.contains('analysis-tabs');
-                                }
-                            }).then(canvas => {
-                                try {
-                                    // 在 canvas 右下角绘制水印
-                                    try {
-                                        const ctx = canvas.getContext('2d');
-                                        const dateStr = new Date().toISOString().slice(0,10);
-                                        const watermark = `Gakuten · 导出于 ${dateStr}`;
-                                        const padding = 12 * (window.devicePixelRatio || 1);
-                                        const fontSize = 12 * (window.devicePixelRatio || 1);
-                                        ctx.font = `${fontSize}px sans-serif`;
-                                        ctx.fillStyle = '#94a3b8';
-                                        ctx.textBaseline = 'bottom';
-                                        const textWidth = ctx.measureText(watermark).width;
-                                        const x = canvas.width - textWidth - padding;
-                                        const y = canvas.height - padding;
-                                        ctx.fillText(watermark, x, y);
-                                    } catch (e) {
-                                        console.warn('draw watermark failed', e);
-                                    }
-
-                                    const url = canvas.toDataURL('image/png');
-                                    const a = document.createElement('a');
-                                    const dateStr2 = new Date().toISOString().slice(0,10);
-                                    a.href = url;
-                                    a.download = `${examName}_学情报告_${dateStr2}.png`;
-                                    document.body.appendChild(a);
-                                    a.click();
-                                    a.remove();
-                                    Utils.msg('学情长图已生成并开始下载', 'success');
-                                } finally {
-                                    // 恢复样式
-                                    if (originalStyles) originalStyles.forEach(s => { try { s.el.style.maxHeight = s.maxH; s.el.style.overflow = s.overflow; } catch(e){} });
-                                }
-                            }).catch(e => {
-                                // 恢复样式并报错
-                                if (originalStyles) originalStyles.forEach(s => { try { s.el.style.maxHeight = s.maxH; s.el.style.overflow = s.overflow; } catch(e){} });
-                                console.warn('exportAnalysisAsImage error', e); Utils.msg('生成长图失败，请重试', 'error');
-                            });
-                        } catch (e) {
-                            if (originalStyles) originalStyles.forEach(s => { try { s.el.style.maxHeight = s.maxH; s.el.style.overflow = s.overflow; } catch(e){} });
-                            console.warn('exportAnalysisAsImage outer error', e); Utils.msg('生成长图失败', 'error');
-                        }
+                    const previousCache = this.analysisCache;
+                    this.analysisCache = {
+                        ...(previousCache || {}),
+                        exam: context.exam,
+                        pool: context.pool,
+                        sortCol: 'total',
+                        sortAsc: false
+                    };
+                    try {
+                        this.exportDetailTableExcel();
+                    } finally {
+                        this.analysisCache = previousCache;
                     }
-
-                    _exportOverviewAsImage() {
-                        try {
-                            Utils.msg('正在合成全景大屏图片，请稍候...', 'success');
-
-	                            // 全景图表容器，正态参考线已合并到成绩分布图
-	                            const chartIds = [
-	                                'overview-summary',
-	                                'chart-ov-trend', 'chart-ov-avg',
-	                                'chart-ov-dist', 'chart-ov-heatmap'
-	                            ];
-
-	                            // 从 ECharts 实例获取图表图片数据（避免 html2canvas 截 canvas 为空白的问题）
-	                            const chartImages = chartIds.map(id => {
-	                                if (id === 'overview-summary') {
-	                                    const summary = document.getElementById(id);
-	                                    const canvas = document.createElement('canvas');
-	                                    canvas.width = 900;
-	                                    canvas.height = 620;
-	                                    const sctx = canvas.getContext('2d');
-	                                    sctx.fillStyle = '#ffffff';
-	                                    sctx.fillRect(0, 0, canvas.width, canvas.height);
-	                                    sctx.fillStyle = '#1c1c1e';
-	                                    sctx.font = 'bold 34px sans-serif';
-	                                    sctx.fillText('核心指标', 42, 58);
-	                                    const cards = summary ? Array.from(summary.querySelectorAll('.overview-stat-card')) : [];
-	                                    cards.forEach((card, idx) => {
-	                                        const col = idx % 2;
-	                                        const row = Math.floor(idx / 2);
-	                                        const x = 42 + col * 405;
-	                                        const y = 95 + row * 155;
-	                                        sctx.fillStyle = '#f8fafc';
-	                                        sctx.fillRect(x, y, 360, 120);
-	                                        sctx.strokeStyle = '#e2e8f0';
-	                                        sctx.strokeRect(x, y, 360, 120);
-	                                        sctx.fillStyle = '#6c6c70';
-	                                        sctx.font = '22px sans-serif';
-	                                        sctx.fillText(card.querySelector('.overview-stat-label')?.textContent || '', x + 24, y + 36);
-	                                        sctx.fillStyle = '#1c1c1e';
-	                                        sctx.font = 'bold 40px sans-serif';
-	                                        sctx.fillText(card.querySelector('.overview-stat-value')?.textContent || '', x + 24, y + 88);
-	                                    });
-	                                    return canvas.toDataURL('image/png');
-	                                }
-	                                const el = document.getElementById(id);
-	                                if (!el) return null;
-                                const chartInstance = echarts.getInstanceByDom(el);
-                                if (!chartInstance) return null;
-                                return chartInstance.getDataURL({
-                                    type: 'png',
-                                    pixelRatio: 2,
-                                    backgroundColor: '#ffffff'
-                                });
-                            });
-
-                            if (chartImages.every(img => img === null)) {
-                                Utils.msg('图表尚未渲染完成，请稍后再试', 'error');
-                                return;
-                            }
-
-                            // ---- 严格 16:9 画布尺寸 ----
-                            const COLS     = 4;
-                            const ROWS     = 2;
-                            const PADDING  = 20;
-                            const HEADER_H = 80;
-                            const totalW   = 3840;
-                            const totalH   = 2160;   // totalW / (16/9) = 2160，严格 16:9
-                            const CELL_W   = (totalW - (COLS + 1) * PADDING) / COLS;   // 935
-                            const CELL_H   = (totalH - HEADER_H - (ROWS + 1) * PADDING) / ROWS; // 1010
-
-                            const outputCanvas = document.createElement('canvas');
-                            outputCanvas.width = totalW;
-                            outputCanvas.height = totalH;
-                            const ctx = outputCanvas.getContext('2d');
-
-                            // 深色背景
-                            ctx.fillStyle = '#0f172a';
-                            ctx.fillRect(0, 0, totalW, totalH);
-
-                            // 顶部标题栏
-                            ctx.fillStyle = '#1e293b';
-                            ctx.fillRect(0, 0, totalW, HEADER_H);
-
-                            // 标题文字
-                            const examSelector = document.getElementById('a-exam-select');
-                            const examName = examSelector && examSelector.options[examSelector.selectedIndex]
-                                ? examSelector.options[examSelector.selectedIndex].text
-                                : '全景数据大屏';
-                            const dateStr = new Date().toISOString().slice(0, 10);
-
-                            ctx.fillStyle = '#f1f5f9';
-                            ctx.font = 'bold 36px sans-serif';
-                            ctx.textBaseline = 'middle';
-                            ctx.fillText('📊  ' + examName + ' · 全景数据大屏', PADDING * 2, HEADER_H / 2);
-
-                            ctx.fillStyle = '#64748b';
-                            ctx.font = '24px sans-serif';
-                            const rightText = 'Gakuten · 导出于 ' + dateStr;
-                            const rightTextW = ctx.measureText(rightText).width;
-                            ctx.fillText(rightText, totalW - rightTextW - PADDING * 2, HEADER_H / 2);
-
-                            // 绘制各图表到对应格子
-                            const loadPromises = chartImages.map((dataUrl, index) => {
-                                return new Promise((resolve) => {
-                                    const col = index % COLS;
-                                    const row = Math.floor(index / COLS);
-                                    const x = PADDING + col * (CELL_W + PADDING);
-                                    const y = HEADER_H + PADDING + row * (CELL_H + PADDING);
-
-                                    // 白色圆角卡片背景
-                                    ctx.fillStyle = '#ffffff';
-                                    ctx.beginPath();
-                                    const r = 12;
-                                    ctx.moveTo(x + r, y);
-                                    ctx.lineTo(x + CELL_W - r, y);
-                                    ctx.quadraticCurveTo(x + CELL_W, y, x + CELL_W, y + r);
-                                    ctx.lineTo(x + CELL_W, y + CELL_H - r);
-                                    ctx.quadraticCurveTo(x + CELL_W, y + CELL_H, x + CELL_W - r, y + CELL_H);
-                                    ctx.lineTo(x + r, y + CELL_H);
-                                    ctx.quadraticCurveTo(x, y + CELL_H, x, y + CELL_H - r);
-                                    ctx.lineTo(x, y + r);
-                                    ctx.quadraticCurveTo(x, y, x + r, y);
-                                    ctx.closePath();
-                                    ctx.fill();
-
-                                    if (!dataUrl) { resolve(); return; }
-
-                                    const img = new Image();
-                                    img.onload = () => {
-                                        // 保持图表自身比例居中裁切填充到格子内
-                                        ctx.save();
-                                        ctx.beginPath();
-                                        ctx.moveTo(x + r, y);
-                                        ctx.lineTo(x + CELL_W - r, y);
-                                        ctx.quadraticCurveTo(x + CELL_W, y, x + CELL_W, y + r);
-                                        ctx.lineTo(x + CELL_W, y + CELL_H - r);
-                                        ctx.quadraticCurveTo(x + CELL_W, y + CELL_H, x + CELL_W - r, y + CELL_H);
-                                        ctx.lineTo(x + r, y + CELL_H);
-                                        ctx.quadraticCurveTo(x, y + CELL_H, x, y + CELL_H - r);
-                                        ctx.lineTo(x, y + r);
-                                        ctx.quadraticCurveTo(x, y, x + r, y);
-                                        ctx.closePath();
-                                        ctx.clip();
-                                        ctx.drawImage(img, x, y, CELL_W, CELL_H);
-                                        ctx.restore();
-                                        resolve();
-                                    };
-                                    img.onerror = () => resolve();
-                                    img.src = dataUrl;
-                                });
-                            });
-
-                            Promise.all(loadPromises).then(() => {
-                                const url = outputCanvas.toDataURL('image/png');
-                                const a = document.createElement('a');
-                                a.href = url;
-                                a.download = examName + '_全景大屏_' + dateStr + '.png';
-                                document.body.appendChild(a);
-                                a.click();
-                                a.remove();
-                                Utils.msg('全景大屏图片已生成并开始下载', 'success');
-                            }).catch(e => {
-                                console.warn('_exportOverviewAsImage error', e);
-                                Utils.msg('生成图片失败，请重试', 'error');
-                            });
-
-                        } catch (e) {
-                            console.warn('_exportOverviewAsImage outer error', e);
-                            Utils.msg('生成图片失败', 'error');
-                        }
-                    }
+                }
 
                // ================= 全新：带色彩特效的深度明细表导出引擎 =================
                 exportDetailTableExcel() {
@@ -8066,6 +7963,18 @@
                     Utils.msg("深度明细表已生成并导出（含可视化色彩）！");
                 }
 
+
+                _setAnalysisTableFillMode(enabled, hideChart = true) {
+                    const body = document.querySelector('#view-analysis .content-body');
+                    const table = document.getElementById('analysis-table-area');
+                    const chartCard = document.getElementById('chart-wrapper-card');
+                    if (body) {
+                        body.classList.toggle('analysis-table-fill-mode', !!enabled && !!hideChart);
+                        body.classList.toggle('analysis-table-fill-with-chart', !!enabled && !hideChart);
+                    }
+                    if (table) table.classList.toggle('table-fill-page', !!enabled);
+                    if (enabled && hideChart && chartCard) chartCard.style.display = 'none';
+                }
 
                 sortAnalysis(col) {
                     if (!this.analysisCache || !this.analysisCache.exam) return;
@@ -8677,86 +8586,142 @@
                     }
                 }
 
-                _animateHeatmapTiles(chart, option, dom, duration = 850) {
+                _animateHeatmapTiles(chart, option, dom, duration = 780) {
                     if (!chart || !option || !Array.isArray(option.series)) return false;
                     const heatIndex = option.series.findIndex(s => s && s.type === 'heatmap' && Array.isArray(s.data));
                     if (heatIndex < 0) return false;
                     const fullData = option.series[heatIndex].data || [];
                     if (!fullData.length) return false;
-                    const total = fullData.length;
-                    const batch = Math.max(1, Math.ceil(total / 10));
-                    const sortedData = fullData.slice().sort((a, b) => {
-                        const ax = Array.isArray(a) ? Number(a[0] || 0) : 0;
-                        const ay = Array.isArray(a) ? Number(a[1] || 0) : 0;
-                        const bx = Array.isArray(b) ? Number(b[0] || 0) : 0;
-                        const by = Array.isArray(b) ? Number(b[1] || 0) : 0;
-                        return (ax + ay) - (bx + by) || ay - by || ax - bx;
-                    });
-                    const fadeSteps = 3;
-                    const fadeTile = (item, alpha) => {
-                        if (!Array.isArray(item)) return item;
-                        const next = item.slice();
-                        const raw = Number(next[2] || 0);
-                        next[2] = parseFloat((raw * alpha).toFixed(1));
-                        return next;
+                    const axisData = axis => Array.isArray(axis) ? (axis[0] && axis[0].data) : (axis && axis.data);
+                    const xData = axisData(option.xAxis) || [];
+                    const yData = axisData(option.yAxis) || [];
+                    if (!xData.length || !yData.length) return false;
+                    const colorFor = value => {
+                        const v = Number(value || 0);
+                        if (v >= 85) return '#047857';
+                        if (v >= 70) return '#86efac';
+                        if (v >= 55) return '#fef3c7';
+                        if (v >= 40) return '#fb923c';
+                        return '#ef4444';
                     };
-                    const build = (count, fadeProgress = 1) => {
-                        const stableCount = Math.max(0, count - batch);
-                        const stable = sortedData.slice(0, stableCount);
-                        const fading = sortedData.slice(stableCount, count).map(item => fadeTile(item, fadeProgress));
-                        return {
-                            ...option,
-                            animation: true,
-                            animationDuration: 180,
-                            animationDurationUpdate: 180,
-                            animationEasing: 'cubicOut',
-                            animationEasingUpdate: 'cubicOut',
-                            series: option.series.map((series, idx) => idx === heatIndex
-                                ? {
-                                    ...series,
-                                    data: stable.concat(fading),
-                                    animation: true,
-                                    animationDuration: 180,
-                                    animationDurationUpdate: 180,
-                                    animationDelay: i => (i % 6) * 14,
-                                    animationDelayUpdate: i => (i % 6) * 14,
-                                    universalTransition: false,
-                                    itemStyle: {
-                                        ...(series.itemStyle || {}),
-                                        borderColor: 'rgba(255,255,255,0.92)',
-                                        borderWidth: 1.5,
-                                        shadowBlur: 8,
-                                        shadowColor: 'rgba(0,122,255,0.12)'
-                                    }
-                                }
-                                : series)
-                        };
+                    const emptyOption = {
+                        ...option,
+                        animation: false,
+                        series: option.series.map((series, idx) => idx === heatIndex
+                            ? { ...series, data: [], animation: false }
+                            : series)
                     };
-                    try { if (typeof chart.clear === 'function') chart.clear(); } catch(e) {}
-                    chart.setOption(build(0), { notMerge: true, lazyUpdate: false, silent: true });
-                    let shown = 0;
-                    const tickMs = Math.max(12, Math.floor(duration / Math.ceil(total / batch)));
-                    const tick = () => {
+                    try {
+                        if (chart.__gakutenHeatmapTileTimer) clearTimeout(chart.__gakutenHeatmapTileTimer);
+                        if (chart.__gakutenHeatmapFadeTimer) clearTimeout(chart.__gakutenHeatmapFadeTimer);
+                        if (chart.__gakutenHeatmapSyncFrame) cancelAnimationFrame(chart.__gakutenHeatmapSyncFrame);
+                        if (chart.__gakutenHeatmapSyncHandler && chart.off) {
+                            try { chart.off('datazoom', chart.__gakutenHeatmapSyncHandler); } catch(e) {}
+                        }
+                        if (chart.__gakutenHeatmapResizeObserver) {
+                            try { chart.__gakutenHeatmapResizeObserver.disconnect(); } catch(e) {}
+                        }
+                        chart.__gakutenHeatmapSyncFrame = null;
+                        chart.__gakutenHeatmapSyncHandler = null;
+                        chart.__gakutenHeatmapResizeObserver = null;
+                        dom.querySelectorAll('.heatmap-tile-overlay').forEach(el => el.remove());
+                        dom.style.position = dom.style.position || 'relative';
+                        if (typeof chart.clear === 'function') chart.clear();
+                        chart.setOption(emptyOption, { notMerge: true, lazyUpdate: false, silent: true });
+                        if (typeof chart.resize === 'function') chart.resize();
+                    } catch(e) { return false; }
+
+                    requestAnimationFrame(() => {
                         if (chart && typeof chart.isDisposed === 'function' && chart.isDisposed()) return;
-                        shown = Math.min(total, shown + batch);
-                        let step = 1;
-                        const fade = () => {
+                        const overlay = document.createElement('div');
+                        overlay.className = 'heatmap-tile-overlay';
+                        dom.appendChild(overlay);
+
+                        const point = (x, y) => {
+                            try { return chart.convertToPixel({ xAxisIndex: 0, yAxisIndex: 0 }, [x, y]); }
+                            catch(e) { return null; }
+                        };
+                        const maxDiag = Math.max(1, (xData.length - 1) + (yData.length - 1));
+                        let maxDelay = 0;
+
+                        const renderTiles = (animate = false) => {
+                            const p00 = point(0, 0);
+                            if (!p00) return false;
+                            const p10 = xData.length > 1 ? point(1, 0) : null;
+                            const p01 = yData.length > 1 ? point(0, 1) : null;
+                            const isOverviewHeatmap = dom && dom.id === 'chart-ov-heatmap';
+                            const maxTileW = isOverviewHeatmap ? 76 : 220;
+                            const maxTileH = isOverviewHeatmap ? 48 : 92;
+                            const tileW = Math.max(18, Math.min(maxTileW, Math.abs((p10 ? p10[0] - p00[0] : chart.getWidth() / xData.length)) * (isOverviewHeatmap ? 0.94 : 0.985)));
+                            const tileH = Math.max(14, Math.min(maxTileH, Math.abs((p01 ? p01[1] - p00[1] : chart.getHeight() / yData.length)) * 0.965));
+                            overlay.innerHTML = '';
+                            const tooltip = document.createElement('div');
+                            tooltip.className = 'heatmap-tile-tooltip';
+                            overlay.appendChild(tooltip);
+                            maxDelay = 0;
+                            fullData.forEach((item, index) => {
+                                if (!Array.isArray(item)) return;
+                                const x = Number(item[0] || 0);
+                                const y = Number(item[1] || 0);
+                                const v = Number(item[2] || 0);
+                                const center = point(x, y);
+                                if (!center) return;
+                                const diag = (x + y) / maxDiag;
+                                const wave = Math.sin((x * 1.7 + y * 2.3) * Math.PI / 6) * 18;
+                                const delay = animate ? Math.max(0, Math.round(diag * 300 + y * 8 + (x % 2) * 16 + wave)) : 0;
+                                maxDelay = Math.max(maxDelay, delay);
+                                const tile = document.createElement('div');
+                                tile.className = 'heatmap-fly-tile';
+                                tile.style.left = `${center[0] - tileW / 2}px`;
+                                tile.style.top = `${center[1] - tileH / 2}px`;
+                                tile.style.width = `${tileW}px`;
+                                tile.style.height = `${tileH}px`;
+                                tile.style.background = colorFor(v);
+                                tile.setAttribute('aria-label', `${yData[y] || '学生'} ${xData[x] || '题型'} 得分率 ${Number.isFinite(v) ? v : 0}%`);
+                                tile.dataset.tooltip = `<b>${Utils.escapeHTML(yData[y] || '学生')}</b><br>${Utils.escapeHTML(xData[x] || '题型')}：${Number.isFinite(v) ? v : 0}%`;
+                                if (animate) {
+                                    tile.style.setProperty('--delay', `${delay}ms`);
+                                    tile.style.setProperty('--dur', `${Math.max(520, Math.min(760, duration - 80 + (index % 5) * 22))}ms`);
+                                    tile.style.setProperty('--tx', `${-34 + (x % 3) * 7}px`);
+                                    tile.style.setProperty('--ty', `${28 + (y % 4) * 5}px`);
+                                    tile.style.setProperty('--rot', `${((x + y) % 2 ? 1 : -1) * 1.5}deg`);
+                                } else {
+                                    tile.style.animation = 'none';
+                                    tile.style.opacity = '1';
+                                    tile.style.transform = 'translate3d(0, 0, 0) scale(1) rotate(0deg)';
+                                }
+                                tile.addEventListener('mouseenter', () => {
+                                    tooltip.innerHTML = tile.dataset.tooltip || '';
+                                    tooltip.style.left = `${center[0]}px`;
+                                    tooltip.style.top = `${center[1] - tileH / 2}px`;
+                                    tooltip.classList.add('is-visible');
+                                });
+                                tile.addEventListener('mouseleave', () => {
+                                    tooltip.classList.remove('is-visible');
+                                });
+                                overlay.appendChild(tile);
+                            });
+                            return true;
+                        };
+
+                        if (!renderTiles(true)) {
+                            chart.setOption(emptyOption, { notMerge: true, lazyUpdate: false });
+                            if (dom) dom.dataset.rendered = '1';
+                            return;
+                        }
+
+                        const finish = () => {
                             if (chart && typeof chart.isDisposed === 'function' && chart.isDisposed()) return;
-                            const progress = step / fadeSteps;
-                            chart.setOption(build(shown, progress), { notMerge: false, lazyUpdate: false, silent: true });
-                            step++;
-                            if (step <= fadeSteps) {
-                                chart.__gakutenHeatmapFadeTimer = setTimeout(fade, 18);
-                            } else if (shown < total) {
-                                chart.__gakutenHeatmapTileTimer = setTimeout(tick, tickMs);
-                            } else {
-                                chart.setOption(option, { notMerge: false, lazyUpdate: false });
+                            try {
+                                chart.setOption(emptyOption, { notMerge: true, lazyUpdate: false });
                                 if (dom) dom.dataset.rendered = '1';
+                                renderTiles(false);
+                            } catch(e) {
+                                try { chart.setOption(emptyOption, { notMerge: true, lazyUpdate: false }); } catch(err) {}
                             }
                         };
-                        fade();
-                    };
-                    chart.__gakutenHeatmapTileTimer = setTimeout(tick, 35);
+                        chart.__gakutenHeatmapTileTimer = setTimeout(finish, maxDelay + duration + 80);
+                    });
                     return true;
                 }
 
@@ -8834,11 +8799,8 @@
                                     if (this._animateLineChartReveal(chart, animatedOption, dom, isOverviewChart ? 1400 : 1200)) return;
                                 }
 
-                                if (domId === 'chart-ov-heatmap') {
-                                    if (this._animateHeatmapTiles(chart, option, dom, 560)) return;
-                                }
-
                                 if (hasHeatmapSeries) {
+                                    if (domId === 'chart-ov-heatmap' && this._animateHeatmapTiles(chart, option, dom, 560)) return;
                                     try { if (typeof chart.clear === 'function') chart.clear(); } catch(e) {}
                                     chart.setOption(option, { notMerge: true, lazyUpdate: false });
                                     if (dom) dom.dataset.rendered = '1';
@@ -9209,6 +9171,7 @@
                     if (chartCard && type !== 'heatmap') chartCard.style.minHeight = '';
                     const tableArea = document.getElementById('analysis-table-area');
                     if (tableArea) tableArea.style.display = 'none';
+                    this._setAnalysisTableFillMode(false);
                     const tbody = document.getElementById('tbody-analysis');
                     if (tbody) tbody.innerHTML = '';
 
@@ -9616,6 +9579,7 @@
                             tbody.innerHTML = `<tr><td style="font-weight:700; color:#1e293b;">${targetStu.name}</td>${stuRow}</tr><tr><td style="font-weight:700; color:#334155;">班级均值</td>${avgRow}</tr>`;
                         } else {
                             document.getElementById('table-title').innerHTML = `📈 班级均分明细 <small style="color:var(--text-sub); font-weight:normal;">(默认展示当前筛选范围内的平均趋势)</small>`;
+                            this._setAnalysisTableFillMode(true, false);
                             const avgRow = classAvgData.map(v => `<td style="font-weight:600; color:#64748b;">${v !== null ? v : '<span style="color:#cbd5e1;">-</span>'}</td>`).join('');
                             tbody.innerHTML = `<tr><td style="font-weight:700; color:#334155;">班级均值</td>${avgRow}</tr>`;
                         }
@@ -10116,6 +10080,7 @@
                         }
 
                         document.getElementById('analysis-table-area').style.display = 'flex';
+                        this._setAnalysisTableFillMode(true, true);
                         document.getElementById('table-title').innerHTML = `🎯 目标达成情况 <small style="color:var(--text-sub); font-weight:normal;">(共 ${targetRes.length} 名学生设置了目标)</small>`;
                         
                         const thead = document.getElementById('thead-analysis');
@@ -10239,9 +10204,8 @@
                             return renderEmptyState("未发现临界生", "当前班级没有成绩在50%-70%区间的临界生，说明成绩两极分化严重或整体较强。");
                         }
 
-                        chartCard.style.display = 'none';  // 临界生分析不需要图表
-
                         document.getElementById('analysis-table-area').style.display = 'flex';
+                        this._setAnalysisTableFillMode(true, true);
                         document.getElementById('table-title').innerHTML = `⚠️ 临界生重点关注列表 <small style="color:var(--text-sub); font-weight:normal;">(成绩在${lowerLine.toFixed(0)}-${upperLine.toFixed(0)}分之间，共 ${borderlineStudents.length} 人)</small>`;
                         
                         const thead = document.getElementById('thead-analysis');
@@ -10509,6 +10473,18 @@
 	                        });
 	                        const ovScores = ovRes.map(r => Number(r.total)).filter(v => isFinite(v) && v > 0);
 	                        const ovTotalCount = ovScores.length;
+	                        const ovExpectedCount = ovValidStudentsForExam.length;
+	                        const attendedIds = new Set(ovRes.map(r => r.id));
+	                        const absentStudentsForOverview = ovValidStudentsForExam.filter(s => !attendedIds.has(s.id));
+	                        const absentByAdminClass = {};
+	                        absentStudentsForOverview.forEach(s => {
+	                            const cls = String(s.adminClass || '未填行政班').trim() || '未填行政班';
+	                            if (!absentByAdminClass[cls]) absentByAdminClass[cls] = [];
+	                            absentByAdminClass[cls].push(s.name || '-');
+	                        });
+	                        const absentHoverHtml = absentStudentsForOverview.length
+	                            ? `<b>未参考 ${absentStudentsForOverview.length} 人</b><br>${Object.keys(absentByAdminClass).sort((a,b)=>a.localeCompare(b,'zh-CN',{numeric:true})).map(cls => `<span style="display:block; margin-top:3px;"><b>${Utils.escapeHTML(cls)}</b>：${absentByAdminClass[cls].map(name => Utils.escapeHTML(name)).join('、')}</span>`).join('')}`
+	                            : '<b>全部已参考</b>';
 	                        const ovAvg = ovTotalCount ? ovScores.reduce((a,b)=>a+b,0) / ovTotalCount : 0;
 	                        const ovHigh = ovTotalCount ? Math.max(...ovScores) : 0;
 	                        const ovLow = ovTotalCount ? Math.min(...ovScores) : 0;
@@ -10524,8 +10500,9 @@
 		                            summaryEl.innerHTML = `
   <div class="overview-stat-card ov-kpi-c1">
     <div class="overview-stat-label">👥 参考人数 <svg class="kpi-spark" viewBox="0 0 40 18"><path d="M2 14 L10 10 L18 12 L27 6 L38 4" fill="none" stroke="currentColor" stroke-width="2"/></svg></div>
-    <div class="overview-stat-value">${ovTotalCount}</div>
-    <div class="overview-stat-sub">人</div>
+    <div class="overview-stat-value">${ovTotalCount}<span class="stat-denominator">/${ovExpectedCount}</span></div>
+    <div class="overview-stat-sub">实际参考 / 应参考</div>
+    <div class="overview-attendance-hover">${absentHoverHtml}</div>
   </div>
   <div class="overview-stat-card ov-kpi-c2">
     <div class="overview-stat-label">📈 年级均分 <svg class="kpi-spark" viewBox="0 0 40 18"><path d="M2 13 C10 5 16 14 24 7 S34 4 38 3" fill="none" stroke="currentColor" stroke-width="2"/></svg></div>
@@ -10813,7 +10790,7 @@
 	                                    animationEasing: 'cubicOut',
 	                                    title: { text: '班级 × 题型得分率热力图', left: 'center', textStyle: { fontSize: 14, color: '#3b82f6' } },
 	                                    tooltip: { formatter: function (params) { const t = xAxisFullNames[params.value[0]] || params.name; const cls = classNames[params.value[1]] || params.value[1]; return `班级: ${Utils.escapeHTML(cls)}<br/>题型: ${Utils.escapeHTML(t)}<br/>平均得分率: ${params.value[2]}%`; } },
-	                                    grid: { top: 55, bottom: 34, left: '24%', right: '14%' },
+	                                    grid: { top: 55, bottom: 34, left: '29%', right: '10%' },
 	                                    xAxis: { type: 'category', data: xAxisShort, position: 'top', axisLabel: { interval: 0 } },
 	                                    yAxis: { type: 'category', data: classNames, inverse: true, axisLabel: { interval: 0, fontSize: 10 } },
 	                                    visualMap: { type: 'piecewise', dimension: 2, pieces: [ { min: 85, max: 100, color: a11y.blue }, { min: 70, max: 85, color: a11y.teal }, { min: 55, max: 70, color: '#F5D76E' }, { min: 40, max: 55, color: a11y.amber }, { min: 0, max: 40, color: a11y.vermillion } ], orient: 'horizontal', bottom: 6, left: 'center' },
@@ -11181,9 +11158,6 @@
                         const passScoreVal = fullScoreVal * 0.6;
                         const excellentScoreVal = fullScoreVal * 0.8;
                         let rowBgColor = 'transparent';
-                        const aiStatus = String(d.aiComment || '').trim().length > 0
-                            ? '<span style="color:#10b981; background:rgba(16,185,129,0.1); padding:2px 6px; border-radius:4px; font-size:11px;">已生成</span>'
-                            : '<span style="color:#94a3b8; background:rgba(148,163,184,0.1); padding:2px 6px; border-radius:4px; font-size:11px;">未生成</span>';
                         const rankCellHtml = this._renderInlineMarkedCell(rankValueHtml, '', rankPrefixHtml);
                         const nameCellHtml = this._renderInlineMarkedCell(nameLink, diagDots);
                         let trHtml = `<tr data-student-name="${Utils.escapeHTML(d.name || '')}" style="background: ${rowBgColor}; transition: background 0.2s;" class="${rowClass}"><td class="sticky-col-left" style="width:80px; min-width:80px; max-width:80px;">${rankCellHtml}</td><td class="sticky-col-left" style="left:80px; width:120px; min-width:120px; max-width:120px; font-weight:700;">${nameCellHtml}</td><td class="table-meta">${Utils.escapeHTML(d.campus||'-')}</td><td class="table-meta">${Utils.escapeHTML(d.teachingClass||'-')}</td><td class="table-meta">${Utils.escapeHTML(d.adminClass||'-')}</td>`;
@@ -11199,7 +11173,7 @@
                             trHtml += `<td class="${getScoreBandClass(stuRate, cache.sortCol === t.name)}">${formatScore(stuScore)}${anomalyIcon}</td>`;
                         });
                         const rate = (cache.exam && cache.exam.maxTotal) ? (d.total / cache.exam.maxTotal) : 0;
-                        trHtml += `<td class="${getScoreBandClass(rate, cache.sortCol === 'total')} score-total-cell">${formatScore(d.total)}</td><td>${aiStatus}</td></tr>`;
+                        trHtml += `<td class="${getScoreBandClass(rate, cache.sortCol === 'total')} score-total-cell">${formatScore(d.total)}</td></tr>`;
                         rowsHTML.push(trHtml);
                     });
                     
