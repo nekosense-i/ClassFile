@@ -449,12 +449,23 @@
                 if (window.__gakutenUpdatePinyinStatus) window.__gakutenUpdatePinyinStatus();
                 const input = document.getElementById('auth-password');
                 if (input) {
+                    input.disabled = false;
+                    input.readOnly = false;
                     input.addEventListener('keydown', (e) => {
                         if (e.key === 'Enter') {
                             e.preventDefault();
                             login();
                         }
                     });
+                }
+                const passwordWrap = document.querySelector('.auth-password-wrap');
+                if (passwordWrap && input) {
+                    passwordWrap.addEventListener('pointerdown', () => {
+                        if (getAuth()) return;
+                        requestAnimationFrame(() => {
+                            try { input.focus({ preventScroll: true }); } catch(e) { input.focus(); }
+                        });
+                    }, true);
                 }
                 syncOverlayState();
             });
@@ -540,7 +551,7 @@
         .sidebar-logout-link:hover { color: var(--danger); background: rgba(255,59,48,0.05); transform: none; box-shadow: none; }
         body.auth-locked { overflow: hidden; }
         body.auth-locked > :not(#auth-overlay) { visibility: hidden !important; pointer-events: none !important; }
-        #auth-overlay { position: fixed; inset: 0; z-index: var(--z-auth); display: flex; align-items: center; justify-content: center; padding: 24px; background:
+        #auth-overlay { position: fixed; inset: 0; z-index: var(--z-auth); display: flex; align-items: center; justify-content: center; padding: 24px; pointer-events: auto; isolation: isolate; background:
             radial-gradient(circle at 18% 18%, rgba(0,122,255,0.18), transparent 28%),
             radial-gradient(circle at 78% 16%, rgba(52,199,89,0.12), transparent 26%),
             radial-gradient(circle at 70% 78%, rgba(255,149,0,0.10), transparent 30%),
@@ -549,16 +560,16 @@
         #auth-overlay::after { content: ''; position: absolute; inset: 0; pointer-events: none; background-repeat: no-repeat; animation: authFloat 12s ease-in-out infinite alternate; }
         #auth-overlay::before { background-image: radial-gradient(circle, rgba(0,122,255,0.10) 0 34px, transparent 35px), radial-gradient(circle, rgba(52,199,89,0.08) 0 24px, transparent 25px), linear-gradient(135deg, rgba(0,122,255,0.08), rgba(255,255,255,0.02)); background-size: 220px 220px, 180px 180px, 74px 74px; background-position: 9% 22%, 86% 66%, 78% 28%; opacity: .9; }
         #auth-overlay::after { background-image: linear-gradient(45deg, rgba(100,116,139,0.08), transparent), linear-gradient(45deg, rgba(0,122,255,0.07), transparent), radial-gradient(circle, rgba(255,149,0,0.08) 0 28px, transparent 29px); background-size: 88px 88px, 56px 56px, 150px 150px; background-position: 16% 72%, 88% 22%, 42% 12%; animation-duration: 16s; opacity: .7; }
-        .auth-card { position: relative; z-index: 1; width: min(430px, 100%); background: rgba(255,255,255,0.78); border: 1px solid rgba(255,255,255,0.72); border-radius: 24px; box-shadow: 0 28px 90px rgba(15, 23, 42, 0.20), inset 0 1px 0 rgba(255,255,255,0.76); padding: 30px 28px 22px; backdrop-filter: saturate(180%) blur(28px); -webkit-backdrop-filter: saturate(180%) blur(28px); }
+        .auth-card { position: relative; z-index: 2; width: min(430px, 100%); background: rgba(255,255,255,0.78); border: 1px solid rgba(255,255,255,0.72); border-radius: 24px; box-shadow: 0 28px 90px rgba(15, 23, 42, 0.20), inset 0 1px 0 rgba(255,255,255,0.76); padding: 30px 28px 22px; backdrop-filter: saturate(180%) blur(28px); -webkit-backdrop-filter: saturate(180%) blur(28px); pointer-events: auto; }
         .auth-brand { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-bottom: 18px; }
         .auth-logo { width: 58px; height: 58px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 28px; background: rgba(255,255,255,0.72); border: 1px solid rgba(0,122,255,0.22); box-shadow: 0 10px 28px -18px rgba(0,122,255,0.9), inset 0 0 0 7px rgba(0,122,255,0.06); position: relative; }
         .auth-logo::after { content: ''; position: absolute; inset: -6px; border-radius: 50%; border: 1px solid rgba(0,122,255,0.26); border-left-color: transparent; border-bottom-color: transparent; animation: authLogoOrbit 5s linear infinite; }
         .auth-title { font-size: 22px; font-weight: 850; color: var(--text-main); text-align: center; margin-bottom: 0; letter-spacing: 0; }
         .auth-subtitle { font-size: 13px; color: var(--text-sub); text-align: center; line-height: 1.6; margin-bottom: 18px; }
         .auth-row { display: flex; flex-direction: column; gap: 12px; }
-        .auth-password-wrap { position: relative; }
-        .auth-input { width: 100%; font-size: 14px; padding: 13px 44px 13px 14px; border-radius: 14px; background: rgba(255,255,255,0.88); }
-        .auth-eye-btn { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); width: 34px; height: 34px; padding: 0; justify-content: center; border-radius: 10px; background: transparent; color: var(--text-hint); border: 0; box-shadow: none; }
+        .auth-password-wrap { position: relative; z-index: 3; }
+        .auth-input { width: 100%; font-size: 14px; padding: 13px 44px 13px 14px; border-radius: 14px; background: rgba(255,255,255,0.88); position: relative; z-index: 1; pointer-events: auto; user-select: text; -webkit-user-select: text; }
+        .auth-eye-btn { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); width: 34px; height: 34px; padding: 0; justify-content: center; border-radius: 10px; background: transparent; color: var(--text-hint); border: 0; box-shadow: none; z-index: 2; }
         .auth-eye-btn:hover { transform: translateY(-50%); background: rgba(0,122,255,0.08); color: var(--primary); box-shadow: none; }
         .auth-eye-btn svg { width: 18px; height: 18px; }
         .auth-btn { width: 100%; justify-content: center; padding: 13px 16px; border-radius: 14px; font-size: 14px; font-weight: 800; min-height: 46px; }
