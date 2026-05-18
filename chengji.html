@@ -620,8 +620,7 @@
         .storage-usage-meter span { display: block; height: 100%; width: 0%; background: linear-gradient(90deg, #34c759, #ff9500); transition: width 0.2s ease; }
         .tag-editor-chips { display: flex; flex-wrap: wrap; gap: 8px; min-height: 36px; padding: 8px; border: 1px solid var(--border); border-radius: 10px; background: #f8fafc; }
         .tag-editor-chip { border: 1px solid #bfdbfe; background: #eff6ff; color: var(--primary); padding: 4px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; cursor: pointer; }
-        .toolbar-help { width: 18px; height: 18px; border-radius: 999px; border: 1px solid #cbd5e1; background: #fff; color: #64748b; display: none; align-items: center; justify-content: center; padding: 0; font-size: 12px; cursor: help; margin-left: -2px; box-shadow: none; }
-        .toolbar-help:hover { transform: none; background: #eff6ff; color: var(--primary); box-shadow: none; }
+        .toolbar-help { display: none !important; }
         .overview-chart-card.is-dragging { opacity: 0.55; transform: scale(0.95); }
         .overview-chart-card.drag-over { outline: 2px dashed var(--primary); outline-offset: -6px; background: #eff6ff; }
         .sidebar-logout-link { color: var(--danger) !important; font-weight: 700; }
@@ -734,29 +733,36 @@
         .analysis-tabs { display: flex; gap: 2px; background: rgba(118,118,128,0.12); padding: 3px; border-radius: var(--radius-pill); margin-bottom: 12px; border: none; box-shadow: none; flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; scrollbar-width: none; min-height: 38px; flex-shrink: 0; position: relative; z-index: var(--z-sticky); }
         .analysis-tabs::-webkit-scrollbar { display: none; }
         .analysis-tabs::before { content: ''; position: sticky; left: -3px; top: 0; bottom: 0; width: 24px; flex: 0 0 24px; margin-right: -24px; background: linear-gradient(to left, transparent, rgba(118,118,128,0.12)); pointer-events: none; border-radius: var(--radius-pill) 0 0 var(--radius-pill); opacity: 0; transition: opacity 0.3s; z-index: 2; }
-        .analysis-tabs::after { content: ''; position: sticky; right: -3px; top: 0; bottom: 0; width: 24px; flex: 0 0 24px; margin-left: -24px; background: linear-gradient(to right, transparent, rgba(118,118,128,0.12)); pointer-events: none; border-radius: 0 var(--radius-pill) var(--radius-pill) 0; opacity: 1; transition: opacity 0.3s; z-index: 2; }
+        .analysis-tabs::after { content: '›'; position: sticky; right: -3px; top: 0; bottom: 0; width: 30px; flex: 0 0 30px; margin-left: -30px; display: flex; align-items: center; justify-content: flex-end; padding-right: 7px; background: linear-gradient(to right, transparent, rgba(239,246,255,0.96) 58%, rgba(239,246,255,0.98)); pointer-events: none; border-radius: 0 var(--radius-pill) var(--radius-pill) 0; opacity: 0; transition: opacity 0.22s ease; z-index: 2; color: var(--primary); font-size: 18px; font-weight: 900; }
+        .analysis-tabs:hover::after { opacity: 1; }
         .analysis-tabs.scrolled-start::before { opacity: 1; }
         .analysis-tabs.scrolled-end::after { opacity: 0; }
-        .analysis-tab { padding: 7px 16px; border-radius: calc(var(--radius-pill) - 3px); cursor: pointer; font-size: 12px; font-weight: 600; color: var(--text-sub); transition: all 0.2s ease; user-select: none; white-space: nowrap; border: none; }
-        .analysis-tab:hover { color: var(--text-main); background: rgba(255,255,255,0.5); transform: translateY(-1px); }
-        .analysis-tab.active { background: var(--panel-elevated); color: var(--text-main); box-shadow: var(--shadow); }
-        .analysis-tab.compare-tab { color: #b91c1c; }
-        .analysis-tab.compare-tab.active { background: #fef2f2; color: #dc2626; box-shadow: 0 2px 4px rgba(220, 38, 38, 0.1); }
-        .analysis-tab.target-tab { color: #b45309; }
-        .analysis-tab.target-tab.active { background: #fffbeb; color: #d97706; }
-        .analysis-tab.alert-tab { color: #c2410c; }
-        .analysis-tab.alert-tab.active { background: #fefce8; color: #a16207; box-shadow: 0 1px 2px rgba(161, 98, 7, 0.1);}
+        .analysis-tab { padding: 7px 16px; border-radius: calc(var(--radius-pill) - 3px); cursor: pointer; font-size: 12px; font-weight: 600; color: var(--text-sub); transition: background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease; user-select: none; white-space: nowrap; border: none; position: relative; text-align: center; }
+        .analysis-tab:hover { color: var(--text-main); background: rgba(255,255,255,0.5); }
+        .analysis-tab.active,
+        .analysis-tab.compare-tab.active,
+        .analysis-tab.target-tab.active,
+        .analysis-tab.alert-tab.active { background: var(--panel-elevated); color: var(--text-main); box-shadow: var(--shadow); }
+        .analysis-tab.active::after { content: ''; position: absolute; left: 14px; right: 14px; bottom: 2px; height: 2px; border-radius: 999px; background: var(--primary); }
+        .analysis-tab.compare-tab,
+        .analysis-tab.target-tab,
+        .analysis-tab.alert-tab { color: var(--text-sub); }
         .analysis-tab-group-label { align-self: center; padding: 7px 10px; font-size: 11px; color: #64748b; font-weight: 800; white-space: nowrap; border: 0; border-left: 1px solid rgba(100,116,139,0.22); background: transparent; border-radius: calc(var(--radius-pill) - 3px); cursor: pointer; transition: all .2s ease; }
         .analysis-tab-group-label:first-child { border-left: 0; }
         .analysis-tab-group-label:hover { color: var(--text-main); background: rgba(255,255,255,0.55); }
         .analysis-tab-group-label.active { color: var(--primary); background: var(--panel-elevated); box-shadow: var(--shadow); }
 
-        .smart-toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 12px; background: rgba(255,255,255,0.94); padding: 8px 16px; border-radius: var(--radius-lg); border: 1px solid var(--border); box-shadow: var(--shadow-sm); position: relative; z-index: var(--z-sticky); overflow: visible; }
-        .smart-toolbar select { width: auto; min-width: 140px; font-weight: 500; border-color: #cbd5e1; }
+        .smart-toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-bottom: 12px; background: rgba(255,255,255,0.94); padding: 8px 16px; border-radius: var(--radius-lg); border: 1px solid var(--border); box-shadow: var(--shadow-sm); position: relative; z-index: var(--z-sticky); overflow: visible; }
+        .smart-toolbar select { width: auto; min-width: 140px; font-weight: 500; border: 1px solid var(--border) !important; color: var(--text-main) !important; background: rgba(255,255,255,0.92) !important; box-shadow: none !important; }
+        .smart-toolbar select:focus { border-color: var(--primary) !important; box-shadow: 0 0 0 3px rgba(0,122,255,0.12) !important; outline: none; }
         .toolbar-group { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; border-left: 1px solid var(--border); padding-left: 15px; margin-left: 5px; position: relative; z-index: var(--z-sticky); overflow: visible; }
         .toolbar-group--flush { border-left: none; padding-left: 0; margin-left: 0; }
-        .toolbar-label { font-size: 12px; color: #475569; font-weight: 800; margin-right: 0; line-height: 1.15; }
+        .toolbar-label { font-size: 12px; color: #475569; font-weight: 800; margin-right: 0; line-height: 1.15; position: relative; display: inline-flex; align-items: center; gap: 4px; }
+        .toolbar-label[data-help]::after { content: '?'; width: 14px; height: 14px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; color: var(--text-hint); border: 1px solid rgba(148,163,184,0.35); font-size: 10px; font-weight: 800; background: rgba(255,255,255,0.72); }
+        .toolbar-label[data-help]::before { content: attr(data-help); position: absolute; left: 0; top: calc(100% + 7px); z-index: var(--z-dropdown); display: none; width: max-content; max-width: 280px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--border); background: rgba(255,255,255,0.98); box-shadow: var(--shadow-lg); color: var(--text-sub); font-size: 12px; line-height: 1.45; font-weight: 600; white-space: normal; }
+        .toolbar-label[data-help]:hover::before { display: block; }
         .toolbar-label-subtitle { display:block; max-width: 260px; margin-top: 2px; color: var(--text-hint); font-size: 10px; font-weight: 600; line-height: 1.25; white-space: normal; }
+        .toolbar-algo-note { display:block; max-width: 230px; color: var(--text-hint); font-size: 12px; line-height: 1.35; font-weight: 500; }
         .toolbar-help { display: none !important; }
         
         /* 极致紧凑版：数据统计栏样式 */
@@ -952,15 +958,12 @@
         .input--soft-primary { width: 180px; border-color: #bfdbfe; }
         .input--brand-purple { width: 240px; border-color: #8b5cf6; }
         .select--full-primary { width: 100%; border-color: var(--primary); color: var(--primary); font-weight: 700; }
-        .toolbar-select { width: auto; min-width: 140px; font-weight: 500; border-color: #cbd5e1; }
+        .toolbar-select { width: auto; min-width: 140px; font-weight: 500; border: 1px solid var(--border) !important; color: var(--text-main) !important; background: rgba(255,255,255,0.92) !important; box-shadow: none !important; }
         .toolbar-toggle { font-weight: 700; }
         .toolbar-group--flush { border-left: none; padding-left: 0; margin-left: 0; }
-        .toolbar-select--amber { border-color: #f59e0b; color: #b45309; }
-        .toolbar-select--violet { border-color: #8b5cf6; color: #6d28d9; }
-        .toolbar-select--primary { border-color: var(--primary); color: var(--primary); }
-        .toolbar-select--warning { background: #fffbeb; border-color: #fde68a; }
-        .toolbar-label--danger { color: #b91c1c; }
-        .toolbar-label--warning { color: #d97706; }
+        .toolbar-label--danger,
+        .toolbar-label--warning,
+        .text-primary { color: #475569 !important; }
         .dialog-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding-bottom: 15px; border-bottom: 1px solid var(--border); }
         .dialog-title { margin: 0; font-size: 18px; color: #1e293b; display: flex; align-items: center; gap: 8px; font-weight: 800; }
         .dialog-note { font-size: 12px; color: var(--text-sub); line-height: 1.5; }
@@ -1775,6 +1778,8 @@
         .compare-advanced-panel { flex-wrap: wrap; gap: 10px; padding: 10px; margin-top: 6px; border: 1px solid var(--border); border-radius: 12px; background: rgba(248,250,252,0.9); }
         .compare-advanced-panel .toolbar-group { display: flex !important; margin: 0; padding-left: 0; border-left: 0; min-width: 150px; }
         .toolbar-toggle-btn { justify-content: center; min-height: 32px; box-shadow: none; }
+        .compare-guide-bubble { position: absolute; right: 12px; top: calc(100% + 8px); z-index: var(--z-dropdown); max-width: 280px; padding: 10px 12px; border: 1px solid rgba(0,122,255,0.22); border-radius: 12px; background: rgba(255,255,255,0.98); color: var(--text-main); box-shadow: var(--shadow-lg); font-size: 12px; line-height: 1.45; animation: fadeIn .18s ease; }
+        .compare-guide-bubble::before { content:''; position:absolute; right: 28px; top: -6px; width: 10px; height: 10px; background: inherit; border-left: 1px solid rgba(0,122,255,0.22); border-top: 1px solid rgba(0,122,255,0.22); transform: rotate(45deg); }
         .compare-phase-shortcut { display: flex; gap: 6px; flex-wrap: wrap; padding: 8px; border-bottom: 1px solid var(--border); background: rgba(248,250,252,0.82); }
         .compare-phase-shortcut button { padding: 3px 7px; min-height: 24px; font-size: 11px; box-shadow: none; }
         .compare-exam-group-title { padding: 8px 10px 4px; font-size: 11px; color: var(--text-hint); font-weight: 800; border-top: 1px solid rgba(100,116,139,0.14); }
@@ -1819,11 +1824,80 @@
         .analysis-top-actions { flex: 1 1 auto; min-width: 0; }
         .analysis-tabs--inline { margin: 0; min-height: 34px; flex: 1 1 auto; max-width: min(680px, 58vw); }
         .analysis-tabs--inline .analysis-tab { padding: 6px 10px; font-size: 12px; }
-        .analysis-tabs--inline::after { content: '→'; display: flex; align-items: center; justify-content: flex-end; color: var(--text-hint); font-weight: 900; font-size: 13px; }
+        @media (min-width: 1280px) {
+            .analysis-tabs--inline { max-width: none; }
+            .analysis-tabs--inline .analysis-tab { flex: 1 1 0; }
+        }
+        .details-tabs--inline {
+            margin: 0;
+            min-height: 34px;
+            flex: 1 1 auto;
+            max-width: none;
+        }
+        .details-top-navbar {
+            gap: 14px;
+            flex-wrap: nowrap;
+        }
+        .details-top-main {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            min-width: 0;
+            flex: 1 1 auto;
+        }
+        .details-top-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex: 0 0 auto;
+        }
+        .details-tabs--inline .analysis-tab {
+            padding: 6px 10px;
+            font-size: 12px;
+            white-space: nowrap;
+        }
+        .details-ai-batch-th {
+            position: relative;
+            cursor: pointer;
+            color: #7c3aed;
+            user-select: none;
+        }
+        .details-ai-batch-th:hover {
+            background: rgba(139, 92, 246, 0.06);
+        }
+        .details-ai-tooltip {
+            position: fixed;
+            left: 0;
+            top: 0;
+            padding: 6px 9px;
+            border-radius: var(--radius-sm);
+            background: rgba(15, 23, 42, 0.88);
+            color: #fff;
+            font-size: 11px;
+            font-weight: 600;
+            line-height: 1;
+            white-space: nowrap;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity .16s ease, transform .16s ease;
+            transform: translate(-50%, -8px);
+            z-index: 9999;
+        }
+        .details-ai-tooltip.is-visible {
+            opacity: 1;
+            transform: translate(-50%, -12px);
+        }
+        @media (min-width: 1280px) {
+            .details-tabs--inline .analysis-tab { flex: 1 1 0; }
+        }
         @media (max-width: 980px) {
             .analysis-top-navbar { align-items: stretch; height: auto; min-height: 56px; padding-top: 8px; padding-bottom: 8px; }
             .analysis-top-actions { width: 100%; }
             .analysis-tabs--inline { order: -1; max-width: 100%; flex-basis: 100%; }
+            .details-top-navbar { flex-wrap: wrap; }
+            .details-top-navbar { align-items: stretch; height: auto; min-height: 56px; padding-top: 8px; padding-bottom: 8px; }
+            .details-top-main, .details-top-actions { width: 100%; flex-wrap: wrap; }
+            .details-tabs--inline { order: 2; max-width: 100%; flex-basis: 100%; }
         }
 
 
@@ -2190,11 +2264,11 @@
                 <div class="top-actions top-actions--push analysis-top-actions">
                     <div class="analysis-tabs analysis-tabs--inline" id="analysis-tabs-container">
                         <div class="analysis-tab active" data-type="overview" data-tab-group="common" title="快速回答：这次考试整体表现如何？" onclick="window.app.ui.switchAnalysisTab('overview')">📊 全景</div>
-                        <div class="analysis-tab compare-tab" data-type="compare" data-tab-group="common" title="快速回答：多次考试之间有什么变化？" onclick="window.app.ui.switchAnalysisTab('compare')">⚔️ 对比</div>
-                        <div class="analysis-tab" data-type="radar" data-tab-group="deep" title="回答：某个学生的题型能力结构如何？" onclick="window.app.ui.switchAnalysisTab('radar')">🎯 雷达</div>
+                        <div class="analysis-tab compare-tab" data-type="compare" data-tab-group="common" title="快速回答：多次考试之间有什么变化？" onclick="window.app.ui.switchAnalysisTab('compare')">🆚 对比</div>
+                        <div class="analysis-tab" data-type="radar" data-tab-group="deep" title="回答：某个学生的题型能力结构如何？" onclick="window.app.ui.switchAnalysisTab('radar')">📡 雷达</div>
                         <div class="analysis-tab" data-type="trend" data-tab-group="deep" title="回答：某个学生或班级成绩是否在进步？" onclick="window.app.ui.switchAnalysisTab('trend')">📈 趋势</div>
-                        <div class="analysis-tab target-tab" data-type="target" data-tab-group="deep" title="回答：学生是否达成了目标分？" onclick="window.app.ui.switchAnalysisTab('target')">✅ 目标</div>
-                        <div class="analysis-tab alert-tab" data-type="borderline" data-tab-group="deep" title="回答：哪些学生最接近及格线或优秀线？" onclick="window.app.ui.switchAnalysisTab('borderline')">⚠️ 临界生</div>
+                        <div class="analysis-tab target-tab" data-type="target" data-tab-group="deep" title="回答：学生是否达成了目标分？" onclick="window.app.ui.switchAnalysisTab('target')">🎯 目标</div>
+                        <div class="analysis-tab alert-tab" data-type="borderline" data-tab-group="deep" title="回答：哪些学生最接近及格线或优秀线？" onclick="window.app.ui.switchAnalysisTab('borderline')">🚨 临界生</div>
                     </div>
                     <button class="secondary" onclick="window.app.ui.exportAnalysisExcel()">📥 导出综合报表</button>
                 </div>
@@ -2206,8 +2280,8 @@
                 <div class="smart-toolbar" id="analysis-toolbar">
 
                     <div id="compare-direction-wrap" class="toolbar-group toolbar-group--flush is-hidden">
-                        <span class="toolbar-label" title="直接选择你想看的对比问题，系统会自动配置维度和默认算法。">对比方向:</span><button type="button" class="toolbar-help" title="直接选择你想看的对比问题，系统会自动配置维度和默认算法。">i</button>
-                        <select id="a-compare-direction" class="toolbar-select toolbar-select--primary" onchange="window.app.ui.handleCompareDirectionChange()">
+                        <span class="toolbar-label" title="直接选择你想看的对比问题，系统会自动配置维度和默认算法。">对比谁？</span>
+                        <select id="a-compare-direction" class="toolbar-select" onchange="window.app.ui.handleCompareDirectionChange()">
                             <option value="class">📊 各班横向对比</option>
                             <option value="campus">🌐 各校区横向对比</option>
                             <option value="cross-grade">📅 各届纵向对比</option>
@@ -2216,21 +2290,21 @@
                     </div>
 
                     <div id="compare-phase-wrap" class="toolbar-group is-hidden">
-                        <span class="toolbar-label" title="跨届同期对比会自动收集该学段下各年级的考试。">同期学段:</span><button type="button" class="toolbar-help" title="跨届同期对比会自动收集该学段下各年级的考试。">i</button>
-                        <select id="a-compare-phase" class="toolbar-select toolbar-select--warning" onchange="window.app.ui.handleComparePhaseChange()"></select>
+                        <span class="toolbar-label" title="跨届同期对比会自动收集该学段下各年级的考试。">看哪个学段？</span>
+                        <select id="a-compare-phase" class="toolbar-select" onchange="window.app.ui.handleComparePhaseChange()"></select>
                     </div>
 
                     <div id="compare-multi-exam-wrap" class="toolbar-group toolbar-group--flush is-hidden">
-                        <span class="toolbar-label toolbar-toggle toolbar-label--danger" title="选择多次考试，用来观察同一批学生或班级随时间的变化。">选择对比考次:</span><button type="button" class="toolbar-help" title="选择多次考试，用来观察同一批学生或班级随时间的变化。">i</button>
+                        <span class="toolbar-label toolbar-toggle toolbar-label--danger" title="选择多次考试，用来观察同一批学生或班级随时间的变化。">用哪些考试？</span>
                         <div class="multi-select toolbar-ms" id="ms-compare-exams-wrap" style="min-width:200px;">
-                            <div class="ms-header" id="ms-compare-exams-header" onclick="window.app.ui.toggleDropdown(this)" style="border-color:#fca5a5; color:#b91c1c;">勾选考试...</div>
+                            <div class="ms-header" id="ms-compare-exams-header" onclick="window.app.ui.toggleDropdown(this)">勾选考试...</div>
                             <div class="ms-panel" id="ms-compare-exams-panel"></div>
                         </div>
                     </div>
                     
                     <div id="compare-dimension-wrap" class="toolbar-group is-hidden">
-                        <span class="toolbar-label" title="决定按班级、年级还是校区汇总对比结果。">对比维度:</span><button type="button" class="toolbar-help" title="决定按班级、年级还是校区汇总对比结果。">i</button>
-                        <select id="a-compare-dim" class="toolbar-select toolbar-select--amber" onchange="window.app.ui.runAnalysis()">
+                        <span class="toolbar-label" title="决定按班级、年级还是校区汇总对比结果。">按什么分组？</span>
+                        <select id="a-compare-dim" class="toolbar-select" onchange="window.app.ui.runAnalysis()">
                             <option value="class">按班级生成 (平行班PK)</option>
                             <option value="grade">按年级生成 (跨代PK)</option>
                             <option value="campus">按校区生成 (集团PK)</option>
@@ -2238,20 +2312,20 @@
                     </div>
 
                     <div id="compare-advanced-wrap" class="toolbar-group is-hidden">
-                        <button type="button" class="secondary toolbar-toggle-btn" id="compare-advanced-toggle" onclick="window.app.ui.toggleCompareAdvanced()">▸ 更多选项</button>
+                        <button type="button" class="secondary toolbar-toggle-btn" id="compare-advanced-toggle" onclick="window.app.ui.toggleCompareAdvanced()">▸ 调整算法 / 范围 / 图表类型</button>
                         <div id="compare-advanced-panel" class="compare-advanced-panel" style="display:none;"></div>
                     </div>
 
                     <div id="compare-chart-type-wrap" class="toolbar-group is-hidden">
-                        <span class="toolbar-label" title="折线适合看趋势，柱状图适合比较某次考试的分差。">图表呈现:</span><button type="button" class="toolbar-help" title="折线适合看趋势，柱状图适合比较某次考试的分差。">i</button>
-                        <select id="a-compare-chart-type" class="toolbar-select toolbar-select--violet" onchange="window.app.ui.runAnalysis()">
+                        <span class="toolbar-label" title="折线适合看趋势，柱状图适合比较某次考试的分差。">怎么看？</span>
+                        <select id="a-compare-chart-type" class="toolbar-select" onchange="window.app.ui.runAnalysis()">
                             <option value="line">折线图 (看长期趋势)</option>
                             <option value="bar">分组柱状图 (看绝对分差)</option>
                         </select>
                     </div>
 
                     <div id="trend-phase-wrap" class="toolbar-group is-hidden">
-                        <span class="toolbar-label" title="限定参与趋势计算的学期范围，适合只看本学年或某一阶段。">对比学期:</span><button type="button" class="toolbar-help" title="限定参与趋势计算的学期范围，适合只看本学年或某一阶段。">i</button>
+                        <span class="toolbar-label" title="限定参与趋势计算的学期范围，适合只看本学年或某一阶段。">看哪个阶段？</span>
                         <div class="multi-select toolbar-ms" id="ms-trend-pha-wrap" style="min-width:140px;">
                             <div class="ms-header" id="ms-trend-pha-header" onclick="window.app.ui.toggleDropdown(this)">全部学期</div>
                             <div class="ms-panel" id="ms-trend-pha-panel"></div>
@@ -2259,18 +2333,19 @@
                     </div>
 
                     <div id="trend-score-toggle-wrap" class="toolbar-group is-hidden">
-                        <span class="toolbar-label toolbar-toggle text-primary" title="原始分看卷面表现；得分率便于不同满分对比；T-标准分用于排除试卷难度看相对位置；均分贡献指数用于观察班级或学生对整体均分的拉动。">数据算法:</span><button type="button" class="toolbar-help" title="原始分看卷面表现；得分率便于不同满分对比；T-标准分用于排除试卷难度看相对位置；均分贡献指数用于观察班级或学生对整体均分的拉动。">i</button>
-                        <select id="a-trend-score-type" class="toolbar-select toolbar-select--primary" onchange="window.app.ui.runAnalysis()">
+                        <span class="toolbar-label toolbar-toggle text-primary" title="原始分看卷面表现；得分率便于不同满分对比；T-标准分用于排除试卷难度看相对位置；均分贡献指数用于观察班级或学生对整体均分的拉动。">用什么分数？</span>
+                        <select id="a-trend-score-type" class="toolbar-select" onchange="window.app.ui._syncScoreAlgorithmNote(); window.app.ui.runAnalysis()">
                             <option value="raw">原始卷面分</option>
                             <option value="pct">得分率 (%)</option>
                             <option value="std">T-标准分 (排除难度看排位)</option>
                             <option value="ratio">均分贡献指数 (评估教学质量)</option>
                         </select>
+                        <small id="score-algo-note" class="toolbar-algo-note">原始分适合看同一张试卷的卷面表现。</small>
                     </div>
                     
                     <div id="baseline-scope-wrap" class="toolbar-group is-hidden">
-                        <span class="toolbar-label toolbar-toggle toolbar-label--warning" title="T-标准分和贡献指数需要参照群体；可选择仅本校区或全部校区作为基准。">计算基准:</span><button type="button" class="toolbar-help" title="T-标准分和贡献指数需要参照群体；可选择仅本校区或全部校区作为基准。">i</button>
-                        <select id="a-baseline-scope" class="toolbar-select toolbar-select--warning" onchange="window.app.ui.runAnalysis()">
+                        <span class="toolbar-label toolbar-toggle toolbar-label--warning" title="T-标准分和贡献指数需要参照群体；可选择仅本校区或全部校区作为基准。">和谁比？</span>
+                        <select id="a-baseline-scope" class="toolbar-select" onchange="window.app.ui.runAnalysis()">
                             <option value="campus">仅使用本校区数据</option>
                             <option value="global">使用全校(含所有校区)数据</option>
                         </select>
@@ -2286,7 +2361,7 @@
                     </div>
 
                     <div id="avg-type-wrap" class="toolbar-group is-hidden">
-                        <span class="toolbar-label" title="柱状图看均分高低，箱线图看班级内部离散度和两极分化。">图表类型:</span><button type="button" class="toolbar-help" title="柱状图看均分高低，箱线图看班级内部离散度和两极分化。">i</button>
+                        <span class="toolbar-label" title="柱状图看均分高低，箱线图看班级内部离散度和两极分化。">怎么看分布？</span>
                         <select id="a-avg-type" onchange="window.app.ui.runAnalysis()">
                             <option value="bar">常规均分柱状图</option>
                             <option value="box">箱线图 (查看班级两极分化)</option>
@@ -2294,7 +2369,7 @@
                     </div>
                     
                     <div id="ms-analysis-container" class="toolbar-group flex-row">
-                        <span class="toolbar-label" title="限定当前图表和明细表使用哪些班级的数据。">筛选班级:</span><button type="button" class="toolbar-help" title="限定当前图表和明细表使用哪些班级的数据。">i</button>
+                        <span class="toolbar-label" title="限定当前图表和明细表使用哪些班级的数据。">筛哪些班？</span>
                         <div class="multi-select toolbar-ms" id="ms-analysis-wrap" style="min-width:140px;">
                             <div class="ms-header" id="ms-analysis-header" onclick="window.app.ui.toggleDropdown(this)">查看所有班级</div>
                             <div class="ms-panel" id="ms-analysis-panel"></div>
@@ -2302,8 +2377,8 @@
                     </div>
 
                     <div id="student-selector-wrap" class="toolbar-group is-hidden" style="border-right:none;">
-                        <span class="toolbar-label" title="选择单个学生后生成个人雷达或趋势视图。">查看特定学生:</span><button type="button" class="toolbar-help" title="选择单个学生后生成个人雷达或趋势视图。">i</button>
-                        <select id="af-stu" class="toolbar-select toolbar-select--violet" onchange="window.app.ui.runAnalysis()"><option value="">点击选择学生...</option></select>
+                        <span class="toolbar-label" title="选择单个学生后生成个人雷达或趋势视图。">看哪个学生？</span>
+                        <select id="af-stu" class="toolbar-select" onchange="window.app.ui.runAnalysis()"><option value="">点击选择学生...</option></select>
                     </div>
                 </div>
                 
@@ -7200,7 +7275,7 @@
                     ];
                     const type = this.store.state.currentAnalysisType || 'overview';
                     const primaryMap = {
-                        compare: ['compare-direction-wrap', 'compare-phase-wrap', 'compare-multi-exam-wrap', 'compare-advanced-wrap'],
+                        compare: ['compare-direction-wrap', 'compare-advanced-wrap'],
                         trend: ['trend-phase-wrap', 'student-selector-wrap'],
                         radar: ['student-selector-wrap'],
                         avg: ['avg-type-wrap'],
@@ -7246,14 +7321,46 @@
                 _enhanceToolbarLabels() {
                     document.querySelectorAll('#analysis-toolbar .toolbar-group').forEach(group => {
                         const label = group.querySelector('.toolbar-label');
-                        if (!label || label.querySelector('.toolbar-label-subtitle')) return;
+                        if (!label) return;
                         const tip = label.getAttribute('title') || group.querySelector('.toolbar-help')?.getAttribute('title') || '';
-                        if (!tip) return;
-                        const sub = document.createElement('small');
-                        sub.className = 'toolbar-label-subtitle';
-                        sub.textContent = tip;
-                        label.appendChild(sub);
+                        if (tip) {
+                            label.dataset.help = tip;
+                            label.removeAttribute('title');
+                        }
+                        group.querySelectorAll('.toolbar-help').forEach(btn => btn.remove());
                     });
+                    this._syncScoreAlgorithmNote();
+                }
+
+                _syncScoreAlgorithmNote() {
+                    const sel = document.getElementById('a-trend-score-type');
+                    const note = document.getElementById('score-algo-note');
+                    if (!sel || !note) return;
+                    const notes = {
+                        raw: '原始分适合看同一张试卷的卷面表现。',
+                        pct: '得分率适合跨满分或跨届考试对比。',
+                        std: 'T-标准分适合排除试卷难度后看相对位置。',
+                        ratio: '均分贡献指数适合观察班级或学生对整体均分的拉动。'
+                    };
+                    note.textContent = notes[sel.value] || notes.raw;
+                }
+
+                _showCompareGuideOnce() {
+                    const key = 'gakuten_compare_toolbar_guide_seen';
+                    try {
+                        if (localStorage.getItem(key) === '1') return;
+                    } catch(e) {}
+                    const toolbar = document.getElementById('analysis-toolbar');
+                    if (!toolbar || document.getElementById('compare-guide-bubble')) return;
+                    const bubble = document.createElement('div');
+                    bubble.id = 'compare-guide-bubble';
+                    bubble.className = 'compare-guide-bubble';
+                    bubble.textContent = '先选「对比谁」，再决定要不要调高级参数。';
+                    toolbar.appendChild(bubble);
+                    try { localStorage.setItem(key, '1'); } catch(e) {}
+                    setTimeout(() => {
+                        try { bubble.remove(); } catch(e) {}
+                    }, 5200);
                 }
 
                 _syncTrendPredictIcon() {
@@ -7323,6 +7430,10 @@
                         
                         const dirSel = document.getElementById('a-compare-direction');
                         if (dirSel && this.store.state.compareDirection) dirSel.value = this.store.state.compareDirection;
+                        const advPanel = document.getElementById('compare-advanced-panel');
+                        const advToggle = document.getElementById('compare-advanced-toggle');
+                        if (advPanel) advPanel.style.display = 'none';
+                        if (advToggle) advToggle.textContent = '▸ 调整算法 / 范围 / 图表类型';
                         this.updateComparePhaseSelect();
                         this._syncCompareDirectionUI();
                         this.updateCompareExamsMultiSelect();
@@ -7364,6 +7475,7 @@
                             const hasVisibleGroup = Array.from(toolbar.querySelectorAll('.toolbar-group')).some(g => g.style.display !== 'none');
                             toolbar.style.display = hasVisibleGroup ? '' : 'none';
                             this._syncToolbarMoreMenu();
+                            if (type === 'compare') this._showCompareGuideOnce();
                         }
                     } catch (e) {}
 
@@ -7613,15 +7725,15 @@
                     const chartWrap = document.getElementById('compare-chart-type-wrap');
                     const scoreWrap = document.getElementById('trend-score-toggle-wrap');
                     const baselineWrap = document.getElementById('baseline-scope-wrap');
-                    if (advancedPanel) {
-                        [chartWrap, scoreWrap, baselineWrap].forEach(el => {
-                            if (el && el.parentElement !== advancedPanel) advancedPanel.appendChild(el);
-                        });
-                    }
                     const phaseWrap = document.getElementById('compare-phase-wrap');
                     const examWrap = document.getElementById('compare-multi-exam-wrap');
                     const dimWrap = document.getElementById('compare-dimension-wrap');
                     const clsWrap = document.getElementById('ms-analysis-container');
+                    if (advancedPanel) {
+                        [phaseWrap, examWrap, dimWrap, chartWrap, scoreWrap, baselineWrap, clsWrap].forEach(el => {
+                            if (el && el.parentElement !== advancedPanel) advancedPanel.appendChild(el);
+                        });
+                    }
                     const advancedWrap = document.getElementById('compare-advanced-wrap');
                     const dimSel = document.getElementById('a-compare-dim');
                     const scoreSel = document.getElementById('a-trend-score-type');
@@ -7641,6 +7753,7 @@
                     if (scoreWrap) scoreWrap.style.display = 'flex';
                     if (baselineWrap) baselineWrap.style.display = baselineNeeds ? 'flex' : 'none';
                     if (dimSel) dimSel.disabled = false;
+                    this._syncScoreAlgorithmNote();
                 }
 
                 handleCompareDirectionChange() {
@@ -7683,7 +7796,7 @@
                     if (!panel) return;
                     const isOpen = panel.style.display !== 'none';
                     panel.style.display = isOpen ? 'none' : 'flex';
-                    if (btn) btn.textContent = isOpen ? '▸ 更多选项' : '▾ 收起选项';
+                    if (btn) btn.textContent = isOpen ? '▸ 调整算法 / 范围 / 图表类型' : '▾ 收起高级参数';
                 }
 
                 updateTrendPhaseMultiSelect() {
@@ -8450,7 +8563,30 @@
                     }
                 }
 
+                showDetailsAiHint(event) {
+                    let tip = document.getElementById('details-ai-tooltip');
+                    if (!tip) {
+                        tip = document.createElement('div');
+                        tip.id = 'details-ai-tooltip';
+                        tip.className = 'details-ai-tooltip';
+                        tip.textContent = '点击批量生成评语';
+                        document.body.appendChild(tip);
+                    }
+                    const rect = event && event.currentTarget ? event.currentTarget.getBoundingClientRect() : null;
+                    const x = rect ? rect.left + rect.width / 2 : (event ? event.clientX : window.innerWidth / 2);
+                    const y = rect ? rect.top : (event ? event.clientY : 0);
+                    tip.style.left = `${x}px`;
+                    tip.style.top = `${Math.max(12, y)}px`;
+                    tip.classList.add('is-visible');
+                }
+
+                hideDetailsAiHint() {
+                    const tip = document.getElementById('details-ai-tooltip');
+                    if (tip) tip.classList.remove('is-visible');
+                }
+
                 async batchGenerateAIComments() {
+                    this.hideDetailsAiHint();
                     const batchBtn = document.getElementById('btn-batch-ai');
                     const container = document.getElementById('view-details');
                     if (!container) return;
@@ -11524,16 +11660,20 @@
                     const currentTab = this.store.state.currentDetailsTab || 'score';
 
                     const html = `
-    <div class="top-navbar" style="display: flex; justify-content: space-between; align-items: center; padding-right: 20px;">
-        <div class="page-title"><span>📋</span> 学生成绩详情</div>
-        <div style="display:flex; align-items:center; gap:16px;">
-            <input type="text" id="details-search-student" placeholder="🔍 搜索学生姓名或拼音..." style="width:160px; border-color:#bfdbfe;" oninput="window.app.ui.searchStudentInDetails(this.value)">
-            <div style="font-size:13px; color:var(--text-sub); font-weight:normal; background:rgba(0,0,0,0.05); padding:5px 12px; border-radius:14px;">
-                当前：<b style="color:var(--primary);">${Utils.escapeHTML(exam.name || '')}</b> <span style="margin:0 6px;opacity:0.3;">|</span> 共 ${scoreRows.length} 条记录
+    <div class="top-navbar details-top-navbar" style="display: flex; justify-content: space-between; align-items: center; padding-right: 20px;">
+        <div class="details-top-main">
+            <div class="page-title" style="flex:0 0 auto;"><span>📋</span> 学生成绩详情</div>
+            <div class="analysis-tabs details-tabs--inline">
+                <div class="analysis-tab ${currentTab === 'score' ? 'active' : ''}" onclick="window.app.ui.switchDetailsTab('score')">成绩数据明细</div>
+                <div class="analysis-tab ${currentTab === 'avg' ? 'active' : ''}" onclick="window.app.ui.switchDetailsTab('avg')">班级均分明细</div>
+                <div class="analysis-tab ${currentTab === 'rate' ? 'active' : ''}" onclick="window.app.ui.switchDetailsTab('rate')">题型得分率明细</div>
+                <div class="analysis-tab ${currentTab === 'segment' ? 'active' : ''}" onclick="window.app.ui.switchDetailsTab('segment')">分段统计概览</div>
+                <div class="analysis-tab ${currentTab === 'target' ? 'active' : ''}" onclick="window.app.ui.switchDetailsTab('target')">目标达成情况</div>
+                <div class="analysis-tab ${currentTab === 'borderline' ? 'active' : ''}" onclick="window.app.ui.switchDetailsTab('borderline')">临界生重点关注</div>
             </div>
-            <button class="secondary" id="btn-batch-ai" onclick="window.app.ui.batchGenerateAIComments()" style="padding: 6px 14px; border-radius: var(--radius-sm); border: none; background: rgba(139,92,246,0.1); color: #8b5cf6; font-weight: 600; cursor: pointer; transition: all 0.2s; display:flex; align-items:center; gap:6px;">
-                ✨ 批量生成评语
-            </button>
+        </div>
+        <div class="details-top-actions">
+            <input type="text" id="details-search-student" placeholder="🔍 搜索学生姓名或拼音..." style="width:160px; border-color:#bfdbfe;" oninput="window.app.ui.searchStudentInDetails(this.value)">
             <button class="secondary" onclick="window.app.ui.exportDetailsToExcel('${Utils.escapeHTML(exam.name || '考试成绩')}')" style="padding: 6px 14px; border-radius: var(--radius-sm); border: none; background: rgba(0,122,255,0.1); color: var(--primary); font-weight: 600; cursor: pointer; transition: all 0.2s; display:flex; align-items:center; gap:6px;">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                 导出表格
@@ -11542,15 +11682,6 @@
     </div>
     <div class="content-body">
         <div style="display:flex; flex-direction:column; gap:12px; padding:2px 0 14px;">
-            <div class="analysis-tabs" style="margin-bottom: 4px;">
-                <div class="analysis-tab ${currentTab === 'score' ? 'active' : ''}" onclick="window.app.ui.switchDetailsTab('score')">成绩数据明细</div>
-                <div class="analysis-tab ${currentTab === 'avg' ? 'active' : ''}" onclick="window.app.ui.switchDetailsTab('avg')">班级均分明细</div>
-                <div class="analysis-tab ${currentTab === 'rate' ? 'active' : ''}" onclick="window.app.ui.switchDetailsTab('rate')">题型得分率明细</div>
-                <div class="analysis-tab ${currentTab === 'segment' ? 'active' : ''}" onclick="window.app.ui.switchDetailsTab('segment')">分段统计概览</div>
-                <div class="analysis-tab ${currentTab === 'target' ? 'active' : ''}" onclick="window.app.ui.switchDetailsTab('target')">目标达成情况</div>
-                <div class="analysis-tab ${currentTab === 'borderline' ? 'active' : ''}" onclick="window.app.ui.switchDetailsTab('borderline')">临界生重点关注</div>
-            </div>
-
             <div class="card" style="padding:14px 16px; margin-bottom:0; display: ${currentTab === 'score' ? 'block' : 'none'};">
                 <h3 style="margin:0 0 10px 0; display:flex; align-items:center;">
                     成绩数据明细表
@@ -11563,7 +11694,7 @@
                 </h3>
                 <div class="table-scroll-container" style="max-height:none;">
                     <table style="width:100%; border-collapse:separate; border-spacing:0; background:var(--bg-secondary);">
-                        <thead><tr><th>排名</th><th>姓名</th><th>校区</th><th>日语班</th><th>行政班</th>${(exam.types || []).map(t => `<th>${Utils.escapeHTML(t.name)}</th>`).join('')}<th>总分</th><th style="width:80px;">AI 诊断</th></tr></thead>
+                        <thead><tr><th>排名</th><th>姓名</th><th>校区</th><th>日语班</th><th>行政班</th>${(exam.types || []).map(t => `<th>${Utils.escapeHTML(t.name)}</th>`).join('')}<th>总分</th><th id="btn-batch-ai" class="details-ai-batch-th" style="width:86px;" tabindex="0" onmouseenter="window.app.ui.showDetailsAiHint(event)" onfocus="window.app.ui.showDetailsAiHint(event)" onmouseleave="window.app.ui.hideDetailsAiHint()" onblur="window.app.ui.hideDetailsAiHint()" onclick="window.app.ui.batchGenerateAIComments()">AI 诊断</th></tr></thead>
                         <tbody>${scoreRowsHtml}</tbody>
                     </table>
                 </div>
