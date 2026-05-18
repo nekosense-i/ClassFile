@@ -60,7 +60,7 @@
             if (window.__gakutenEChartsThemePatched) return;
             window.__gakutenEChartsThemePatched = true;
 
-            const THEME_COLORS = ['#0072B2','#009E73','#E69F00','#D55E00','#CC79A7','#56B4E9','#7C3AED','#64748B'];
+            const THEME_COLORS = ['#007aff','#16a34a','#2563eb','#d97706','#dc2626','#af52de','#5ac8fa','#64748b'];
             const TOOLTIP_THEME = {
                 backgroundColor: 'rgba(28,28,30,0.85)',
                 borderColor: 'rgba(255,255,255,0.1)',
@@ -480,12 +480,30 @@
             --text-main: #1c1c1e;
             --text-sub: #6c6c70;
             --text-hint: #aeaeb2;
+            --text-strong: #0f172a;
+            --text-body: #1c1c1e;
+            --text-muted: #64748b;
+            --text-faint: #94a3b8;
+            --surface-1: #ffffff;
+            --surface-2: #f8fafc;
+            --surface-3: #f1f5f9;
+            --line: rgba(15,23,42,0.08);
+            --line-strong: rgba(15,23,42,0.16);
+            --accent: #007aff;
+            --accent-soft: rgba(0,122,255,0.10);
+            --success-soft: rgba(52,199,89,0.10);
+            --warning-soft: rgba(255,149,0,0.10);
+            --danger-soft: rgba(255,59,48,0.10);
             --primary: #007aff;
             --primary-hover: #0062cc;
             --primary-soft: rgba(0,122,255,0.10);
             --success: #34c759;
             --danger: #ff3b30;
             --warning: #ff9500;
+            --score-excellent: #16a34a;
+            --score-good: #2563eb;
+            --score-pass: #d97706;
+            --score-fail: #dc2626;
             --purple: #af52de;
             --teal: #5ac8fa;
             --border: rgba(60,60,67,0.13);
@@ -498,6 +516,9 @@
             --shadow: 0 2px 8px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.05);
             --shadow-lg: 0 8px 30px rgba(0,0,0,0.10), 0 2px 8px rgba(0,0,0,0.06);
             --shadow-float: 0 20px 60px rgba(0,0,0,0.15), 0 4px 16px rgba(0,0,0,0.08);
+            --motion-fast: 120ms;
+            --motion-base: 200ms;
+            --motion-slow: 320ms;
             --z-base: 1;
             --z-sticky: 100;
             --z-dropdown: 200;
@@ -509,7 +530,7 @@
         }
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif; }
         body {
-            background: radial-gradient(ellipse at 20% 20%, rgba(0,122,255,0.06) 0%, transparent 50%), radial-gradient(ellipse at 80% 80%, rgba(175,82,222,0.05) 0%, transparent 50%), radial-gradient(ellipse at 60% 10%, rgba(52,199,89,0.04) 0%, transparent 40%), #f2f2f7;
+            background: radial-gradient(ellipse at 12% 8%, rgba(0,122,255,0.045) 0%, transparent 42%), radial-gradient(ellipse at 88% 92%, rgba(175,82,222,0.035) 0%, transparent 44%), var(--bg);
             color: var(--text-main);
             display: flex;
             height: 100vh;
@@ -523,20 +544,22 @@
         ::-webkit-scrollbar-thumb { background: rgba(174,174,178,0.7); border-radius: 999px; border: 2px solid transparent; background-clip: padding-box; }
         ::-webkit-scrollbar-thumb:hover { background: rgba(120,120,128,0.85); background-clip: padding-box; }
         
-        .sidebar { width: 260px; background: rgba(242,242,247,0.85); backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px); border-right: 1px solid var(--border); display: flex; flex-direction: column; height: 100vh; overflow: visible; z-index: var(--z-sidebar); box-shadow: none; transition: width 0.3s ease, background 0.3s ease, box-shadow 0.3s ease, backdrop-filter 0.3s ease; }
+        .sidebar { width: 260px; background: rgba(242,242,247,0.85); backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px); border-right: 1px solid var(--border); display: flex; flex-direction: column; height: 100vh; overflow: visible; z-index: var(--z-sidebar); box-shadow: none; transition: width var(--motion-slow) ease, background var(--motion-slow) ease, box-shadow var(--motion-slow) ease, backdrop-filter var(--motion-slow) ease; }
         .logo-area { padding: 14px 10px 10px; }
         .logo { font-size: 22px; font-weight: 800; color: var(--primary); letter-spacing: -0.5px; display: flex; align-items: center; gap: 8px; }
         
         .nav-menu { padding: 6px 10px 4px; }
-        .nav-item { padding: 8px 10px; margin-bottom: 2px; cursor: pointer; border-radius: var(--radius); color: var(--text-sub); transition: all 0.25s ease; font-weight: 600; display: flex; align-items: center; gap: 8px; }
-        .nav-item:hover { background: rgba(255,255,255,0.68); color: var(--text-main); transform: translateX(2px); }
+        .nav-item { padding: 8px 10px 8px 14px; margin-bottom: 2px; cursor: pointer; border-radius: var(--radius); color: var(--text-sub); transition: background var(--motion-base) ease, color var(--motion-base) ease; font-weight: 600; display: flex; align-items: center; gap: 8px; position: relative; }
+        .nav-item::before { content: ''; position: absolute; left: 4px; top: 9px; bottom: 9px; width: 2px; border-radius: 999px; background: var(--primary); opacity: 0; transition: opacity var(--motion-base) ease; }
+        .nav-item:hover { background: rgba(255,255,255,0.68); color: var(--text-main); }
+        .nav-item:hover::before { opacity: 1; }
         .nav-item.active { background: var(--primary); color: #fff; border-radius: var(--radius); border-left: none; }
-        .auth-lock-note { display:none; margin-bottom: 8px; font-size: 11px; color: #854d0e; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 6px 8px; }
+        .auth-lock-note { display:none; margin-bottom: 8px; font-size: 11px; color: var(--score-pass); background: var(--warning-soft); border: 1px solid rgba(255,149,0,0.22); border-radius: 8px; padding: 6px 8px; }
         .danger-zone summary, .guide-box summary { cursor: pointer; user-select: none; font-size: 11px; color: var(--text-sub); font-weight: 700; padding: 6px 8px; background: rgba(0,0,0,0.03); border-radius: 8px; }
         .danger-zone { margin-top: 8px; }
         .danger-zone summary { color: var(--danger); background: rgba(255,59,48,0.06); border: 1px solid rgba(255,59,48,0.14); }
 
-        .global-engine { flex: 1; padding: 8px 10px 6px; overflow-y: auto; overflow-x: visible; border-top: 1px solid var(--border); background: transparent; display: flex; min-height: 180px; position: relative; transition: box-shadow 0.22s ease; }
+        .global-engine { flex: 1; padding: 8px 10px 6px; overflow-y: auto; overflow-x: visible; border-top: 1px solid var(--border); background: transparent; display: flex; min-height: 180px; position: relative; transition: box-shadow var(--motion-base) ease; }
         .global-engine.scrolled-top { box-shadow: inset 0 12px 14px -16px rgba(15,23,42,0.28); }
         .global-engine.scrolled-bottom { box-shadow: inset 0 -12px 14px -16px rgba(15,23,42,0.24); }
         .global-engine.scrolled-top.scrolled-bottom { box-shadow: inset 0 12px 14px -16px rgba(15,23,42,0.28), inset 0 -12px 14px -16px rgba(15,23,42,0.24); }
@@ -548,21 +571,20 @@
         
         .sidebar-bottom { margin-top: auto; padding: 8px 10px 10px; border-top: 1px solid var(--border); background: rgba(242,242,247,0.92); display: flex; flex-direction: column; gap: 7px; position: relative; z-index: var(--z-sidebar); flex-shrink: 0; }
         .sidebar-logout-link { justify-content: center; width: 100%; padding: 6px 0; background: transparent; border: 0; box-shadow: none; color: var(--text-sub); font-size: 12px; font-weight: 700; }
-        .sidebar-logout-link:hover { color: var(--danger); background: rgba(255,59,48,0.05); transform: none; box-shadow: none; }
+        .sidebar-logout-link:hover { color: var(--danger); background: var(--danger-soft); transform: none; box-shadow: none; }
         body.auth-locked { overflow: hidden; }
         body.auth-locked > :not(#auth-overlay) { visibility: hidden !important; pointer-events: none !important; }
         #auth-overlay { position: fixed; inset: 0; z-index: var(--z-auth); display: flex; align-items: center; justify-content: center; padding: 24px; pointer-events: auto; isolation: isolate; background:
-            radial-gradient(circle at 18% 18%, rgba(0,122,255,0.18), transparent 28%),
-            radial-gradient(circle at 78% 16%, rgba(52,199,89,0.12), transparent 26%),
-            radial-gradient(circle at 70% 78%, rgba(255,149,0,0.10), transparent 30%),
-            linear-gradient(180deg, rgba(242,242,247,0.96), rgba(255,255,255,0.9)); overflow: hidden; }
+            radial-gradient(ellipse at 14% 12%, rgba(0,122,255,0.08), transparent 40%),
+            radial-gradient(ellipse at 86% 88%, rgba(175,82,222,0.055), transparent 42%),
+            var(--bg); overflow: hidden; }
         #auth-overlay::before,
         #auth-overlay::after { content: ''; position: absolute; inset: 0; pointer-events: none; background-repeat: no-repeat; animation: authFloat 12s ease-in-out infinite alternate; }
-        #auth-overlay::before { background-image: radial-gradient(circle, rgba(0,122,255,0.10) 0 34px, transparent 35px), radial-gradient(circle, rgba(52,199,89,0.08) 0 24px, transparent 25px), linear-gradient(135deg, rgba(0,122,255,0.08), rgba(255,255,255,0.02)); background-size: 220px 220px, 180px 180px, 74px 74px; background-position: 9% 22%, 86% 66%, 78% 28%; opacity: .9; }
-        #auth-overlay::after { background-image: linear-gradient(45deg, rgba(100,116,139,0.08), transparent), linear-gradient(45deg, rgba(0,122,255,0.07), transparent), radial-gradient(circle, rgba(255,149,0,0.08) 0 28px, transparent 29px); background-size: 88px 88px, 56px 56px, 150px 150px; background-position: 16% 72%, 88% 22%, 42% 12%; animation-duration: 16s; opacity: .7; }
-        .auth-card { position: relative; z-index: 2; width: min(430px, 100%); background: rgba(255,255,255,0.78); border: 1px solid rgba(255,255,255,0.72); border-radius: 24px; box-shadow: 0 28px 90px rgba(15, 23, 42, 0.20), inset 0 1px 0 rgba(255,255,255,0.76); padding: 30px 28px 22px; backdrop-filter: saturate(180%) blur(28px); -webkit-backdrop-filter: saturate(180%) blur(28px); pointer-events: auto; }
+        #auth-overlay::before { background-image: radial-gradient(circle, rgba(0,122,255,0.08) 0 34px, transparent 35px), linear-gradient(135deg, rgba(100,116,139,0.06), rgba(255,255,255,0.02)); background-size: 220px 220px, 74px 74px; background-position: 9% 22%, 78% 28%; opacity: .55; }
+        #auth-overlay::after { background-image: linear-gradient(45deg, rgba(100,116,139,0.06), transparent), linear-gradient(45deg, rgba(0,122,255,0.045), transparent); background-size: 88px 88px, 56px 56px; background-position: 16% 72%, 88% 22%; animation-duration: 16s; opacity: .45; }
+        .auth-card { position: relative; z-index: 2; width: min(430px, 100%); background: rgba(255,255,255,0.78); border: 1px solid rgba(255,255,255,0.72); border-radius: 24px; box-shadow: var(--shadow-lg), inset 0 1px 0 rgba(255,255,255,0.76); padding: 30px 28px 22px; backdrop-filter: saturate(180%) blur(28px); -webkit-backdrop-filter: saturate(180%) blur(28px); pointer-events: auto; }
         .auth-brand { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-bottom: 18px; }
-        .auth-logo { width: 58px; height: 58px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 28px; background: rgba(255,255,255,0.72); border: 1px solid rgba(0,122,255,0.22); box-shadow: 0 10px 28px -18px rgba(0,122,255,0.9), inset 0 0 0 7px rgba(0,122,255,0.06); position: relative; }
+        .auth-logo { width: 58px; height: 58px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 28px; background: rgba(255,255,255,0.72); border: 1px solid rgba(0,122,255,0.22); box-shadow: var(--shadow-sm), inset 0 0 0 7px rgba(0,122,255,0.06); position: relative; }
         .auth-logo::after { content: ''; position: absolute; inset: -6px; border-radius: 50%; border: 1px solid rgba(0,122,255,0.26); border-left-color: transparent; border-bottom-color: transparent; animation: authLogoOrbit 5s linear infinite; }
         .auth-title { font-size: 22px; font-weight: 850; color: var(--text-main); text-align: center; margin-bottom: 0; letter-spacing: 0; }
         .auth-subtitle { font-size: 13px; color: var(--text-sub); text-align: center; line-height: 1.6; margin-bottom: 18px; }
@@ -570,12 +592,12 @@
         .auth-password-wrap { position: relative; z-index: 3; }
         .auth-input { width: 100%; font-size: 14px; padding: 13px 44px 13px 14px; border-radius: 14px; background: rgba(255,255,255,0.88); position: relative; z-index: 1; pointer-events: auto; user-select: text; -webkit-user-select: text; }
         .auth-eye-btn { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); width: 34px; height: 34px; padding: 0; justify-content: center; border-radius: 10px; background: transparent; color: var(--text-hint); border: 0; box-shadow: none; z-index: 2; }
-        .auth-eye-btn:hover { transform: translateY(-50%); background: rgba(0,122,255,0.08); color: var(--primary); box-shadow: none; }
+        .auth-eye-btn:hover { transform: translateY(-50%); background: var(--accent-soft); color: var(--primary); box-shadow: none; }
         .auth-eye-btn svg { width: 18px; height: 18px; }
         .auth-btn { width: 100%; justify-content: center; padding: 13px 16px; border-radius: 14px; font-size: 14px; font-weight: 800; min-height: 46px; }
         .auth-btn.is-loading { opacity: .72; cursor: wait; }
         .auth-error { display: none; color: var(--danger); background: rgba(255, 59, 48, 0.08); border: 1px solid rgba(255, 59, 48, 0.16); border-radius: 12px; padding: 10px 12px; font-size: 13px; text-align: center; margin-top: 0; }
-        .auth-error.shake { animation: authShake .34s cubic-bezier(.36,.07,.19,.97); }
+        .auth-error.shake { animation: authShake var(--motion-slow) cubic-bezier(.36,.07,.19,.97); }
         .auth-footnote { margin-top: 16px; text-align: center; color: var(--text-hint); font-size: 12px; }
         @keyframes authFloat { from { transform: translate3d(-8px, -6px, 0) rotate(-1deg); } to { transform: translate3d(10px, 8px, 0) rotate(1deg); } }
         @keyframes authLogoOrbit { to { transform: rotate(360deg); } }
@@ -584,23 +606,23 @@
         .main-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: var(--bg); position: relative;}
         
         .view-section { display: none; flex-direction: column; flex: 1; overflow: hidden; height: 100%; transform-origin: 50% 18%; }
-        .view-section.active { display: flex; animation: pageSpringIn 0.32s cubic-bezier(0.16, 1, 0.3, 1); }
+        .view-section.active { display: flex; animation: pageSpringIn var(--motion-slow) cubic-bezier(0.16, 1, 0.3, 1); }
         
-        .top-navbar { height: 56px; background: rgba(242,242,247,0.96); display: flex; align-items: center; justify-content: space-between; padding: 0 30px; flex-shrink: 0; position: relative; z-index: var(--z-sticky); overflow: visible; border-bottom: 1px solid var(--border); box-shadow: none; transition: background 0.3s ease, box-shadow 0.3s ease, backdrop-filter 0.3s ease; }
-        .top-navbar.scrolled { box-shadow: 0 4px 16px rgba(0,0,0,0.06); background: rgba(242,242,247,0.88); backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px); }
+        .top-navbar { height: 56px; background: rgba(242,242,247,0.96); display: flex; align-items: center; justify-content: space-between; padding: 0 30px; flex-shrink: 0; position: relative; z-index: var(--z-sticky); overflow: visible; border-bottom: 1px solid var(--border); box-shadow: none; transition: background var(--motion-slow) ease, box-shadow var(--motion-slow) ease, backdrop-filter var(--motion-slow) ease; }
+        .top-navbar.scrolled { box-shadow: var(--shadow-sm); background: rgba(242,242,247,0.88); backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px); }
         .page-title { font-size: 18px; font-weight: 800; color: var(--text-main); display: flex; align-items: center; gap: 8px;}
         .top-actions { display: flex; gap: 10px; align-items: center; }
         
         .content-body { flex: 1; overflow-y: auto; padding: 16px 28px; scroll-behavior: smooth; position: relative;}
         
-        button { background: linear-gradient(180deg, rgba(0,122,255,0.98), rgba(0,98,204,0.98)); color: white; border: 1px solid rgba(255,255,255,0.18); padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1), background 0.22s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.22s cubic-bezier(0.16, 1, 0.3, 1); display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 1px 3px rgba(0,122,255,0.3), inset 0 1px 0 rgba(255,255,255,0.15); }
-        button:hover { background: linear-gradient(180deg, rgba(0,122,255,1), rgba(0,98,204,1)); transform: translateY(-1px); box-shadow: 0 4px 10px -4px rgba(0,122,255,0.30), 0 14px 24px -16px rgba(15,23,42,0.22); }
-        button:active { transform: translateY(0) scale(0.95); }
+        button { background: linear-gradient(180deg, rgba(0,122,255,0.98), rgba(0,98,204,0.98)); color: white; border: 1px solid rgba(255,255,255,0.18); padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; transition: transform var(--motion-fast) cubic-bezier(0.16, 1, 0.3, 1), box-shadow var(--motion-base) cubic-bezier(0.16, 1, 0.3, 1), background var(--motion-base) cubic-bezier(0.16, 1, 0.3, 1), border-color var(--motion-base) cubic-bezier(0.16, 1, 0.3, 1); display: inline-flex; align-items: center; gap: 6px; box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255,255,255,0.15); }
+        button:hover { background: linear-gradient(180deg, rgba(0,122,255,1), rgba(0,98,204,1)); transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+        button:active { transform: translateY(0) scale(0.98); }
         .nav-item:active,
         .analysis-tab:active,
         .ms-header:active,
         .tree-summary:active,
-        .campus-tag-label:active { transform: scale(0.95); }
+        .campus-tag-label:active { transform: scale(0.98); }
         button.secondary { background: rgba(255,255,255,0.75); color: var(--text-main); border: 1px solid var(--border); box-shadow: var(--shadow-sm); }
         button.secondary:hover { background: rgba(255,255,255,0.92); color: var(--text-main); border-color: var(--border-strong); }
         button.danger { background: rgba(255,59,48,0.10); color: var(--danger); border: 1px solid rgba(255,59,48,0.18); box-shadow: none; }
@@ -608,16 +630,16 @@
         button.success { background: var(--success); }
         button.success:hover { background: #059669; }
 
-        input, select { padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; background: rgba(255,255,255,0.94); color: var(--text-main); outline: none; font-size: 13px; transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1), background 0.22s cubic-bezier(0.16, 1, 0.3, 1); width: 100%; box-shadow: inset 0 1px 2px rgba(0,0,0,0.01); }
-        input:focus, select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(0,122,255,0.12); }
-        input:disabled { opacity: 0.55; cursor: not-allowed; background: #f1f5f9; color: #94a3b8; }
+        input, select { padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; background: rgba(255,255,255,0.94); color: var(--text-main); outline: none; font-size: 13px; transition: border-color var(--motion-base) cubic-bezier(0.16, 1, 0.3, 1), box-shadow var(--motion-base) cubic-bezier(0.16, 1, 0.3, 1), background var(--motion-base) cubic-bezier(0.16, 1, 0.3, 1), color var(--motion-base) cubic-bezier(0.16, 1, 0.3, 1); width: 100%; box-shadow: inset 0 1px 2px rgba(0,0,0,0.01); }
+        input:focus, select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--accent-soft); }
+        input:disabled { opacity: 0.55; cursor: not-allowed; background: var(--surface-3); color: var(--text-faint); }
         .search-with-status { display: inline-flex; align-items: center; gap: 6px; }
-        .pinyin-status-dot { width: 8px; height: 8px; border-radius: 999px; display: inline-block; background: #cbd5e1; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.08); flex: 0 0 auto; }
-        .pinyin-status-dot.ready { background: #34c759; box-shadow: 0 0 0 3px rgba(52,199,89,0.12); }
+        .pinyin-status-dot { width: 8px; height: 8px; border-radius: 999px; display: inline-block; background: var(--line-strong); box-shadow: inset 0 0 0 1px var(--line); flex: 0 0 auto; }
+        .pinyin-status-dot.ready { background: var(--success); box-shadow: 0 0 0 3px var(--success-soft); }
         .storage-warning-bar { margin: 10px 0; padding: 12px 14px; border: 1px solid #fed7aa; background: #fff7ed; color: #9a3412; border-radius: 10px; display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13px; }
         .storage-warning-bar .storage-warning-actions { display: flex; gap: 8px; flex-wrap: wrap; }
         .storage-usage-meter { height: 8px; border-radius: 999px; background: #e5e7eb; overflow: hidden; margin-top: 6px; }
-        .storage-usage-meter span { display: block; height: 100%; width: 0%; background: linear-gradient(90deg, #34c759, #ff9500); transition: width 0.2s ease; }
+        .storage-usage-meter span { display: block; height: 100%; width: 0%; background: linear-gradient(90deg, var(--success), var(--warning)); transition: width var(--motion-base) ease; }
         .tag-editor-chips { display: flex; flex-wrap: wrap; gap: 8px; min-height: 36px; padding: 8px; border: 1px solid var(--border); border-radius: 10px; background: #f8fafc; }
         .tag-editor-chip { border: 1px solid #bfdbfe; background: #eff6ff; color: var(--primary); padding: 4px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; cursor: pointer; }
         .toolbar-help { display: none !important; }
@@ -630,10 +652,10 @@
         .settings-panel { display: none; }
         .settings-panel.active { display: flex; flex-direction: column; gap: 10px; }
         
-        .card { background: rgba(255,255,255,0.94); border-radius: var(--radius-lg); box-shadow: var(--shadow); padding: 20px; margin-bottom: 12px; border: 0.5px solid var(--border); transition: box-shadow 0.2s ease, background 0.2s ease; }
+        .card { background: rgba(255,255,255,0.94); border-radius: var(--radius-lg); box-shadow: var(--shadow); padding: 20px; margin-bottom: 12px; border: 0.5px solid var(--border); transition: box-shadow var(--motion-base) ease, background var(--motion-base) ease; }
         .card:hover { box-shadow: var(--shadow); }
         
-        .table-scroll-container { max-height: 65vh; overflow: auto; border-radius: 8px; border: 1px solid var(--border); box-shadow: inset 0 0 0 1px rgba(0,0,0,0.02); transition: box-shadow 0.22s ease; }
+        .table-scroll-container { max-height: 65vh; overflow: auto; border-radius: 8px; border: 1px solid var(--border); box-shadow: inset 0 0 0 1px rgba(0,0,0,0.02); transition: box-shadow var(--motion-base) ease; }
         .table-scroll-container.is-scrolled-x { box-shadow: inset 14px 0 16px -18px rgba(15,23,42,0.15), inset 0 0 0 1px rgba(0,0,0,0.02); }
         .table-scroll-container.is-scrolled-y { box-shadow: inset 0 14px 16px -18px rgba(15,23,42,0.15), inset 0 0 0 1px rgba(0,0,0,0.02); }
         .table-scroll-container.is-scrolled-x.is-scrolled-y { box-shadow: inset 14px 0 16px -18px rgba(15,23,42,0.15), inset 0 14px 16px -18px rgba(15,23,42,0.15), inset 0 0 0 1px rgba(0,0,0,0.02); }
@@ -643,11 +665,11 @@
 
         table { width: 100%; border-collapse: separate; border-spacing: 0; background: var(--bg-secondary); }
         th, td { padding: 10px 10px; text-align: center; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); }
-        .search-highlight { background: rgba(255,204,0,0.25) !important; transition: background 0.3s; }
+        .search-highlight { background: rgba(255,204,0,0.25) !important; transition: background var(--motion-slow); }
 
         /* Analysis table adjustments */
         #analysis-table-area th, #analysis-table-area td { padding: 8px 10px; }
-        #analysis-table-area th { font-size: 12px; color: #475569; font-weight: 600; letter-spacing: 0.02em; text-transform: none; user-select: none; }
+        #analysis-table-area th { font-size: 12px; color: var(--text-muted); font-weight: 600; letter-spacing: 0.02em; text-transform: none; user-select: none; }
         /* Numeric score columns right-align and use tabular nums */
         #table-analysis td:nth-child(n+6),
         #table-analysis .score-band-cell,
@@ -660,13 +682,13 @@
         #table-analysis tbody tr.row-warning td { background-color: rgba(255,149,0,0.025) !important; }
         #table-analysis tbody tr.row-excellent td { background-color: rgba(52,199,89,0.025) !important; }
         #table-analysis tbody tr.row-warning td:first-child,
-        tbody tr.row-warning td.sticky-col-left:first-child { border-left: 3px solid #ff9500 !important; box-shadow: none !important; background: rgba(255,149,0,0.035) !important; }
+        tbody tr.row-warning td.sticky-col-left:first-child { border-left: 3px solid var(--warning) !important; box-shadow: none !important; background: var(--warning-soft) !important; }
         #table-analysis tbody tr.row-excellent td:first-child,
-        tbody tr.row-excellent td.sticky-col-left:first-child { border-left: 3px solid #34c759 !important; box-shadow: none !important; background: rgba(52,199,89,0.035) !important; }
+        tbody tr.row-excellent td.sticky-col-left:first-child { border-left: 3px solid var(--success) !important; box-shadow: none !important; background: var(--success-soft) !important; }
         #table-analysis .table-scroll-container.is-scrolled-x tbody tr.row-warning td:first-child,
-        .table-scroll-container.is-scrolled-x #table-analysis tbody tr.row-warning td:first-child { border-left: 3px solid #ff9500 !important; box-shadow: 10px 0 16px -18px rgba(15,23,42,0.15) !important; }
+        .table-scroll-container.is-scrolled-x #table-analysis tbody tr.row-warning td:first-child { border-left: 3px solid var(--warning) !important; box-shadow: 10px 0 16px -18px rgba(15,23,42,0.15) !important; }
         #table-analysis .table-scroll-container.is-scrolled-x tbody tr.row-excellent td:first-child,
-        .table-scroll-container.is-scrolled-x #table-analysis tbody tr.row-excellent td:first-child { border-left: 3px solid #34c759 !important; box-shadow: 10px 0 16px -18px rgba(15,23,42,0.15) !important; }
+        .table-scroll-container.is-scrolled-x #table-analysis tbody tr.row-excellent td:first-child { border-left: 3px solid var(--success) !important; box-shadow: 10px 0 16px -18px rgba(15,23,42,0.15) !important; }
         .score-total-cell { color: var(--primary) !important; font-weight: 850 !important; font-size: 15px; background: rgba(0,122,255,0.06); }
         .score-anomaly { color: var(--danger); font-weight: 800; cursor: help; margin-left: 4px; }
         /* Visual separator above table area */
@@ -677,11 +699,11 @@
         .compact-stats-wrapper::-webkit-scrollbar { display: none; }
 
         /* Sticky left column (body cells) */
-        .sticky-col-left { position: sticky; left: 0; z-index: var(--z-sticky); background: rgba(255,255,255,0.98); box-shadow: 0 0 0 rgba(15,23,42,0); transition: box-shadow 0.22s ease, background 0.22s ease; overflow: hidden; text-overflow: ellipsis; }
+        .sticky-col-left { position: sticky; left: 0; z-index: var(--z-sticky); background: rgba(255,255,255,0.98); box-shadow: 0 0 0 rgba(15,23,42,0); transition: box-shadow var(--motion-base) ease, background var(--motion-base) ease; overflow: hidden; text-overflow: ellipsis; }
         .table-scroll-container.is-scrolled-x .sticky-col-left { box-shadow: 10px 0 16px -18px rgba(15,23,42,0.15); }
 
         /* Header (always above body/sticky cells) */
-        #analysis-table-area thead th { position: sticky; top: 0; z-index: var(--z-sticky); background: #f8fafc; font-size: 13px; color: #475569; font-weight: 700; border-bottom: none; box-shadow: 0 2px 4px -1px rgba(0,0,0,0.05), inset 0 -1px 0 var(--border); transition: background 0.25s ease, box-shadow 0.25s ease, color 0.25s ease; }
+        #analysis-table-area thead th { position: sticky; top: 0; z-index: var(--z-sticky); background: var(--surface-2); font-size: 13px; color: var(--text-muted); font-weight: 700; border-bottom: none; box-shadow: 0 2px 4px -1px var(--line), inset 0 -1px 0 var(--border); transition: background var(--motion-base) ease, box-shadow var(--motion-base) ease, color var(--motion-base) ease; }
 
         /* Dedicated left header cells (first two columns): place above body sticky cells and respect left offsets */
         #analysis-table-area th.th-left-1 { left: 0; z-index: calc(var(--z-sticky) + 1); }
@@ -690,10 +712,10 @@
         /* Body sticky columns should be under header but above normal cells */
         #analysis-table-area td.sticky-col-left { z-index: var(--z-sticky); }
         .score-band-cell { box-shadow: inset 3px 0 0 transparent; padding-left: 12px !important; font-weight: 700; }
-        .score-band-cell.band-excellent { box-shadow: inset 3px 0 0 #34c759; }
-        .score-band-cell.band-good { box-shadow: inset 3px 0 0 #007aff; }
-        .score-band-cell.band-warning { box-shadow: inset 3px 0 0 #ff9500; }
-        .score-band-cell.band-danger { box-shadow: inset 3px 0 0 #ff3b30; }
+        .score-band-cell.band-excellent { box-shadow: inset 3px 0 0 var(--score-excellent); }
+        .score-band-cell.band-good { box-shadow: inset 3px 0 0 var(--score-good); }
+        .score-band-cell.band-warning { box-shadow: inset 3px 0 0 var(--score-pass); }
+        .score-band-cell.band-danger { box-shadow: inset 3px 0 0 var(--score-fail); }
 
         tbody tr:hover td.sticky-col-left { background: #f8fafc; }
         #analysis-table-area tbody tr:hover td.sticky-col-left { background: #f8fafc !important; }
@@ -706,8 +728,8 @@
         table tr td:last-child, table tr th:last-child { border-right: none; }
         tbody tr:hover td { background-color: #f8fafc; }
         
-        .score-input { width: 60px; text-align: center; border: none; border-bottom: 2px solid transparent; background: transparent; color: var(--text-main); font-weight: 700; font-size: 14px; border-radius: 0; padding: 4px; transition: all 0.2s;}
-        .score-input:hover { border-bottom-color: #cbd5e1; }
+        .score-input { width: 60px; text-align: center; border: none; border-bottom: 2px solid transparent; background: transparent; color: var(--text-main); font-weight: 700; font-size: 14px; border-radius: 0; padding: 4px; transition: all var(--motion-base);}
+        .score-input:hover { border-bottom-color: var(--line-strong); }
         .score-input:focus { border-bottom-color: var(--primary); background: #ffffff; outline: none; }
         .score-row-active td { background: rgba(0,122,255,0.045) !important; }
         .score-col-active { background: rgba(0,122,255,0.06) !important; box-shadow: inset 0 1px 0 rgba(0,122,255,0.05), inset 0 -1px 0 rgba(0,122,255,0.05); }
@@ -732,12 +754,12 @@
         
         .analysis-tabs { display: flex; gap: 2px; background: rgba(118,118,128,0.12); padding: 3px; border-radius: var(--radius-pill); margin-bottom: 12px; border: none; box-shadow: none; flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; scrollbar-width: none; min-height: 38px; flex-shrink: 0; position: relative; z-index: var(--z-sticky); }
         .analysis-tabs::-webkit-scrollbar { display: none; }
-        .analysis-tabs::before { content: ''; position: sticky; left: -3px; top: 0; bottom: 0; width: 24px; flex: 0 0 24px; margin-right: -24px; background: linear-gradient(to left, transparent, rgba(118,118,128,0.12)); pointer-events: none; border-radius: var(--radius-pill) 0 0 var(--radius-pill); opacity: 0; transition: opacity 0.3s; z-index: 2; }
-        .analysis-tabs::after { content: '›'; position: sticky; right: -3px; top: 0; bottom: 0; width: 30px; flex: 0 0 30px; margin-left: -30px; display: flex; align-items: center; justify-content: flex-end; padding-right: 7px; background: linear-gradient(to right, transparent, rgba(239,246,255,0.96) 58%, rgba(239,246,255,0.98)); pointer-events: none; border-radius: 0 var(--radius-pill) var(--radius-pill) 0; opacity: 0; transition: opacity 0.22s ease; z-index: 2; color: var(--primary); font-size: 18px; font-weight: 900; }
+        .analysis-tabs::before { content: ''; position: sticky; left: -3px; top: 0; bottom: 0; width: 24px; flex: 0 0 24px; margin-right: -24px; background: linear-gradient(to left, transparent, rgba(118,118,128,0.12)); pointer-events: none; border-radius: var(--radius-pill) 0 0 var(--radius-pill); opacity: 0; transition: opacity var(--motion-slow); z-index: 2; }
+        .analysis-tabs::after { content: '›'; position: sticky; right: -3px; top: 0; bottom: 0; width: 30px; flex: 0 0 30px; margin-left: -30px; display: flex; align-items: center; justify-content: flex-end; padding-right: 7px; background: linear-gradient(to right, transparent, rgba(239,246,255,0.96) 58%, rgba(239,246,255,0.98)); pointer-events: none; border-radius: 0 var(--radius-pill) var(--radius-pill) 0; opacity: 0; transition: opacity var(--motion-base) ease; z-index: 2; color: var(--primary); font-size: 18px; font-weight: 900; }
         .analysis-tabs:hover::after { opacity: 1; }
         .analysis-tabs.scrolled-start::before { opacity: 1; }
         .analysis-tabs.scrolled-end::after { opacity: 0; }
-        .analysis-tab { padding: 7px 16px; border-radius: calc(var(--radius-pill) - 3px); cursor: pointer; font-size: 12px; font-weight: 600; color: var(--text-sub); transition: background 0.18s ease, color 0.18s ease, box-shadow 0.18s ease; user-select: none; white-space: nowrap; border: none; position: relative; text-align: center; }
+        .analysis-tab { padding: 7px 16px; border-radius: calc(var(--radius-pill) - 3px); cursor: pointer; font-size: 12px; font-weight: 600; color: var(--text-sub); transition: background var(--motion-fast) ease, color var(--motion-fast) ease, box-shadow var(--motion-fast) ease; user-select: none; white-space: nowrap; border: none; position: relative; text-align: center; }
         .analysis-tab:hover { color: var(--text-main); background: rgba(255,255,255,0.5); }
         .analysis-tab.active,
         .analysis-tab.compare-tab.active,
@@ -747,17 +769,17 @@
         .analysis-tab.compare-tab,
         .analysis-tab.target-tab,
         .analysis-tab.alert-tab { color: var(--text-sub); }
-        .analysis-tab-group-label { align-self: center; padding: 7px 10px; font-size: 11px; color: #64748b; font-weight: 800; white-space: nowrap; border: 0; border-left: 1px solid rgba(100,116,139,0.22); background: transparent; border-radius: calc(var(--radius-pill) - 3px); cursor: pointer; transition: all .2s ease; }
+        .analysis-tab-group-label { align-self: center; padding: 7px 10px; font-size: 11px; color: #64748b; font-weight: 800; white-space: nowrap; border: 0; border-left: 1px solid rgba(100,116,139,0.22); background: transparent; border-radius: calc(var(--radius-pill) - 3px); cursor: pointer; transition: all var(--motion-base) ease; }
         .analysis-tab-group-label:first-child { border-left: 0; }
         .analysis-tab-group-label:hover { color: var(--text-main); background: rgba(255,255,255,0.55); }
         .analysis-tab-group-label.active { color: var(--primary); background: var(--panel-elevated); box-shadow: var(--shadow); }
 
         .smart-toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-bottom: 12px; background: rgba(255,255,255,0.94); padding: 8px 16px; border-radius: var(--radius-lg); border: 1px solid var(--border); box-shadow: var(--shadow-sm); position: relative; z-index: var(--z-sticky); overflow: visible; }
         .smart-toolbar select { width: auto; min-width: 140px; font-weight: 500; border: 1px solid var(--border) !important; color: var(--text-main) !important; background: rgba(255,255,255,0.92) !important; box-shadow: none !important; }
-        .smart-toolbar select:focus { border-color: var(--primary) !important; box-shadow: 0 0 0 3px rgba(0,122,255,0.12) !important; outline: none; }
+        .smart-toolbar select:focus { border-color: var(--primary) !important; box-shadow: 0 0 0 3px var(--accent-soft) !important; outline: none; }
         .toolbar-group { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; border-left: 1px solid var(--border); padding-left: 15px; margin-left: 5px; position: relative; z-index: var(--z-sticky); overflow: visible; }
         .toolbar-group--flush { border-left: none; padding-left: 0; margin-left: 0; }
-        .toolbar-label { font-size: 12px; color: #475569; font-weight: 800; margin-right: 0; line-height: 1.15; position: relative; display: inline-flex; align-items: center; gap: 4px; }
+        .toolbar-label { font-size: 12px; color: var(--text-muted); font-weight: 800; margin-right: 0; line-height: 1.15; position: relative; display: inline-flex; align-items: center; gap: 4px; }
         .toolbar-label[data-help]::after { content: '?'; width: 14px; height: 14px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; color: var(--text-hint); border: 1px solid rgba(148,163,184,0.35); font-size: 10px; font-weight: 800; background: rgba(255,255,255,0.72); }
         .toolbar-label[data-help]::before { content: attr(data-help); position: absolute; left: 0; top: calc(100% + 7px); z-index: var(--z-dropdown); display: none; width: max-content; max-width: 280px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--border); background: rgba(255,255,255,0.98); box-shadow: var(--shadow-lg); color: var(--text-sub); font-size: 12px; line-height: 1.45; font-weight: 600; white-space: normal; }
         .toolbar-label[data-help]:hover::before { display: block; }
@@ -767,21 +789,21 @@
         
         /* 极致紧凑版：数据统计栏样式 */
         .stats-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
-        .stat-box { flex: 1; min-width: 90px; background: rgba(255,255,255,0.94); padding: 10px 12px; border-radius: var(--radius); display: flex; flex-direction: column; justify-content: center; align-items: center; border: 0.5px solid var(--border); box-shadow: var(--shadow-sm); transition: box-shadow 0.2s ease; }
+        .stat-box { flex: 1; min-width: 90px; background: rgba(255,255,255,0.94); padding: 10px 12px; border-radius: var(--radius); display: flex; flex-direction: column; justify-content: center; align-items: center; border: 0.5px solid var(--border); box-shadow: var(--shadow-sm); transition: box-shadow var(--motion-base) ease; }
         .stat-box:hover { box-shadow: var(--shadow-sm); }
         .stat-box .value { font-size: 16px; font-weight: 800; color: var(--primary); margin-top: 2px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
         .stat-box .label { font-size: 11px; color: var(--text-sub); }
 
         .tree-level { margin-bottom: 10px; }
-        .tree-summary { padding: 14px 18px; background: rgba(255,255,255,0.94); border-radius: var(--radius); cursor: pointer; font-weight: 700; user-select: none; border-left: 4px solid var(--primary); border: 0.5px solid var(--border); transition: all 0.2s; display: flex; align-items: center; gap: 10px; box-shadow: var(--shadow-sm); font-size: 14px; color: var(--text-main);}
-        .tree-summary:hover { background: rgba(255,255,255,0.96); border-color: var(--border-strong); box-shadow: var(--shadow); }
+        .tree-summary { padding: 14px 18px; background: rgba(255,255,255,0.94); border-radius: var(--radius); cursor: pointer; font-weight: 700; user-select: none; border-left: 4px solid var(--primary); border: 0.5px solid var(--border); transition: all var(--motion-base); display: flex; align-items: center; gap: 10px; box-shadow: var(--shadow-sm); font-size: 14px; color: var(--text-main);}
+        .tree-summary:hover { background: rgba(255,255,255,0.96); border-color: var(--border-strong); box-shadow: var(--shadow-sm); }
         .tree-summary.lv-1 { font-size: 15px; border-left-color: #3b82f6;}
         .tree-summary.lv-2 { border-left-color: #8b5cf6; margin-left: 20px; }
         .tree-summary.lv-3 { border-left-color: #10b981; margin-left: 40px; }
         
-        .exam-card { border: 0.5px solid var(--border); border-radius: var(--radius-lg); margin-bottom: 16px; background: rgba(255,255,255,0.94); box-shadow: var(--shadow-sm); overflow: hidden; transition: transform 0.25s ease, box-shadow 0.25s ease; }
-        .exam-card:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
-        .exam-header { padding: 18px 24px; cursor: pointer; font-weight: 700; border-left: 4px solid #8b5cf6; display: flex; justify-content: space-between; align-items: center; transition: background 0.2s; font-size: 16px; color: var(--text-main);}
+        .exam-card { border: 0.5px solid var(--border); border-radius: var(--radius-lg); margin-bottom: 16px; background: rgba(255,255,255,0.94); box-shadow: var(--shadow-sm); overflow: hidden; transition: transform var(--motion-base) ease, box-shadow var(--motion-base) ease; }
+        .exam-card:hover { transform: translateY(-1px); box-shadow: var(--shadow-sm); }
+        .exam-header { padding: 18px 24px; cursor: pointer; font-weight: 700; border-left: 4px solid #8b5cf6; display: flex; justify-content: space-between; align-items: center; transition: background var(--motion-base); font-size: 16px; color: var(--text-main);}
         .exam-header:hover { background: rgba(255,255,255,0.75); }
         .exam-meta { font-size: 12px; color: var(--text-sub); font-weight: normal; margin-left: 12px; display: inline-flex; gap: 8px; align-items: center;}
         .exam-meta-tag { background: #f1f5f9; padding: 4px 8px; border-radius: 6px; border: 1px solid #e2e8f0; }
@@ -790,8 +812,8 @@
         
         .auto-calc-badge { font-size:11px; background: #e0e7ff; color: #4338ca; padding: 2px 8px; border-radius: 12px; font-weight: 600; margin-left: 5px; }
 
-        .empty-state { text-align:center; padding: 56px 22px; color: var(--text-sub); border-radius: var(--radius-lg); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; animation: fadeInUp 0.4s ease-out; background: rgba(255,255,255,0.88); border: 0.5px solid var(--border); box-shadow: var(--shadow-sm); }
-        .empty-state-icon { width: 72px; height: 72px; display: inline-flex; align-items: center; justify-content: center; color: #94a3b8; background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(242,242,247,0.9)); border: 1px solid rgba(191,219,254,0.45); border-radius: 999px; box-shadow: 0 4px 14px -10px rgba(0,122,255,0.22), inset 0 1px 0 rgba(255,255,255,0.9); }
+        .empty-state { text-align:center; padding: 56px 22px; color: var(--text-sub); border-radius: var(--radius-lg); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; animation: fadeInUp var(--motion-slow) ease-out; background: rgba(255,255,255,0.88); border: 0.5px solid var(--border); box-shadow: var(--shadow-sm); }
+        .empty-state-icon { width: 72px; height: 72px; display: inline-flex; align-items: center; justify-content: center; color: var(--text-faint); background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(242,242,247,0.9)); border: 1px solid rgba(191,219,254,0.45); border-radius: 999px; box-shadow: var(--shadow-sm), inset 0 1px 0 rgba(255,255,255,0.9); }
         .empty-state-icon svg { width: 34px; height: 34px; display: block; }
         .empty-state-illustration { display: block; width: 180px; max-width: 100%; height: auto; margin-top: 6px; color: #7aa7f7; }
         .empty-state-title { font-size: 17px; font-weight: 700; color: #334155; line-height: 1.35; letter-spacing: 0.01em; }
@@ -799,49 +821,49 @@
         .empty-state-actions { display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 8px; }
 
         .multi-select { position: relative; width: 100%; user-select: none; }
-        .ms-header { padding: 5px 8px; border: 1px solid rgba(60,60,67,0.12); border-radius: 8px; background: rgba(255,255,255,0.82); cursor: pointer; font-size: 12px; color: var(--text-sub); display: flex; justify-content: space-between; align-items: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s cubic-bezier(0.16, 1, 0.3, 1), background 0.22s cubic-bezier(0.16, 1, 0.3, 1); }
+        .ms-header { padding: 5px 8px; border: 1px solid rgba(60,60,67,0.12); border-radius: 8px; background: rgba(255,255,255,0.82); cursor: pointer; font-size: 12px; color: var(--text-sub); display: flex; justify-content: space-between; align-items: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; transition: transform var(--motion-fast) cubic-bezier(0.16, 1, 0.3, 1), border-color var(--motion-base) cubic-bezier(0.16, 1, 0.3, 1), box-shadow var(--motion-base) cubic-bezier(0.16, 1, 0.3, 1), background var(--motion-base) cubic-bezier(0.16, 1, 0.3, 1); }
         .ms-header:hover { border-color: var(--border-strong); }
-        .ms-header::after { content: '▼'; font-size: 8px; margin-left: 8px; color: #94a3b8; transform: scaleY(0.8); transition: transform 0.2s; }
+        .ms-header::after { content: '▼'; font-size: 8px; margin-left: 8px; color: var(--text-faint); transform: scaleY(0.8); transition: transform var(--motion-base); }
         
-        .multi-select.open .ms-header { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); }
+        .multi-select.open .ms-header { border-color: var(--primary); box-shadow: 0 0 0 3px var(--accent-soft); }
         .multi-select.open .ms-header::after { transform: rotate(180deg); }
         
         .sidebar-ms .ms-panel { display: none; position: fixed; left: 270px; width: max-content; max-width: 450px; flex-direction: row; flex-wrap: wrap; align-content: flex-start; gap: 8px; padding: 16px; background: rgba(255,255,255,0.98); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow-lg); border-left: 4px solid var(--primary); z-index: var(--z-dropdown); }
-        .sidebar-ms.open .ms-panel { display: flex; animation: dropdownSpringIn 0.28s cubic-bezier(0.16, 1, 0.3, 1); transform-origin: left top; }
-        .sidebar-ms .ms-item { background: rgba(248,250,252,0.72); border: 1px solid rgba(60,60,67,0.08); border-radius: 8px; padding: 4px 10px; margin: 0; font-weight: 500; display: flex; align-items: center; gap: 8px; color: var(--text-sub); transition: all 0.2s; cursor: pointer;}
+        .sidebar-ms.open .ms-panel { display: flex; animation: dropdownSpringIn var(--motion-base) cubic-bezier(0.16, 1, 0.3, 1); transform-origin: left top; }
+        .sidebar-ms .ms-item { background: rgba(248,250,252,0.72); border: 1px solid rgba(60,60,67,0.08); border-radius: 8px; padding: 4px 10px; margin: 0; font-weight: 500; display: flex; align-items: center; gap: 8px; color: var(--text-sub); transition: all var(--motion-base); cursor: pointer;}
         .sidebar-ms .ms-item:hover { background: rgba(239,246,255,0.9); border-color: #bfdbfe; color: var(--primary); }
         
         .toolbar-ms { min-width: 140px; position: relative; z-index: var(--z-dropdown); overflow: visible; }
         #compare-multi-exam-wrap, #ms-compare-exams-wrap { position: relative; z-index: var(--z-dropdown); overflow: visible; }
         .toolbar-ms .ms-panel { display: none; position: absolute; top: calc(100% + 6px); left: 0; background: rgba(255,255,255,0.98); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow-lg); z-index: var(--z-dropdown); min-width: 100%; max-height: 250px; overflow-y: auto; padding: 6px 0; }
-        .toolbar-ms.open .ms-panel { display: block; animation: dropdownSpringIn 0.28s cubic-bezier(0.16, 1, 0.3, 1); transform-origin: left top; }
-        .toolbar-ms .ms-item { padding: 8px 16px; display: flex; align-items: center; gap: 10px; cursor: pointer; transition: background 0.2s; font-size: 13px; color: #334155; white-space: nowrap; }
+        .toolbar-ms.open .ms-panel { display: block; animation: dropdownSpringIn var(--motion-base) cubic-bezier(0.16, 1, 0.3, 1); transform-origin: left top; }
+        .toolbar-ms .ms-item { padding: 8px 16px; display: flex; align-items: center; gap: 10px; cursor: pointer; transition: background var(--motion-base); font-size: 13px; color: #334155; white-space: nowrap; }
         .toolbar-ms .ms-item:hover { background: #f1f5f9; color: var(--primary); }
 
         .ms-item input { margin: 0; cursor: pointer; width: 14px; height: 14px; accent-color: var(--primary); }
         .stu-checkbox, .select-all-checkbox { transform: scale(1.2); cursor: pointer; accent-color: var(--primary); }
         
         .row-warning, .row-excellent { background-color: transparent !important; }
-        .rank-up { color: #047857; font-size: 11px; margin-left: 6px; font-weight: 800; background: transparent; padding: 0; border-radius: 0;}
-        .rank-down { color: #b91c1c; font-size: 11px; margin-left: 6px; font-weight: 800; background: transparent; padding: 0; border-radius: 0;}
-        .sortable-th { cursor: pointer; user-select: none; transition: background 0.2s; }
+        .rank-up { color: var(--score-excellent); font-size: 11px; margin-left: 6px; font-weight: 800; background: transparent; padding: 0; border-radius: 0;}
+        .rank-down { color: var(--score-fail); font-size: 11px; margin-left: 6px; font-weight: 800; background: transparent; padding: 0; border-radius: 0;}
+        .sortable-th { cursor: pointer; user-select: none; transition: background var(--motion-base); }
         .sortable-th:hover { background: #e2e8f0; color: var(--primary); }
-        .sortable-th .sort-icon { width: 12px; height: 12px; margin-left: 4px; vertical-align: -2px; color: #cbd5e1; opacity: .28; transition: color 0.2s ease, opacity 0.2s ease; }
+        .sortable-th .sort-icon { width: 12px; height: 12px; margin-left: 4px; vertical-align: -2px; color: var(--line-strong); opacity: .28; transition: color var(--motion-base) ease, opacity var(--motion-base) ease; }
         .sortable-th:hover .sort-icon,
         .sortable-th.is-sort-active .sort-icon { color: var(--primary); opacity: 1; }
         #table-analysis td.is-sort-col { background-color: rgba(0,122,255,0.03) !important; }
         #table-analysis td.score-heat-high { background-color: #f0fdf4 !important; color: #166534; }
         #table-analysis td.score-heat-mid { background-color: #fefce8 !important; color: #854d0e; }
-        #table-analysis td.score-heat-low { background-color: #fef2f2 !important; color: #991b1b; }
-        #analysis-table-area.sort-flash tbody td { animation: sortColumnFlash .2s ease-out; }
+        #table-analysis td.score-heat-low { background-color: var(--danger-soft) !important; color: var(--score-fail); }
+        #analysis-table-area.sort-flash tbody td { animation: sortColumnFlash var(--motion-base) ease-out; }
         @keyframes sortColumnFlash { from { background-color: rgba(0,122,255,0.08); } to { background-color: transparent; } }
 
-        dialog { margin: auto; padding: 30px; border: none; border-radius: 22px; background: rgba(255,255,255,0.92); backdrop-filter: saturate(180%) blur(28px); -webkit-backdrop-filter: saturate(180%) blur(28px); box-shadow: var(--shadow-float); width: 520px; z-index: var(--z-modal); transition: transform 0.25s ease, box-shadow 0.25s ease, background 0.25s ease; }
+        dialog { margin: auto; padding: 30px; border: none; border-radius: 22px; background: rgba(255,255,255,0.92); backdrop-filter: saturate(180%) blur(28px); -webkit-backdrop-filter: saturate(180%) blur(28px); box-shadow: var(--shadow-float); width: 520px; z-index: var(--z-modal); transition: transform var(--motion-base) ease, box-shadow var(--motion-base) ease, background var(--motion-base) ease; }
         dialog::backdrop { background: rgba(28,28,30,0.22); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
         
         #toast-container { position: fixed; top: 20px; right: 20px; z-index: var(--z-toast); display: flex; flex-direction: column; gap: 10px; }
-        .toast { background: rgba(28,28,30,0.85); color: #fff; padding: 14px 24px; border-radius: 12px; box-shadow: var(--shadow-float); animation: slideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1); font-size: 14px; font-weight: 500; display: flex; align-items: center; backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
-        .toast.toast-leaving { animation: slideOut 0.18s ease-in forwards; }
+        .toast { background: rgba(28,28,30,0.85); color: #fff; padding: 14px 24px; border-radius: 12px; box-shadow: var(--shadow-float); animation: slideIn var(--motion-base) cubic-bezier(0.16, 1, 0.3, 1); font-size: 14px; font-weight: 500; display: flex; align-items: center; backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
+        .toast.toast-leaving { animation: slideOut var(--motion-fast) ease-in forwards; }
         .toast.error { background: var(--danger); }
         .toast .toast-content { flex: 1; }
         .toast-undo { margin-left: 12px; background: transparent; border: 1px solid rgba(255,255,255,0.18); color: #fff; padding: 6px 10px; border-radius: 6px; cursor: pointer; font-weight: 700; }
@@ -877,7 +899,7 @@
             border-radius: 8px;
             padding: 8px 12px;
             font-size: 20px;
-            box-shadow: var(--shadow);
+            box-shadow: var(--shadow-sm);
             cursor: pointer;
         }
         
@@ -889,7 +911,7 @@
             to { opacity: 1; transform: translateY(0); }
         }
         details.exam-card[open] > *:not(summary) {
-            animation: slideDown 0.2s ease;
+            animation: slideDown var(--motion-base) ease;
         }
         
         /* 3. 成绩输入格聚焦时的行高亮 */
@@ -911,7 +933,7 @@
             to { opacity: 1; transform: scale(1) translateY(0); }
         }
         dialog[open] {
-            animation: dialogIn 0.34s cubic-bezier(0.16, 1, 0.3, 1);
+            animation: dialogIn var(--motion-slow) cubic-bezier(0.16, 1, 0.3, 1);
         }
 
         .flex-row { display: flex; }
@@ -944,7 +966,7 @@
         .btn--soft-danger { background: transparent; border-color: transparent; }
         .btn--soft-success { color: #059669; border-color: #a7f3d0; background: #f0fdf4; }
         .top-actions .secondary,
-        #analysis-table-area .secondary { color: #475569; border-color: var(--border); background: rgba(255,255,255,0.92); box-shadow: none; }
+        #analysis-table-area .secondary { color: var(--text-muted); border-color: var(--border); background: rgba(255,255,255,0.92); box-shadow: none; }
         .top-actions .secondary:hover,
         #analysis-table-area .secondary:hover { border-color: var(--border-strong); color: var(--text-main); background: #fff; }
         .btn--brand-primary { border-color: var(--primary); color: var(--primary); }
@@ -963,12 +985,12 @@
         .toolbar-group--flush { border-left: none; padding-left: 0; margin-left: 0; }
         .toolbar-label--danger,
         .toolbar-label--warning,
-        .text-primary { color: #475569 !important; }
+        .text-primary { color: var(--text-muted) !important; }
         .dialog-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; padding-bottom: 15px; border-bottom: 1px solid var(--border); }
         .dialog-title { margin: 0; font-size: 18px; color: #1e293b; display: flex; align-items: center; gap: 8px; font-weight: 800; }
         .dialog-note { font-size: 12px; color: var(--text-sub); line-height: 1.5; }
         .dialog-warning { font-size: 12px; color: var(--warning); font-weight: 600; }
-        .dialog-danger-note { font-size: 12px; color: #b91c1c; margin-bottom: 20px; background: #fef2f2; padding: 10px; border-radius: 6px; border: 1px solid #fecaca; }
+        .dialog-danger-note { font-size: 12px; color: var(--score-fail); margin-bottom: 20px; background: var(--danger-soft); padding: 10px; border-radius: 6px; border: 1px solid rgba(255,59,48,0.22); }
         .dialog-body { display: flex; flex-direction: column; gap: 10px; }
         .dialog-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
         .dialog-field-group { margin-bottom: 12px; }
@@ -1061,10 +1083,49 @@
             display: flex;
             flex-direction: column;
             gap: 3px;
-            transition: background .15s ease, box-shadow .15s ease;
+            transition: background var(--motion-fast) ease, box-shadow var(--motion-fast) ease;
             position: relative;
         }
         #overview-dashboard-card .overview-stat-card:hover { box-shadow: var(--shadow-sm); }
+        #overview-dashboard-card .overview-summary .overview-stat-card {
+            opacity: 0;
+            transform: translate3d(var(--kpi-tx, -18px), var(--kpi-ty, 18px), 0) scale(0.86);
+            animation: overviewKpiTileIn 460ms cubic-bezier(.17,.89,.26,1.12) forwards;
+            animation-delay: var(--kpi-delay, 0ms);
+            will-change: transform, opacity, filter;
+        }
+        #overview-dashboard-card .overview-summary .overview-stat-card:nth-child(1) { --kpi-delay: 0ms; --kpi-tx: -34px; --kpi-ty: 3px; }
+        #overview-dashboard-card .overview-summary .overview-stat-card:nth-child(2) { --kpi-delay: 28ms; --kpi-tx: -34px; --kpi-ty: 3px; }
+        #overview-dashboard-card .overview-summary .overview-stat-card:nth-child(3) { --kpi-delay: 56ms; --kpi-tx: -34px; --kpi-ty: 3px; }
+        #overview-dashboard-card .overview-summary .overview-stat-card:nth-child(4) { --kpi-delay: 84ms; --kpi-tx: -34px; --kpi-ty: 3px; }
+        #overview-dashboard-card .overview-summary .overview-stat-card:nth-child(5) { --kpi-delay: 112ms; --kpi-tx: -34px; --kpi-ty: 3px; }
+        #overview-dashboard-card .overview-summary .overview-stat-card:nth-child(6) { --kpi-delay: 140ms; --kpi-tx: -34px; --kpi-ty: 3px; }
+        #overview-dashboard-card .overview-summary .overview-stat-card:nth-child(7) { --kpi-delay: 168ms; --kpi-tx: -34px; --kpi-ty: 3px; }
+        #overview-dashboard-card .overview-summary .overview-stat-card:nth-child(8) { --kpi-delay: 196ms; --kpi-tx: -34px; --kpi-ty: 3px; }
+        @keyframes overviewKpiTileIn {
+            0% {
+                opacity: 0;
+                filter: saturate(0.78) brightness(1.08);
+                transform: translate3d(var(--kpi-tx, -18px), var(--kpi-ty, 18px), 0) scale(0.86);
+            }
+            64% {
+                opacity: 1;
+                filter: saturate(1.03) brightness(1.01);
+                transform: translate3d(0, 0, 0) scale(1.018);
+            }
+            100% {
+                opacity: 1;
+                filter: none;
+                transform: translate3d(0, 0, 0) scale(1);
+            }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            #overview-dashboard-card .overview-summary .overview-stat-card {
+                opacity: 1;
+                transform: none;
+                animation: none;
+            }
+        }
         #overview-dashboard-card .overview-stat-label {
             font-size: 10px;
             font-weight: 600;
@@ -1098,30 +1159,38 @@
             overflow: hidden;
             text-overflow: ellipsis;
         }
-        #overview-dashboard-card .overview-attendance-hover {
-            position: absolute;
-            left: 8px;
-            right: 8px;
-            top: calc(100% + 6px);
-            z-index: 20;
-            display: none;
-            padding: 7px 8px;
-            border-radius: 8px;
-            border: 1px solid rgba(148,163,184,0.22);
-            background: rgba(255,255,255,0.96);
-            box-shadow: 0 10px 24px rgba(15,23,42,0.12);
-            color: var(--text-sub);
-            font-size: 10px;
-            line-height: 1.55;
-            text-align: left;
-            white-space: normal;
-            max-height: 120px;
+        #overview-dashboard-card .overview-attendance-hover,
+        #overview-dashboard-card .overview-score-hover {
+            display: none !important;
+        }
+        .overview-kpi-tooltip {
+            position: fixed;
+            left: 0;
+            top: 0;
+            z-index: 9999;
+            min-width: 190px;
+            max-width: min(380px, calc(100vw - 32px));
+            max-height: min(280px, 42vh);
             overflow: auto;
+            padding: 8px 10px;
+            border-radius: 10px;
+            border: 1px solid rgba(148,163,184,0.24);
+            background: rgba(255,255,255,0.98);
+            box-shadow: var(--shadow-lg);
+            color: var(--text-sub);
+            font-size: 11px;
+            line-height: 1.6;
+            text-align: left;
+            opacity: 0;
+            pointer-events: none;
+            transform: translate(-50%, 8px);
+            transition: opacity var(--motion-fast) ease, transform var(--motion-fast) ease;
         }
-        #overview-dashboard-card .ov-kpi-c1:hover .overview-attendance-hover {
-            display: block;
+        .overview-kpi-tooltip.is-visible {
+            opacity: 1;
+            transform: translate(-50%, 12px);
         }
-        #overview-dashboard-card .overview-attendance-hover b {
+        .overview-kpi-tooltip b {
             color: var(--text-main);
             font-weight: 800;
         }
@@ -1172,7 +1241,7 @@
             opacity: 0;
             pointer-events: none;
             transform: translateY(-4px);
-            transition: opacity .18s ease, transform .18s ease;
+            transition: opacity var(--motion-fast) ease, transform var(--motion-fast) ease;
         }
         #overview-dashboard-card .overview-chart-card:hover .overview-detail-btn,
         #overview-dashboard-card .overview-detail-btn:focus-visible {
@@ -1382,11 +1451,11 @@
                 position: fixed;
                 left: 0; top: 0; bottom: 0;
                 transform: translateX(-100%);
-                transition: transform 0.34s cubic-bezier(0.16, 1, 0.3, 1);
+                transition: transform var(--motion-slow) cubic-bezier(0.16, 1, 0.3, 1);
                 z-index: var(--z-sidebar);
             }
             .sidebar.sidebar-open { transform: translateX(0); }
-            .sidebar-backdrop { position: fixed; inset: 0; z-index: var(--z-dropdown); background: rgba(15,23,42,0.34); opacity: 0; visibility: hidden; transition: opacity .22s ease, visibility .22s ease; }
+            .sidebar-backdrop { position: fixed; inset: 0; z-index: var(--z-dropdown); background: rgba(15,23,42,0.34); opacity: 0; visibility: hidden; transition: opacity var(--motion-base) ease, visibility var(--motion-base) ease; }
             .sidebar-backdrop.visible { opacity: 1; visibility: visible; }
             .content-body { padding: 15px; }
             .top-navbar { padding: 0 15px 0 50px; }
@@ -1435,7 +1504,7 @@
             display: inline-flex; align-items: center; justify-content: center;
             padding: 6px 14px; border-radius: 999px; border: 0.5px solid var(--border);
             background: rgba(255,255,255,0.78); color: var(--text-sub); font-size: 13px; cursor: pointer;
-            transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1); user-select: none; font-weight: 600;
+            transition: all var(--motion-fast) cubic-bezier(0.4, 0, 0.2, 1); user-select: none; font-weight: 600;
         }
         .campus-tag-label input[type="checkbox"] { display: none; }
         .campus-tag-label:has(input:checked) {
@@ -1449,7 +1518,7 @@
             background: rgba(255,255,255,0.88); border-color: var(--border-strong); color: var(--text-main);
         }
         
-        .student-link { color: var(--primary); text-decoration: underline; cursor: pointer; transition: color 0.2s; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .student-link { color: var(--primary); text-decoration: underline; cursor: pointer; transition: color var(--motion-base); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .student-link:hover { color: var(--primary-hover); }
 
         /* 成绩录入优化样式 */
@@ -1463,7 +1532,7 @@
         }
         .score-input.over-limit {
             border-bottom-color: var(--danger) !important;
-            animation: shake 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            animation: shake var(--motion-slow) cubic-bezier(0.16, 1, 0.3, 1);
         }
         .score-cell { position: relative; min-width: 74px; }
         .score-warning { display:none; margin-top: 2px; color: var(--danger); font-size: 10px; font-weight: 700; white-space: nowrap; }
@@ -1476,20 +1545,20 @@
             color: transparent !important;
             cursor: not-allowed;
         }
-        .exam-absent-pill { display: inline-flex; align-items: center; justify-content: center; font-size: 11px; line-height: 1; font-weight: 800; color: #dc2626; background: #fef2f2; border: 1px solid #fecaca; padding: 3px 8px; border-radius: 999px; white-space: nowrap; }
-        .score-status-dot { appearance: none; -webkit-appearance: none; width: 12px; height: 12px; min-width: 12px; min-height: 12px; border: 0; border-radius: 999px; display: inline-block; padding: 0; margin: 0 7px 0 0; vertical-align: middle; cursor: pointer; box-shadow: 0 0 0 2px rgba(148,163,184,0.14); transition: transform .15s ease, box-shadow .15s ease, background .15s ease; }
+        .exam-absent-pill { display: inline-flex; align-items: center; justify-content: center; font-size: 11px; line-height: 1; font-weight: 800; color: var(--score-fail); background: var(--danger-soft); border: 1px solid rgba(255,59,48,0.22); padding: 3px 8px; border-radius: 999px; white-space: nowrap; }
+        .score-status-dot { appearance: none; -webkit-appearance: none; width: 12px; height: 12px; min-width: 12px; min-height: 12px; border: 0; border-radius: 999px; display: inline-block; padding: 0; margin: 0 7px 0 0; vertical-align: middle; cursor: pointer; box-shadow: 0 0 0 2px rgba(148,163,184,0.14); transition: transform var(--motion-fast) ease, box-shadow var(--motion-fast) ease, background var(--motion-fast) ease; }
         .score-status-dot:hover { transform: scale(1.16); }
-        .score-status-dot--empty { background: #94a3b8; }
-        .score-status-dot--partial { background: #f59e0b; box-shadow: 0 0 0 2px rgba(245,158,11,0.18); }
-        .score-status-dot--complete { background: #34c759; box-shadow: 0 0 0 2px rgba(52,199,89,0.16); }
-        .score-status-dot--absent { background: #ef4444; box-shadow: 0 0 0 2px rgba(239,68,68,0.18); }
+        .score-status-dot--empty { background: var(--text-faint); }
+        .score-status-dot--partial { background: var(--warning); box-shadow: 0 0 0 2px var(--warning-soft); }
+        .score-status-dot--complete { background: var(--success); box-shadow: 0 0 0 2px var(--success-soft); }
+        .score-status-dot--absent { background: var(--danger); box-shadow: 0 0 0 2px var(--danger-soft); }
         .exam-status-legend { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-left: 12px; color: var(--text-hint); font-size: 12px; font-weight: 600; }
         .exam-status-legend span { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
-        .legend-dot { width: 7px; height: 7px; border-radius: 999px; display: inline-block; background: #94a3b8; }
-        .legend-dot--partial { background: #f59e0b; }
-        .legend-dot--complete { background: #34c759; }
-        .legend-dot--absent { background: #ef4444; }
-        .score-ok-flash { position:absolute; right: 4px; top: 4px; color:#16a34a; font-size:12px; font-weight:900; animation: okPop .7s ease-out forwards; pointer-events:none; }
+        .legend-dot { width: 7px; height: 7px; border-radius: 999px; display: inline-block; background: var(--text-faint); }
+        .legend-dot--partial { background: var(--warning); }
+        .legend-dot--complete { background: var(--success); }
+        .legend-dot--absent { background: var(--danger); }
+        .score-ok-flash { position:absolute; right: 4px; top: 4px; color:var(--score-excellent); font-size:12px; font-weight:900; animation: okPop .7s ease-out forwards; pointer-events:none; }
         @keyframes okPop { 0% { opacity:0; transform: scale(.6); } 35% { opacity:1; transform: scale(1.15); } 100% { opacity:0; transform: scale(1) translateY(-4px); } }
         .skeleton-chart { position: relative; overflow: hidden; background: rgba(248,250,252,0.88); border-radius: 8px; }
         .skeleton-chart canvas { opacity: 0; }
@@ -1513,7 +1582,7 @@
         .compact-stats-wrapper::-webkit-scrollbar { display: none; }
         .compact-stat-row { display: flex; gap: 8px; flex-wrap: nowrap; align-items: center; }
         .compact-stat-pill { background: rgba(0,0,0,0.04); border: 1px solid rgba(60,60,67,0.10); padding: 5px 10px; border-radius: 999px; font-size: 12px; color: var(--text-sub); display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; box-shadow: none; }
-        .compact-stat-pill .val { font-weight: 850; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 14px; color: var(--primary); transition: opacity 0.2s ease, transform 0.2s ease; }
+        .compact-stat-pill .val { font-weight: 850; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 14px; color: var(--primary); transition: opacity var(--motion-base) ease, transform var(--motion-base) ease; }
         .compact-stat-pill .val.is-updating { opacity: 0; transform: translateY(4px); }
         @media (max-width: 1023px) {
             .compact-stats-wrapper { display: none !important; }
@@ -1521,11 +1590,11 @@
         /* V43.1 修复：趋势线开关专属样式 (强制不换行，防挤压) */
         .toggle-switch { display: inline-flex; align-items: center; cursor: pointer; gap: 8px; user-select: none; white-space: nowrap; }
         .toggle-switch input { display: none; }
-        .toggle-slider { position: relative; width: 36px; height: 20px; background-color: #cbd5e1; border-radius: 20px; transition: .3s; flex-shrink: 0; }
-        .toggle-slider:before { content: ""; position: absolute; height: 16px; width: 16px; border-radius: 50%; left: 2px; bottom: 2px; background-color: white; transition: .3s; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+        .toggle-slider { position: relative; width: 36px; height: 20px; background-color: var(--line-strong); border-radius: 20px; transition: var(--motion-slow); flex-shrink: 0; }
+        .toggle-slider:before { content: ""; position: absolute; height: 16px; width: 16px; border-radius: 50%; left: 2px; bottom: 2px; background-color: white; transition: var(--motion-slow); box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
         .toggle-switch input:checked + .toggle-slider { background-color: var(--primary); }
         .toggle-switch input:checked + .toggle-slider:before { transform: translateX(16px); }
-        .toggle-label { font-size: 13px; font-weight: 600; color: #475569; transition: color 0.3s; }
+        .toggle-label { font-size: 13px; font-weight: 600; color: var(--text-muted); transition: color var(--motion-slow); }
         .toggle-switch input:checked ~ .toggle-label { color: var(--primary); }
         /* --- 学生个人看板专属样式 --- */
         .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 20px; }
@@ -1560,13 +1629,13 @@
         /* Interaction refinements: keyboard entry, filter feedback, analysis loading, mobile touch */
         .empty-state-illustration svg, .empty-state-icon svg { animation: emptyFloat 4.6s ease-in-out infinite; transform-origin: center; }
         @keyframes emptyFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
-        .ms-count-badge { margin-left: auto; margin-right: 4px; font-size: 10px; font-weight: 800; color: #2563eb; background: rgba(0,122,255,0.09); border: 1px solid rgba(0,122,255,0.12); border-radius: 999px; padding: 1px 6px; flex: 0 0 auto; }
-        .toolbar-group { transition: opacity .22s cubic-bezier(0.16, 1, 0.3, 1), transform .22s cubic-bezier(0.16, 1, 0.3, 1); }
-        .toolbar-group.toolbar-reveal { animation: toolbarFadeIn .22s cubic-bezier(0.16, 1, 0.3, 1); }
+        .ms-count-badge { margin-left: auto; margin-right: 4px; font-size: 10px; font-weight: 800; color: var(--score-good); background: var(--accent-soft); border: 1px solid rgba(0,122,255,0.12); border-radius: 999px; padding: 1px 6px; flex: 0 0 auto; }
+        .toolbar-group { transition: opacity var(--motion-base) cubic-bezier(0.16, 1, 0.3, 1), transform var(--motion-base) cubic-bezier(0.16, 1, 0.3, 1); }
+        .toolbar-group.toolbar-reveal { animation: toolbarFadeIn var(--motion-base) cubic-bezier(0.16, 1, 0.3, 1); }
         .toolbar-more { position: relative; margin-left: auto; }
         .toolbar-more > button { white-space: nowrap; }
         .toolbar-more-menu { display:none; position:absolute; right:0; top: calc(100% + 8px); min-width: 280px; max-width: min(420px, calc(100vw - 36px)); padding: 12px; background: rgba(255,255,255,0.98); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow-lg); z-index: var(--z-dropdown); }
-        .toolbar-more.open .toolbar-more-menu { display:flex; flex-direction:column; gap: 12px; animation: dropdownSpringIn .22s cubic-bezier(0.16, 1, 0.3, 1); }
+        .toolbar-more.open .toolbar-more-menu { display:flex; flex-direction:column; gap: 12px; animation: dropdownSpringIn var(--motion-base) cubic-bezier(0.16, 1, 0.3, 1); }
         .toolbar-more-menu .toolbar-group { border-left: 0; padding-left: 0; margin-left: 0; width: 100%; }
         .toolbar-more-menu .toolbar-group select,
         .toolbar-more-menu .toolbar-ms { width: 100%; min-width: 0 !important; }
@@ -1592,7 +1661,7 @@
             .smart-toolbar select { min-width: 120px; }
             .toolbar-ms { min-width: 120px !important; }
         }
-        .analysis-loading-overlay { position:absolute; inset: 0; z-index: 6; display:flex; flex-direction:column; gap: 12px; padding: 22px; background: rgba(255,255,255,0.74); border-radius: inherit; pointer-events: none; animation: fadeIn .16s ease; }
+        .analysis-loading-overlay { position:absolute; inset: 0; z-index: 6; display:flex; flex-direction:column; gap: 12px; padding: 22px; background: rgba(255,255,255,0.74); border-radius: inherit; pointer-events: none; animation: fadeIn var(--motion-fast) ease; }
         .analysis-skeleton-line, .analysis-skeleton-block { background: linear-gradient(90deg, rgba(226,232,240,0.7), rgba(248,250,252,0.96), rgba(226,232,240,0.7)); background-size: 200% 100%; animation: skeletonShimmer 1.1s ease-in-out infinite; border-radius: 10px; }
         .analysis-skeleton-line { height: 16px; width: 42%; }
         .analysis-skeleton-block { flex: 1; min-height: 220px; }
@@ -1604,7 +1673,7 @@
         .diag-dot[title] { cursor: help; }
         .overview-stat-card .kpi-spark { margin-left: auto; width: 26px; height: 12px; opacity: .7; flex: 0 0 auto; }
         #overview-dashboard-card .overview-drop-placeholder { border: 2px dashed rgba(0,122,255,0.42); border-radius: 10px; min-height: 220px; background: rgba(0,122,255,0.035); }
-        #overview-dashboard-card .overview-chart-card.is-dropped { animation: cardDropIn .34s cubic-bezier(0.16, 1, 0.3, 1); }
+        #overview-dashboard-card .overview-chart-card.is-dropped { animation: cardDropIn var(--motion-slow) cubic-bezier(0.16, 1, 0.3, 1); }
         @keyframes cardDropIn { from { transform: scale(.97); } to { transform: scale(1); } }
         .profile-nav { display:flex; align-items:center; gap:6px; flex-wrap:wrap; justify-content:flex-end; }
         .guide-step-card { display:grid; grid-template-columns: 28px 1fr; column-gap: 8px; align-items:center; padding: 8px; margin-bottom: 6px; border: 1px solid rgba(60,60,67,0.08); border-radius: 10px; background: rgba(255,255,255,0.74); }
@@ -1614,7 +1683,7 @@
         .ai-summary-cta { min-height: 110px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; text-align:center; border: 1px dashed rgba(0,122,255,0.25); background: linear-gradient(180deg, rgba(239,246,255,0.92), rgba(255,255,255,0.98)); border-radius: 10px; animation: aiCtaPulse 2.8s ease-in-out infinite; }
         @keyframes aiCtaPulse { 0%, 100% { box-shadow: 0 0 0 rgba(0,122,255,0); } 50% { box-shadow: 0 10px 30px -24px rgba(0,122,255,0.55); } }
         .score-mobile-pad { position: fixed; left: 0; right: 0; bottom: 0; z-index: calc(var(--z-modal) + 5); display:none; padding: 14px; background: rgba(255,255,255,0.98); border-radius: 18px 18px 0 0; box-shadow: 0 -18px 38px -28px rgba(15,23,42,0.5); border: 1px solid var(--border); }
-        .score-mobile-pad.open { display:block; animation: dialogIn .28s cubic-bezier(0.16, 1, 0.3, 1); }
+        .score-mobile-pad.open { display:block; animation: dialogIn var(--motion-base) cubic-bezier(0.16, 1, 0.3, 1); }
         .score-mobile-display { font-size: 28px; font-weight: 850; text-align:right; padding: 10px 12px; border-radius: 12px; background:#f8fafc; margin-bottom: 10px; min-height: 52px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
         .score-mobile-keys { display:grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
         .score-mobile-keys button { min-height: 48px; font-size: 20px; font-weight: 800; }
@@ -1745,7 +1814,7 @@
             box-shadow: 0 12px 30px rgba(15,23,42,0.18);
             pointer-events: none;
             opacity: 0;
-            transition: opacity .14s ease, transform .18s cubic-bezier(.2,.8,.2,1);
+            transition: opacity var(--motion-fast) ease, transform var(--motion-fast) cubic-bezier(.2,.8,.2,1);
             white-space: nowrap;
         }
         .heatmap-tile-tooltip.is-visible {
@@ -1778,7 +1847,7 @@
         .compare-advanced-panel { flex-wrap: wrap; gap: 10px; padding: 10px; margin-top: 6px; border: 1px solid var(--border); border-radius: 12px; background: rgba(248,250,252,0.9); }
         .compare-advanced-panel .toolbar-group { display: flex !important; margin: 0; padding-left: 0; border-left: 0; min-width: 150px; }
         .toolbar-toggle-btn { justify-content: center; min-height: 32px; box-shadow: none; }
-        .compare-guide-bubble { position: absolute; right: 12px; top: calc(100% + 8px); z-index: var(--z-dropdown); max-width: 280px; padding: 10px 12px; border: 1px solid rgba(0,122,255,0.22); border-radius: 12px; background: rgba(255,255,255,0.98); color: var(--text-main); box-shadow: var(--shadow-lg); font-size: 12px; line-height: 1.45; animation: fadeIn .18s ease; }
+        .compare-guide-bubble { position: absolute; right: 12px; top: calc(100% + 8px); z-index: var(--z-dropdown); max-width: 280px; padding: 10px 12px; border: 1px solid rgba(0,122,255,0.22); border-radius: 12px; background: rgba(255,255,255,0.98); color: var(--text-main); box-shadow: var(--shadow-lg); font-size: 12px; line-height: 1.45; animation: fadeIn var(--motion-fast) ease; }
         .compare-guide-bubble::before { content:''; position:absolute; right: 28px; top: -6px; width: 10px; height: 10px; background: inherit; border-left: 1px solid rgba(0,122,255,0.22); border-top: 1px solid rgba(0,122,255,0.22); transform: rotate(45deg); }
         .compare-phase-shortcut { display: flex; gap: 6px; flex-wrap: wrap; padding: 8px; border-bottom: 1px solid var(--border); background: rgba(248,250,252,0.82); }
         .compare-phase-shortcut button { padding: 3px 7px; min-height: 24px; font-size: 11px; box-shadow: none; }
@@ -1879,13 +1948,68 @@
             white-space: nowrap;
             opacity: 0;
             pointer-events: none;
-            transition: opacity .16s ease, transform .16s ease;
-            transform: translate(-50%, -8px);
+            transition: opacity var(--motion-fast) ease, transform var(--motion-fast) ease;
+            transform: translate(-50%, 0);
             z-index: 9999;
         }
         .details-ai-tooltip.is-visible {
             opacity: 1;
-            transform: translate(-50%, -12px);
+            transform: translate(-50%, 4px);
+        }
+        .import-format-tooltip {
+            position: fixed;
+            left: 0;
+            top: 0;
+            max-width: min(520px, calc(100vw - 32px));
+            padding: 12px 14px;
+            border: 1px solid rgba(148, 163, 184, 0.28);
+            border-radius: var(--radius-lg);
+            background: rgba(255, 255, 255, 0.96);
+            color: var(--text-main);
+            box-shadow: var(--shadow-lg);
+            backdrop-filter: blur(16px);
+            opacity: 0;
+            pointer-events: none;
+            transform: translate(-50%, 0);
+            transition: opacity var(--motion-fast) ease, transform var(--motion-fast) ease;
+            z-index: 9999;
+        }
+        .import-format-tooltip.is-visible {
+            opacity: 1;
+            transform: translate(-50%, 4px);
+        }
+        .import-format-tooltip-title {
+            font-size: 13px;
+            font-weight: 800;
+            margin-bottom: 8px;
+        }
+        .import-format-tooltip-note {
+            margin-top: 8px;
+            color: var(--text-sub);
+            font-size: 12px;
+            line-height: 1.55;
+        }
+        .import-format-tooltip table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+            overflow: hidden;
+            border-radius: var(--radius-sm);
+        }
+        .import-format-tooltip th,
+        .import-format-tooltip td {
+            padding: 6px 8px;
+            border: 1px solid var(--border);
+            text-align: left;
+            white-space: nowrap;
+        }
+        .import-format-tooltip th {
+            background: rgba(0, 122, 255, 0.06);
+            font-weight: 800;
+        }
+        .import-format-tooltip td {
+            color: var(--text-sub);
+            background: #fff;
         }
         @media (min-width: 1280px) {
             .details-tabs--inline .analysis-tab { flex: 1 1 0; }
@@ -2002,7 +2126,7 @@
             border-radius: 50%;
             margin-left: 10px;
             vertical-align: middle;
-            transition: all 0.3s ease;
+            transition: all var(--motion-slow) ease;
             cursor: help;
         }
         /* 状态：已同步 (绿灯常亮) */
@@ -2022,9 +2146,9 @@
             box-shadow: 0 0 6px rgba(255, 59, 48, 0.4);
         }
         @keyframes sync-pulse {
-            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255, 149, 0, 0.5); }
+            0% { transform: scale(0.98); box-shadow: 0 0 0 0 rgba(255, 149, 0, 0.5); }
             70% { transform: scale(1.1); box-shadow: 0 0 0 4px rgba(255, 149, 0, 0); }
-            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(255, 149, 0, 0); }
+            100% { transform: scale(0.98); box-shadow: 0 0 0 0 rgba(255, 149, 0, 0); }
         }
 
         .ai-loading-dots {
@@ -2100,7 +2224,7 @@
     <aside class="sidebar">
         <div class="logo-area">
             <div class="logo"><span class="logo-icon">⚡</span><span class="logo-text"> 日语成绩分析</span><span id="sync-dot" class="sync-dot synced" title="已同步 (最新)"></span></div>
-            <div style="font-size: 11px; color: #94a3b8; margin-top: 4px; font-weight: 600;"></div>
+            <div style="font-size: 11px; color: var(--text-faint); margin-top: 4px; font-weight: 600;"></div>
         </div>
         
         <div class="nav-menu">
@@ -2217,7 +2341,7 @@
                 <div class="top-actions">
                     <button class="secondary btn--compact btn--soft-primary flex-row items-center gap-sm" id="undo-btn-students" onclick="window.app.store.undo()" title="撤销最后一次操作" disabled>↩️ 撤销</button>
                     <button class="secondary btn--soft-primary" onclick="window.app.ui.openAddStudentModal()">➕ 单个添加学生</button>
-                    <button class="secondary" onclick="document.getElementById('file-import').click()">📥 从 Excel 导入名单</button>
+                    <button class="secondary" onmouseenter="window.app.ui.showImportFormatHint(event, 'students')" onfocus="window.app.ui.showImportFormatHint(event, 'students')" onmouseleave="window.app.ui.hideImportFormatHint()" onblur="window.app.ui.hideImportFormatHint()" onclick="document.getElementById('file-import').click()">📥 从 Excel 导入名单</button>
                     <input type="file" id="file-import" class="is-hidden" accept=".xlsx, .xls" onchange="window.app.ui.handleImport(event)">
                     <button class="danger btn--soft-danger" onclick="window.app.ui.bulkDeleteStudents()">🗑️ 删除选中的学生</button>
                 </div>
@@ -2235,7 +2359,7 @@
                     <button class="secondary btn--compact" onclick="window.app.ui.expandAllExamCards(true)">🔽 全部展开</button>
                     <button class="secondary btn--compact" onclick="window.app.ui.expandAllExamCards(false)">🔼 全部折叠</button>
                     <button class="secondary btn--brand-primary" onclick="window.app.ui.openExamModal()">➕ 新建空白考试 (可填预估分)</button>
-                    <button class="success" onclick="window.app.ui.openImportExamModal()">📥 一键导入成绩单 (自动建考与合并)</button>
+                    <button class="success" onmouseenter="window.app.ui.showImportFormatHint(event, 'scores')" onfocus="window.app.ui.showImportFormatHint(event, 'scores')" onmouseleave="window.app.ui.hideImportFormatHint()" onblur="window.app.ui.hideImportFormatHint()" onclick="window.app.ui.openImportExamModal()">📥 一键导入成绩单 (自动建考与合并)</button>
                 </div>
             </div>
             <div class="content-body" id="flat-exam-container"></div>
@@ -2460,7 +2584,7 @@
 
     <dialog id="modal-import-exam" aria-modal="true" aria-label="导入成绩单" class="dialog-shell dialog--lg">
         <div class="dialog-title mb-sm" style="color:#059669;"><span>📥</span> 从 Excel 导入成绩单</div>
-        <div class="p-card mb-md" style="font-size: 13px; color: #475569; background: #f0fdf4; border-left: 4px solid #10b981; line-height: 1.6;">
+        <div class="p-card mb-md" style="font-size: 13px; color: var(--text-muted); background: var(--success-soft); border-left: 4px solid var(--score-excellent); line-height: 1.6;">
             💡 <b>表格格式要求：</b><br>
             1. 您的 Excel 中必须包含 <b>姓名</b> 和 <b>日语班</b> 两列。<br>
             2. 各个题型分数的表头，请写成 <b>题型(满分)</b> 的格式。比如：<code>听力(30)</code>、<code>阅读(50)</code>。系统会自动识别。
@@ -2594,7 +2718,7 @@
                 <div class="card-shell card-shell--white profile-chart-card profile-ai-card">
                     <div class="dialog-header dialog-header--compact">
                         <h4 class="dialog-title dialog-title--md">学情总结</h4>
-                        <button class="primary no-export" onclick="window.app.ui.generateAISummary(document.getElementById('sp-name').innerText, this)" style="font-size:12px; border:none; border-radius:var(--radius-sm); cursor:pointer; transition:all 0.2s; display:inline-flex; align-items:center; gap:6px;">生成分析</button>
+                        <button class="primary no-export" onclick="window.app.ui.generateAISummary(document.getElementById('sp-name').innerText, this)" style="font-size:12px; border:none; border-radius:var(--radius-sm); cursor:pointer; transition:all var(--motion-base); display:inline-flex; align-items:center; gap:6px;">生成分析</button>
                     </div>
                     <div id="ai-summary-content" style="font-size:13px; color:var(--text-sub); line-height:1.6; white-space:pre-wrap; min-height:100px; height:auto; padding:10px; background:var(--bg-secondary); border-radius:6px;">
                         <div class="ai-summary-cta"><strong>生成一份学生学情小结</strong><span>结合当次成绩、班级均分和题型表现，自动整理优势、风险和下一步建议。</span></div>
@@ -2640,14 +2764,21 @@
             const colorPalette = [
                 { bg: '#e8f0ff', border: '#007aff', text: '#0055cc' },
                 { bg: '#fce8ff', border: '#af52de', text: '#7a00b8' },
-                { bg: '#e8fff0', border: '#34c759', text: '#1a8a35' },
-                { bg: '#fff3e8', border: '#ff9500', text: '#b86200' },
+                { bg: 'var(--success-soft)', border: 'var(--success)', text: 'var(--score-excellent)' },
+                { bg: 'var(--warning-soft)', border: 'var(--warning)', text: 'var(--score-pass)' },
                 { bg: '#e8f8ff', border: '#5ac8fa', text: '#0077aa' },
-                { bg: '#ffe8ea', border: '#ff3b30', text: '#cc1100' }
+                { bg: 'var(--danger-soft)', border: 'var(--danger)', text: 'var(--score-fail)' }
             ];
-            const barColors = ['#0072B2','#009E73','#E69F00','#D55E00','#CC79A7','#56B4E9','#7C3AED','#64748B','#0F766E','#2563EB'];
+            const barColors = ['#007aff','#16a34a','#2563eb','#d97706','#dc2626','#af52de','#5ac8fa','#64748b','#0F766E','#2563EB'];
 
             const Utils = {
+                cssVar: (name, fallback = '') => {
+                    try {
+                        return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+                    } catch(e) {
+                        return fallback;
+                    }
+                },
                 id: () => {
                     if (typeof crypto !== 'undefined' && crypto.randomUUID) {
                         return crypto.randomUUID();
@@ -2713,6 +2844,34 @@
                         .replace(/>/g, '&gt;')
                         .replace(/"/g, '&quot;')
                         .replace(/'/g, '&#39;');
+                },
+                getClassAtDate: (student, dateStr) => {
+                    const history = student && student.classHistory;
+                    if (!history || history.length === 0) {
+                        return { campus: student ? student.campus : '', teachingClass: student ? student.teachingClass : '' };
+                    }
+                    const normalizedDate = dateStr ? String(dateStr).slice(0, 10) : '';
+                    if (!normalizedDate) {
+                        const last = history[history.length - 1];
+                        return { campus: last.campus, teachingClass: last.teachingClass };
+                    }
+                    for (let i = history.length - 1; i >= 0; i--) {
+                        const entry = history[i];
+                        if (entry.from <= normalizedDate && (entry.to === null || entry.to >= normalizedDate)) {
+                            return { campus: entry.campus, teachingClass: entry.teachingClass };
+                        }
+                    }
+                    return { campus: history[0].campus, teachingClass: history[0].teachingClass };
+                },
+                getClassForExam: (student, exam) => {
+                    return Utils.getClassAtDate(student, exam && exam.date ? exam.date : null);
+                },
+                hasTransferred: (student) => {
+                    return !!(student && student.classHistory && student.classHistory.length > 1);
+                },
+                getTransferSummary: (student) => {
+                    if (!Utils.hasTransferred(student)) return '';
+                    return student.classHistory.map(h => h.teachingClass).join(' → ');
                 },
                 getBoxplotData: (arr) => {
                     if (!arr || arr.length === 0) return [0,0,0,0,0];
@@ -2784,21 +2943,21 @@
                         }
                         const ratio = parseFloat(value) / maxScore;
                         if (ratio >= 0.85) {
-                            inputEl.style.backgroundColor = '#f0fdf4';
-                            inputEl.style.color = '#166534';
+                            inputEl.style.backgroundColor = 'var(--success-soft)';
+                            inputEl.style.color = 'var(--score-excellent)';
                             inputEl.style.borderBottomColor = 'transparent';
                             inputEl.style.borderBottomWidth = '';
                             inputEl.style.borderBottomStyle = '';
                         } else if (ratio >= 0.6) {
-                            inputEl.style.backgroundColor = '#fefce8';
-                            inputEl.style.color = '#854d0e';
+                            inputEl.style.backgroundColor = 'var(--warning-soft)';
+                            inputEl.style.color = 'var(--score-pass)';
                             inputEl.style.borderBottomColor = 'transparent';
                             inputEl.style.borderBottomWidth = '';
                             inputEl.style.borderBottomStyle = '';
                         } else {
-                            inputEl.style.backgroundColor = '#fef2f2';
-                            inputEl.style.color = '#991b1b';
-                            inputEl.style.borderBottomColor = '#ef4444';
+                            inputEl.style.backgroundColor = 'var(--danger-soft)';
+                            inputEl.style.color = 'var(--score-fail)';
+                            inputEl.style.borderBottomColor = 'var(--score-fail)';
                             inputEl.style.borderBottomWidth = '2px';
                             inputEl.style.borderBottomStyle = 'solid';
                         }
@@ -2836,6 +2995,81 @@
                         b,
                         predict: (x) => a * x + b
                     };
+                }
+            };
+
+            const StatsEngine = {
+                getClassmateScores(student, exam, allStudents, allScores) {
+                    const stuClass = Utils.getClassForExam(student, exam);
+                    const classmateIds = allStudents
+                        .filter(s => {
+                            const sClass = Utils.getClassForExam(s, exam);
+                            return sClass.campus === stuClass.campus && sClass.teachingClass === stuClass.teachingClass;
+                        })
+                        .map(s => s.id);
+                    return allScores.filter(s => 
+                        s.examId === exam.id && 
+                        classmateIds.includes(s.studentId) && 
+                        s.total > 0 && !s.examAbsent && !s.isEstimated
+                    );
+                },
+                classAverage(student, exam, allStudents, allScores) {
+                    const scores = this.getClassmateScores(student, exam, allStudents, allScores);
+                    if (scores.length === 0) return null;
+                    return parseFloat((scores.reduce((a, b) => a + b.total, 0) / scores.length).toFixed(1));
+                },
+                classTypeAverage(student, exam, typeName, allStudents, allScores) {
+                    const scores = this.getClassmateScores(student, exam, allStudents, allScores);
+                    if (scores.length === 0) return 0;
+                    const sum = scores.reduce((a, s) => a + (s.details[typeName] || 0), 0);
+                    return parseFloat((sum / scores.length).toFixed(1));
+                },
+                gradeStats(exam, allStudents, allScores, campusFilter = null) {
+                    const gradeStudentIds = allStudents
+                        .filter(s => s.grade === exam.grade && (!campusFilter || s.campus === campusFilter))
+                        .map(s => s.id);
+                    const gradeScores = allScores
+                        .filter(s => s.examId === exam.id && gradeStudentIds.includes(s.studentId) && s.total > 0 && !s.examAbsent && !s.isEstimated)
+                        .map(s => s.total);
+                    if (gradeScores.length === 0) return { mean: 0, stdDev: 1, count: 0 };
+                    const mean = gradeScores.reduce((a, b) => a + b, 0) / gradeScores.length;
+                    const variance = gradeScores.reduce((a, v) => a + (v - mean) ** 2, 0) / gradeScores.length;
+                    return { mean, stdDev: Math.sqrt(variance) || 1, count: gradeScores.length };
+                },
+                convertScore(rawScore, exam, scoreType, gradeStatsObj) {
+                    if (scoreType === 'pct') {
+                        return exam.maxTotal ? parseFloat(((rawScore / exam.maxTotal) * 100).toFixed(1)) : 0;
+                    }
+                    if (scoreType === 'std') {
+                        const z = (rawScore - gradeStatsObj.mean) / gradeStatsObj.stdDev;
+                        return parseFloat((z * 10 + 50).toFixed(1));
+                    }
+                    if (scoreType === 'ratio') {
+                        return gradeStatsObj.mean === 0 ? 0 : parseFloat(((rawScore / gradeStatsObj.mean) * 100).toFixed(1));
+                    }
+                    return parseFloat(rawScore.toFixed(1));
+                },
+                gradeRank(studentId, exam, allStudents, allScores) {
+                    const gradeStudentIds = allStudents.filter(s => s.grade === exam.grade).map(s => s.id);
+                    const sorted = allScores
+                        .filter(s => s.examId === exam.id && gradeStudentIds.includes(s.studentId) && s.total > 0 && !s.examAbsent && !s.isEstimated)
+                        .sort((a, b) => b.total - a.total);
+                    const idx = sorted.findIndex(s => s.studentId === studentId);
+                    return { rank: idx >= 0 ? idx + 1 : null, total: sorted.length };
+                },
+                groupByClass(exam, allStudents, allScores) {
+                    const groups = {};
+                    allStudents.forEach(s => {
+                        const classInfo = Utils.getClassForExam(s, exam);
+                        const key = `${classInfo.campus} - ${classInfo.teachingClass}`;
+                        if (!groups[key]) groups[key] = { campus: classInfo.campus, teachingClass: classInfo.teachingClass, students: [], scores: [] };
+                        groups[key].students.push(s);
+                    });
+                    Object.values(groups).forEach(g => {
+                        const ids = new Set(g.students.map(s => s.id));
+                        g.scores = allScores.filter(s => s.examId === exam.id && ids.has(s.studentId) && s.total > 0 && !s.examAbsent && !s.isEstimated);
+                    });
+                    return groups;
                 }
             };
 
@@ -2957,6 +3191,17 @@
                             if (s.class !== undefined) { s.teachingClass = s.class; s.adminClass = '-'; delete s.class; needsSave = true; }
                             if (!s.teachingClass) s.teachingClass = '未分日语班';
                             if (!s.adminClass) s.adminClass = '-';
+                            if (!Array.isArray(s.classHistory) || s.classHistory.length === 0) {
+                                s.classHistory = [{ campus: s.campus, teachingClass: s.teachingClass, from: '2000-01-01', to: null }];
+                                needsSave = true;
+                            }
+                            const lastEntry = s.classHistory[s.classHistory.length - 1];
+                            if (lastEntry.campus !== s.campus || lastEntry.teachingClass !== s.teachingClass) {
+                                lastEntry.campus = s.campus;
+                                lastEntry.teachingClass = s.teachingClass;
+                                lastEntry.to = null;
+                                needsSave = true;
+                            }
                             return true;
                         });
                         if (this.state.data.students.length !== oldStuCount) needsSave = true;
@@ -3340,11 +3585,17 @@
 	                startAutoSync() {
 	                    if (this.pollTimer) clearInterval(this.pollTimer);
 	                    this.pollTimer = setInterval(() => {
+	                        // 禁用在分析或对比页面自动刷新，防止图表等状态被重置打断分析
+	                        if (window.app && window.app.ui && window.app.ui.cur === 'analysis') return;
 	                        if (document.hidden || this.store.hasUnsavedChanges || this.isPushing) return;
 	                        this.pull({ silent: true }).catch(()=>{});
 	                    }, this.pollIntervalMs);
-	                    window.addEventListener('online', () => this.pull({ silent: true }).catch(()=>{}));
+	                    window.addEventListener('online', () => {
+	                        if (window.app && window.app.ui && window.app.ui.cur === 'analysis') return;
+	                        this.pull({ silent: true }).catch(()=>{});
+	                    });
 	                    document.addEventListener('visibilitychange', () => {
+	                        if (window.app && window.app.ui && window.app.ui.cur === 'analysis') return;
 	                        if (!document.hidden) this.pull({ silent: true }).catch(()=>{});
 	                    });
 	                }
@@ -3497,6 +3748,10 @@
 	            }
 
             class UI {
+                get _students() { return this.store.state.data.students || []; }
+                get _exams() { return this.store.state.data.exams || []; }
+                get _scores() { return this.store.state.data.scores || []; }
+
                 constructor(store) { 
                     this.store = store; 
                     this.state = this.store.state;
@@ -3687,7 +3942,7 @@
                             <div class="dialog-title" style="font-size:16px; margin-bottom:12px;">
                                 <span style="font-size:20px;">⚠️</span> 请确认操作
                             </div>
-                            <div class="dialog-note" style="font-size:14px; color:#475569; white-space:pre-wrap;">${Utils.escapeHTML(message)}</div>
+                            <div class="dialog-note" style="font-size:14px; color:var(--text-muted); white-space:pre-wrap;">${Utils.escapeHTML(message)}</div>
                         </div>
                         <div class="dialog-footer" style="margin-top:25px;">
                             <button class="secondary btn--compact" onclick="this.closest('dialog').close()">取消</button>
@@ -4521,7 +4776,7 @@
                         });
                         panel.innerHTML = '';
                         if (options.length === 0) {
-                            panel.innerHTML = `<div style="padding: 15px; color:#94a3b8; font-size:12px; text-align:center;">暂无选项</div>`;
+                            panel.innerHTML = `<div style="padding: 15px; color:var(--text-faint); font-size:12px; text-align:center;">暂无选项</div>`;
                         } else {
                             panel.appendChild(fragment);
                         }
@@ -4549,10 +4804,10 @@
                     
                     if (total === 0 || checked.length === 0) { 
                         header.innerHTML = `<span>${Utils.escapeHTML(placeholder)}</span>${badge}`; 
-                        header.style.color = '#94a3b8'; 
+                        header.style.color = 'var(--text-faint)'; 
                     } else if (isExamSelect) {
                         header.innerHTML = `<span>已选 ${checked.length} 场考试</span>${badge}`; 
-                        header.style.color = '#b91c1c';
+                        header.style.color = 'var(--score-fail)';
                     } else { 
                         const names = checked.map(cb => cb.value.replace(/&quot;/g, '"'));
                         let text = '';
@@ -4920,13 +5175,14 @@
                                     const safeGrade = String(s.grade || '').replace(/"/g, '&quot;');
                                     const safeClass = String(s.teachingClass || '').replace(/"/g, '&quot;');
                                     const safeAdmin = String(s.adminClass || '').replace(/"/g, '&quot;');
+                                    const transferMark = Utils.hasTransferred(s) ? `<span class="pill" style="font-size:10px; background:#fef3c7; color:#92400e; margin-left:4px;" title="班级变更记录：${Utils.escapeHTML(Utils.getTransferSummary(s))}">🔀 有换班记录</span>` : '';
 
                                     rowHtmlArr.push(`<tr>
                                         <td><input type="checkbox" class="stu-checkbox" value="${s.id}"></td>
                                         <td><input class="student-input" value="${safeName}" onchange="window.app.ui.updStu('${s.id}','name',this.value)"> <a href="#" class="table-link--student" onclick="window.app.ui.openStudentDashboardModal('${s.id}')">📊 看档案</a></td>
                                         <td><input class="student-input" value="${safeCampus}" onchange="window.app.ui.updStu('${s.id}','campus',this.value)"></td>
                                         <td><input class="student-input" value="${safeGrade}" placeholder="如:2024级" onchange="window.app.ui.updStu('${s.id}','grade',this.value)"></td>
-                                        <td><input class="student-input" value="${safeClass}" onchange="window.app.ui.updStu('${s.id}','teachingClass',this.value)"></td>
+                                        <td><input class="student-input" value="${safeClass}" onchange="window.app.ui.updStu('${s.id}','teachingClass',this.value)">${transferMark}</td>
                                         <td><input class="student-input" value="${safeAdmin}" onchange="window.app.ui.updStu('${s.id}','adminClass',this.value)"></td>
                                         <td class="cell-min-120">
                                             <span id="stu-tags-${s.id}" class="table-side-note">${(s.tags||[]).map(t=>`<span class='tag-chip'>${Utils.escapeHTML(t)}</span>`).join('')}</span>
@@ -4951,11 +5207,39 @@
 
                 updStu(id, f, v) {
                     const s = this.store.state.data.students.find(i=>i.id===id);
-                    if(s) { 
-                        s[f] = (v || '').trim(); 
-                        s._ts = Date.now(); 
-                        this.store.markAsUnsaved();
+                    if(!s) return;
+                    const newVal = (v || '').trim();
+
+                    if (f === 'teachingClass' || f === 'campus') {
+                        const oldCampus = s.campus;
+                        const oldClass = s.teachingClass;
+
+                        s[f] = newVal;
+                        s._ts = Date.now();
+
+                        const newCampus = s.campus;
+                        const newClass = s.teachingClass;
+
+                        if (newCampus !== oldCampus || newClass !== oldClass) {
+                            if (!Array.isArray(s.classHistory) || s.classHistory.length === 0) {
+                                s.classHistory = [{ campus: oldCampus, teachingClass: oldClass, from: '2000-01-01', to: null }];
+                            }
+                            const today = new Date().toISOString().slice(0, 10);
+                            const last = s.classHistory[s.classHistory.length - 1];
+                            if (last.from === today) {
+                                last.campus = newCampus;
+                                last.teachingClass = newClass;
+                            } else {
+                                const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+                                last.to = yesterday;
+                                s.classHistory.push({ campus: newCampus, teachingClass: newClass, from: today, to: null });
+                            }
+                        }
+                    } else {
+                        s[f] = newVal;
+                        s._ts = Date.now();
                     }
+                    this.store.markAsUnsaved();
                 }
                 
                 delStu(id) {
@@ -5045,7 +5329,10 @@
                     document.getElementById('sp-name').textContent = stu.name;
                     document.getElementById('sp-campus').textContent = stu.campus;
                     document.getElementById('sp-grade').textContent = stu.grade;
-                    document.getElementById('sp-class').textContent = stu.teachingClass;
+                    const classText = Utils.hasTransferred(stu)
+                        ? `${stu.teachingClass}（${Utils.getTransferSummary(stu)}）`
+                        : stu.teachingClass;
+                    document.getElementById('sp-class').textContent = classText;
 
                     this._syncStudentProfileAISummary(stu);
 
@@ -5075,11 +5362,14 @@
                                 historyEl.innerHTML = `<div class="table-note">暂无考试记录</div>`;
                             } else {
                                 const lastExamId = rows[rows.length-1].exam.id;
-                                let h = '<table class="table-shell table-shell--history"><thead><tr><th>考试名称</th><th style="width:110px;">考试日期</th><th style="width:80px; text-align:right;">总分</th><th style="width:90px; text-align:right;">得分率</th><th style="width:120px; text-align:center;">年级排名</th></tr></thead><tbody>';
+                                let h = '<table class="table-shell table-shell--history"><thead><tr><th>考试名称</th><th style="width:110px;">考试日期</th><th style="width:110px;">所属班级</th><th style="width:80px; text-align:right;">总分</th><th style="width:90px; text-align:right;">得分率</th><th style="width:120px; text-align:center;">年级排名</th></tr></thead><tbody>';
                                 rows.forEach(r => {
                                     const mark = r.exam.id === lastExamId ? ' <span class="text-primary">🔵</span>' : '';
                                     const rankText = r.rank ? `${r.rank}/${r.gradeCount}` : '-';
-                                    h += `<tr><td>${Utils.escapeHTML(r.exam.name)}${mark}</td><td>${Utils.escapeHTML(r.exam.date || '')}</td><td style="text-align:right; font-weight:700;">${r.rec.total}</td><td style="text-align:right;">${r.rate}%</td><td style="text-align:center;">${rankText}</td></tr>`;
+                                    const examClass = Utils.getClassForExam(stu, r.exam).teachingClass;
+                                    const isOldClass = examClass !== stu.teachingClass;
+                                    const classCellStyle = isOldClass ? 'color:#d97706; font-style:italic;' : '';
+                                    h += `<tr><td>${Utils.escapeHTML(r.exam.name)}${mark}</td><td>${Utils.escapeHTML(r.exam.date || '')}</td><td style="${classCellStyle}">${Utils.escapeHTML(examClass)}${isOldClass ? ' 🔀' : ''}</td><td style="text-align:right; font-weight:700;">${r.rec.total}</td><td style="text-align:right;">${r.rate}%</td><td style="text-align:center;">${rankText}</td></tr>`;
                                 });
                                 h += '</tbody></table>';
                                 historyEl.innerHTML = h;
@@ -5105,13 +5395,8 @@
                         stuScores.push(item.score.total);
                         if(ex.maxTotal > maxScoreOverall) maxScoreOverall = ex.maxTotal;
 
-                        const clsStus = this.store.state.data.students.filter(s => s.campus === stu.campus && s.teachingClass === stu.teachingClass).map(s=>s.id);
-                        const clsScores = this.store.state.data.scores.filter(s => s.examId === ex.id && clsStus.includes(s.studentId) && s.total > 0 && !s.examAbsent);
-                        if (clsScores.length > 0) {
-                            avgScores.push(parseFloat((clsScores.reduce((a,b)=>a+b.total,0)/clsScores.length).toFixed(1)));
-                        } else {
-                            avgScores.push(null);
-                        }
+                        const avg = StatsEngine.classAverage(stu, ex, this._students, this._scores);
+                        avgScores.push(avg);
                     });
 
                     
@@ -5139,13 +5424,8 @@
                     const indicator = ex.types.map(t => ({ name: t.name, max: 100 }));
                     const stuPct = ex.types.map(t => parseFloat((((rec.details[t.name]||0) / t.max) * 100).toFixed(1)));
                     
-                    const clsStus = this.store.state.data.students.filter(s => s.campus === stu.campus && s.teachingClass === stu.teachingClass).map(s=>s.id);
-                    const clsScores = this.store.state.data.scores.filter(s => s.examId === ex.id && clsStus.includes(s.studentId) && s.total > 0 && !s.examAbsent);
-                    
                     const avgPct = ex.types.map(t => {
-                        let sum = 0;
-                        clsScores.forEach(cs => sum += (cs.details[t.name]||0));
-                        const rawAvg = clsScores.length > 0 ? sum / clsScores.length : 0;
+                        const rawAvg = StatsEngine.classTypeAverage(stu, ex, t.name, this._students, this._scores);
                         return parseFloat(((rawAvg / t.max) * 100).toFixed(1));
                     });
 
@@ -5181,7 +5461,7 @@
                             type: 'radar',
                             data: [
                                 { name: '个人能力(%)', value: stuPct, itemStyle: { color: '#0072B2' }, areaStyle: { color: this._radarAreaGradient(), opacity: 0.92 } },
-                                { name: '班级均值(%)', value: avgPct, itemStyle: { color: '#94a3b8' }, lineStyle: { type: 'dashed' } }
+                                { name: '班级均值(%)', value: avgPct, itemStyle: { color: Utils.cssVar('--text-faint', '#94a3b8') }, lineStyle: { type: 'dashed' } }
                             ]
                         }]
                     });
@@ -5228,7 +5508,8 @@
                         grade: grade,
                         teachingClass: tClass || '未分日语班',
                         adminClass: aClass || '-',
-                        tags: []
+                        tags: [],
+                        classHistory: [{ campus: campus, teachingClass: tClass || '未分日语班', from: new Date().toISOString().slice(0, 10), to: null }]
                     };
 
                     this.store.pushSnapshot();
@@ -5327,7 +5608,7 @@
                             if (!name || !campus || !grade) return;
                             const exists = this.store.state.data.students.some(s => s.name === name && s.campus === campus && s.grade === grade);
                             if (exists) { skipCount++; return; }
-                            this.store.state.data.students.push({ id: Utils.id(), _ts: Date.now(), name, campus, grade, teachingClass: tCls, adminClass: aCls, tags: [] });
+                            this.store.state.data.students.push({ id: Utils.id(), _ts: Date.now(), name, campus, grade, teachingClass: tCls, adminClass: aCls, tags: [], classHistory: [{ campus, teachingClass: tCls, from: new Date().toISOString().slice(0, 10), to: null }] });
                             addCount++;
                         });
                         this.store.save();
@@ -5516,8 +5797,9 @@
                             
                             const classOpts = [];
                             examStudentsAll.forEach(s => {
-                                if (focus.tClasses.length === 0 || focus.tClasses.includes(s.teachingClass)) {
-                                    const label = `${s.campus} - ${s.teachingClass}`;
+                                const classAtExam = Utils.getClassForExam(s, ex);
+                                if (focus.tClasses.length === 0 || focus.tClasses.includes(classAtExam.teachingClass)) {
+                                    const label = `${classAtExam.campus} - ${classAtExam.teachingClass}`;
                                     if (!classOpts.includes(label)) classOpts.push(label);
                                 }
                             });
@@ -5582,8 +5864,12 @@
                         `即将清空【${campus} - ${className}】本次考试的所有成绩记录，此操作不可逆。`,
 	                        () => {
 	                            this.store.pushSnapshot();
+	                            const exam = this.store.state.data.exams.find(e => e.id === eid);
 	                            const targetStudentIds = this.store.state.data.students
-	                                .filter(s => s.campus === campus && s.teachingClass === className)
+                                .filter(s => {
+                                    const classAtExam = Utils.getClassForExam(s, exam);
+                                    return classAtExam.campus === campus && classAtExam.teachingClass === className;
+                                })
 	                                .map(s => s.id);
 	                            const ts = Date.now();
 	                            this.store.state.data.scores
@@ -5629,9 +5915,9 @@
                     });
 
                     if (focus.campuses.length > 0) targetStudents = targetStudents.filter(s => focus.campuses.includes(s.campus));
-                    if (focus.tClasses.length > 0) targetStudents = targetStudents.filter(s => focus.tClasses.includes(s.teachingClass));
+                    if (focus.tClasses.length > 0) targetStudents = targetStudents.filter(s => focus.tClasses.includes(Utils.getClassForExam(s, exam).teachingClass));
                     
-                    targetStudents = targetStudents.filter(s => checkedClasses.includes(`${s.campus} - ${s.teachingClass}`));
+                    targetStudents = targetStudents.filter(s => checkedClasses.includes(`${Utils.getClassForExam(s, exam).campus} - ${Utils.getClassForExam(s, exam).teachingClass}`));
                     
                     if(targetStudents.length === 0) {
                         wrapper.innerHTML = `<div class="table-centered-note">请先在上方下拉框中选择要查看的班级，或者前往“名单管理”添加对应的学生。</div>`;
@@ -5640,8 +5926,9 @@
                     
                     const groups = {};
                     targetStudents.forEach(s => {
-                        const clsKey = `${s.campus} - ${s.teachingClass}`;
-                        if(!groups[clsKey]) groups[clsKey] = { campus: s.campus, className: s.teachingClass, students: [] };
+                        const classAtExam = Utils.getClassForExam(s, exam);
+                        const clsKey = `${classAtExam.campus} - ${classAtExam.teachingClass}`;
+                        if(!groups[clsKey]) groups[clsKey] = { campus: classAtExam.campus, className: classAtExam.teachingClass, students: [] };
                         groups[clsKey].students.push(s);
                     });
                     
@@ -5668,7 +5955,7 @@
                                 <th class="sticky-col-left header-sticky-100">学生姓名</th>
                                 <th class="header-sticky-80">校区</th>
                                 <th class="header-sticky-80">原班级</th>
-                                <th class="header-sticky-80" style="color: #b45309; background: #fffbeb;">考前预估总分</th>`;
+                                <th class="header-sticky-80" style="color: var(--score-pass); background: var(--warning-soft);">考前预估总分</th>`;
                             (exam.types || []).forEach(t => { html += `<th>${Utils.escapeHTML(t.name)}<span class="table-side-note">满分: ${t.max}</span><br><button class="secondary btn--tiny" onclick="event.preventDefault(); window.app.ui.quickFillScoreColumn(this, '${eid}', '${String(t.name).replace(/'/g, "\\'")}', ${Number(t.max)||0})">快速填充</button></th>`; });
                             html += `<th class="header-sticky-120" style="color: var(--primary);">实际获得总分</th></tr></thead><tbody>`;
                         
@@ -5694,16 +5981,20 @@
                             const safeStudentName = Utils.escapeHTML(stu.name);
                             const safeStudentCampus = Utils.escapeHTML(stu.campus || '-');
                             const safeStudentAdminClass = Utils.escapeHTML(stu.adminClass || '-');
+                            const classAtExam = Utils.getClassForExam(stu, exam);
+                            const transferMark = Utils.hasTransferred(stu) && (classAtExam.campus !== stu.campus || classAtExam.teachingClass !== stu.teachingClass)
+                                ? `<span title="该生当前已转至 ${Utils.escapeHTML(stu.teachingClass)}" style="color:#d97706; margin-left:4px;">🔀</span>`
+                                : '';
                             const rowComplete = this._isScoreCompleteForExam(stu.id, exam);
                             const enteredCount = (exam.types || []).filter(t => rec.details && rec.details[t.name] !== undefined && rec.details[t.name] !== null && String(rec.details[t.name]).trim() !== '').length;
                             const statusState = isExamAbsent ? 'absent' : (rowComplete ? 'complete' : (enteredCount > 0 ? 'partial' : 'empty'));
                             const statusTitle = isExamAbsent ? '缺考：点击取消缺考标记' : (rowComplete ? '已完成：点击标记缺考' : (enteredCount > 0 ? '未填写完：点击标记缺考' : '未填写：点击标记缺考'));
                             let trHtml = `<tr class="${isExamAbsent ? 'exam-absent-row' : ''}">
-                                <td class="sticky-col-left" style="font-weight:600; color:#1e293b;"><button type="button" class="score-status-dot score-status-dot--${statusState}" data-sid="${stu.id}" data-eid="${eid}" onclick="event.preventDefault(); event.stopPropagation(); window.app.ui.toggleExamAbsent('${stu.id}','${eid}',this)" title="${statusTitle}" aria-label="${statusTitle}"></button>${safeStudentName}</td>
+                                <td class="sticky-col-left" style="font-weight:600; color:#1e293b;"><button type="button" class="score-status-dot score-status-dot--${statusState}" data-sid="${stu.id}" data-eid="${eid}" onclick="event.preventDefault(); event.stopPropagation(); window.app.ui.toggleExamAbsent('${stu.id}','${eid}',this)" title="${statusTitle}" aria-label="${statusTitle}"></button>${safeStudentName}${transferMark}</td>
                                 <td class="table-side-note">${safeStudentCampus}</td>
                                 <td class="table-side-note">${safeStudentAdminClass}</td>`;
                             
-                            trHtml += `<td class="score-cell" style="background: #fffbeb;"><input type="text" inputmode="decimal" pattern="[0-9]*" class="score-input" aria-label="${safeStudentName} 的考前预估总分" data-sid="${stu.id}" data-eid="${eid}" data-type="estimated" ${isExamAbsent ? 'disabled' : ''} value="${!isExamAbsent && rec.estimatedTotal !== undefined && rec.estimatedTotal !== null && String(rec.estimatedTotal).trim() !== '' ? rec.estimatedTotal : ''}"><span class="score-warning"></span></td>`;
+                            trHtml += `<td class="score-cell" style="background: var(--warning-soft);"><input type="text" inputmode="decimal" pattern="[0-9]*" class="score-input" aria-label="${safeStudentName} 的考前预估总分" data-sid="${stu.id}" data-eid="${eid}" data-type="estimated" ${isExamAbsent ? 'disabled' : ''} value="${!isExamAbsent && rec.estimatedTotal !== undefined && rec.estimatedTotal !== null && String(rec.estimatedTotal).trim() !== '' ? rec.estimatedTotal : ''}"><span class="score-warning"></span></td>`;
 
                             (exam.types || []).forEach(t => {
                                 const safeTName = String(t.name).replace(/"/g, '&quot;');
@@ -6951,7 +7242,10 @@
                                 const targetStudent = this.store.state.data.students.find(s => {
                                     if(s.campus !== c || s.grade !== g) return false;
                                     if(s.name !== stuName) return false;
-                                    if(stuTClass && s.teachingClass !== stuTClass) return false;
+                                    if(stuTClass) {
+                                        const classAtExam = Utils.getClassAtDate(s, d);
+                                        if (classAtExam.teachingClass !== stuTClass && s.teachingClass !== stuTClass) return false;
+                                    }
                                     return true;
                                 });
 
@@ -7059,7 +7353,10 @@
                                 const targetStudent = this.store.state.data.students.find(s => {
                                     if(s.grade !== exam.grade) return false;
                                     if(s.name !== stuName) return false;
-                                    if(stuTClass && s.teachingClass !== stuTClass) return false;
+                                    if(stuTClass) {
+                                        const classAtExam = Utils.getClassAtDate(s, exam.date);
+                                        if (classAtExam.teachingClass !== stuTClass && s.teachingClass !== stuTClass) return false;
+                                    }
                                     return true;
                                 });
 
@@ -7947,7 +8244,8 @@
                     // 2. 提前计算各班级均分（用于后续的离均差比对）
                     const classStats = {};
                     pool.forEach(p => {
-                        const cKey = `${p.campus}-${p.teachingClass}`;
+                        const pClass = Utils.getClassForExam(p, exam);
+                        const cKey = `${pClass.campus}-${pClass.teachingClass}`;
                         if (!classStats[cKey]) classStats[cKey] = { totalSum: 0, count: 0 };
                         classStats[cKey].totalSum += p.total;
                         classStats[cKey].count++;
@@ -7965,7 +8263,7 @@
                         <meta charset="UTF-8">
                         <style>
                             table { border-collapse: collapse; font-family: 'Microsoft YaHei', sans-serif; text-align: center; }
-                            th, td { border: 1px solid #cbd5e1; padding: 6px 12px; }
+                            th, td { border: 1px solid var(--line-strong); padding: 6px 12px; }
                             th { background-color: #f1f5f9; font-weight: bold; color: #1e293b; height: 35px; }
                         
 
@@ -7980,7 +8278,8 @@
                     // 填充学生行数据（并应用颜色判据）
                     sortedPool.forEach(d => {
                         htmlStr += `<tr>`;
-                        const cKey = `${d.campus}-${d.teachingClass}`;
+                        const dClass = Utils.getClassForExam(d, exam);
+                        const cKey = `${dClass.campus}-${dClass.teachingClass}`;
                         const cAvg = classStats[cKey] ? (classStats[cKey].totalSum / classStats[cKey].count) : d.total;
                         
                         // 名次
@@ -7994,7 +8293,8 @@
                         // 基础信息
                         htmlStr += `<td><b>${Utils.escapeHTML(d.name)}</b></td>`;
                         htmlStr += `<td>${Utils.escapeHTML(d.campus || '-')}</td>`;
-                        htmlStr += `<td>${Utils.escapeHTML(d.teachingClass || '-')}</td>`;
+                        const dClassForDisplay = Utils.getClassForExam(d, exam);
+                        htmlStr += `<td>${Utils.escapeHTML(dClassForDisplay.teachingClass || d.teachingClass || '-')}</td>`;
                         htmlStr += `<td style="color: #64748b;">${Utils.escapeHTML(d.adminClass || '-')}</td>`;
                         
                         // 卷面总分
@@ -8013,7 +8313,7 @@
                             const tDiffColor = targetDiff > 0 ? '#10b981' : (targetDiff < 0 ? '#ef4444' : '#64748b');
                             htmlStr += `<td style="color: ${tDiffColor}; font-weight: bold;">${targetDiff > 0 ? `+${targetDiff}` : targetDiff}</td>`;
                         } else {
-                            htmlStr += `<td style="color: #cbd5e1;">-</td><td style="color: #cbd5e1;">-</td>`;
+                            htmlStr += `<td style="color: var(--line-strong);">-</td><td style="color: var(--line-strong);">-</td>`;
                         }
 
                         // 动态状态评级方块色（红黄绿）
@@ -8047,7 +8347,7 @@
                     const allTotals = pool.map(p => p.total);
                     const overallAvg = allTotals.length > 0 ? (allTotals.reduce((a,b)=>a+b,0)/allTotals.length).toFixed(1) : 0;
                     
-                    htmlStr += `<tr style="background-color: #f8fafc; font-weight: bold; border-top: 2px solid #94a3b8;">
+                    htmlStr += `<tr style="background-color: var(--surface-2); font-weight: bold; border-top: 2px solid var(--text-faint);">
                         <td>-</td><td>大盘总体均值</td><td>-</td><td>-</td><td>-</td>
                         <td style="color: #3b82f6; font-size: 16px;">${overallAvg}</td><td>-</td><td>-</td><td>-</td><td>-</td><td>-</td>`;
                     
@@ -8193,7 +8493,8 @@
                         
                         const safeStuName = Utils.escapeHTML(stu.name);
                         const safeCampus = Utils.escapeHTML(stu.campus);
-                        const safeTClass = Utils.escapeHTML(stu.teachingClass);
+                        const classAtExam = Utils.getClassForExam(stu, exam);
+                        const safeTClass = Utils.escapeHTML(classAtExam.teachingClass || stu.teachingClass || '-');
                         tbHtml += `<tr>
                             <td style="font-weight:bold; text-align:center;">${idx + 1}</td>
                             <td style="font-weight:bold;"><a href="javascript:window.app.ui.openStudentProfile('${stu.id}')" style="cursor:pointer; text-decoration:underline; color:var(--primary);">${safeStuName}</a></td>
@@ -8216,7 +8517,7 @@
                     document.getElementById('sp-name').innerText = stu.name;
                     document.getElementById('sp-campus').innerText = stu.campus;
                     document.getElementById('sp-grade').innerText = stu.grade;
-                    document.getElementById('sp-class').innerText = stu.teachingClass;
+                    document.getElementById('sp-class').innerText = Utils.hasTransferred(stu) ? `${stu.teachingClass}（${Utils.getTransferSummary(stu)}）` : stu.teachingClass;
 
                     this._syncStudentProfileAISummary(stu);
 
@@ -8253,7 +8554,7 @@
                     const input = document.getElementById('sp-jump-search');
                     if (!list) return;
                     const students = this._getProfileStudentList();
-                    list.innerHTML = students.map(s => `<option value="${Utils.escapeHTML(s.name)}">${Utils.escapeHTML(s.campus || '')} ${Utils.escapeHTML(s.teachingClass || '')}</option>`).join('');
+                    list.innerHTML = students.map(s => `<option value="${Utils.escapeHTML(s.name)}">${Utils.escapeHTML(s.campus || '')} ${Utils.escapeHTML(s.teachingClass || '')}${Utils.hasTransferred(s) ? ' 🔀' : ''}</option>`).join('');
                     const cur = students.find(s => s.id === this._profileCurrentStudentId);
                     if (input && cur) input.value = cur.name;
                 }
@@ -8376,11 +8677,12 @@
                         .filter(s => s.examId === eid && allowedIds.has(s.studentId) && !s.examAbsent)
                         .map(s => {
                             const stu = studentsById.get(s.studentId) || {};
+                            const classAtExam = Utils.getClassForExam(stu, exam);
                             return {
                                 id: s.studentId,
                                 name: stu.name || s.studentId || '-',
                                 campus: stu.campus || '-',
-                                teachingClass: stu.teachingClass || '-',
+                                teachingClass: classAtExam.teachingClass || stu.teachingClass || '-',
                                 adminClass: stu.adminClass || '-',
                                 total: Number(s.total || 0),
                                 estimatedTotal: Number(s.estimatedTotal || 0),
@@ -8423,7 +8725,11 @@
 
                     const gradeScores = scores;
                     const classStudentIds = this.store.state.data.students
-                        .filter(s => s.campus === student.campus && s.teachingClass === student.teachingClass)
+                        .filter(s => {
+                            const classAtExam = Utils.getClassForExam(s, exam);
+                            const studentClassAtExam = Utils.getClassForExam(student, exam);
+                            return classAtExam.campus === studentClassAtExam.campus && classAtExam.teachingClass === studentClassAtExam.teachingClass;
+                        })
                         .map(s => s.id);
                     const classScores = scores.filter(s => classStudentIds.includes(s.studentId));
 
@@ -8582,6 +8888,66 @@
 
                 hideDetailsAiHint() {
                     const tip = document.getElementById('details-ai-tooltip');
+                    if (tip) tip.classList.remove('is-visible');
+                }
+
+                showOverviewKpiHint(event, html) {
+                    if (!html) return;
+                    let tip = document.getElementById('overview-kpi-tooltip');
+                    if (!tip) {
+                        tip = document.createElement('div');
+                        tip.id = 'overview-kpi-tooltip';
+                        tip.className = 'overview-kpi-tooltip';
+                        document.body.appendChild(tip);
+                    }
+                    tip.innerHTML = html;
+                    const rect = event && event.currentTarget ? event.currentTarget.getBoundingClientRect() : null;
+                    const x = rect ? rect.left + rect.width / 2 : (event ? event.clientX : window.innerWidth / 2);
+                    const y = rect ? rect.bottom + 8 : (event ? event.clientY + 8 : 24);
+                    tip.style.left = `${Math.min(Math.max(x, 190), window.innerWidth - 190)}px`;
+                    tip.style.top = `${Math.min(Math.max(12, y), window.innerHeight - 24)}px`;
+                    tip.classList.add('is-visible');
+                }
+
+                hideOverviewKpiHint() {
+                    const tip = document.getElementById('overview-kpi-tooltip');
+                    if (tip) tip.classList.remove('is-visible');
+                }
+
+                showImportFormatHint(event, type) {
+                    let tip = document.getElementById('import-format-tooltip');
+                    if (!tip) {
+                        tip = document.createElement('div');
+                        tip.id = 'import-format-tooltip';
+                        tip.className = 'import-format-tooltip';
+                        document.body.appendChild(tip);
+                    }
+                    const isScores = type === 'scores';
+                    tip.innerHTML = isScores ? `
+                        <div class="import-format-tooltip-title">成绩单表头范例</div>
+                        <table>
+                            <thead><tr><th>姓名</th><th>日语班</th><th>听力(30)</th><th>阅读(50)</th><th>作文(30)</th></tr></thead>
+                            <tbody><tr><td>张三</td><td>24A</td><td>26</td><td>42</td><td>25</td></tr></tbody>
+                        </table>
+                        <div class="import-format-tooltip-note">题型列请使用“题型(满分)”格式；必须包含“姓名”和“日语班”。</div>
+                    ` : `
+                        <div class="import-format-tooltip-title">学生名单表头范例</div>
+                        <table>
+                            <thead><tr><th>姓名</th><th>校区</th><th>年级</th><th>日语班</th><th>行政班</th></tr></thead>
+                            <tbody><tr><td>张三</td><td>师上</td><td>2024级</td><td>24A</td><td>高二1班</td></tr></tbody>
+                        </table>
+                        <div class="import-format-tooltip-note">至少建议包含“姓名、校区、年级、日语班”；有行政班时请一并导入。</div>
+                    `;
+                    const rect = event && event.currentTarget ? event.currentTarget.getBoundingClientRect() : null;
+                    const x = rect ? rect.left + rect.width / 2 : (event ? event.clientX : window.innerWidth / 2);
+                    const y = rect ? rect.bottom + 34 : (event ? event.clientY + 34 : 34);
+                    tip.style.left = `${Math.min(Math.max(x, 260), window.innerWidth - 260)}px`;
+                    tip.style.top = `${Math.min(Math.max(16, y), window.innerHeight - 24)}px`;
+                    tip.classList.add('is-visible');
+                }
+
+                hideImportFormatHint() {
+                    const tip = document.getElementById('import-format-tooltip');
                     if (tip) tip.classList.remove('is-visible');
                 }
 
@@ -8939,7 +9305,8 @@
                                 const hasHeatmapSeries = seriesTypes.includes('heatmap');
                                 const hasRadarSeries = seriesTypes.includes('radar');
                                 const startOption = this._getAnimatedChartStartOption(animatedOption);
-                                const shouldDrawFromStart = !!startOption && !hasHeatmapSeries && (firstRender || isOverviewChart || isProfileChart);
+                                const skipStartFrame = domId === 'sp-chart-quadrant';
+                                const shouldDrawFromStart = !!startOption && !skipStartFrame && !hasHeatmapSeries && (firstRender || isOverviewChart || isProfileChart);
                                 try { if (typeof chart.resize === 'function') chart.resize(); } catch(e) {}
 
                                 if (isPureLineChart && (isOverviewChart || isProfileChart || firstRender)) {
@@ -9043,13 +9410,8 @@
                             stuScores.push(scoreRec.total);
                             
                             // Class Average
-                            const clsStus = this.store.state.data.students.filter(s => s.campus === stu.campus && s.teachingClass === stu.teachingClass).map(s=>s.id);
-                            const clsScores = this.store.state.data.scores.filter(s => s.examId === ex.id && clsStus.includes(s.studentId) && s.total > 0 && !s.examAbsent);
-                            if (clsScores.length > 0) {
-                                avgScores.push(parseFloat((clsScores.reduce((a,b)=>a+b.total,0)/clsScores.length).toFixed(1)));
-                            } else {
-                                avgScores.push(null);
-                            }
+                            const avg = StatsEngine.classAverage(stu, ex, this._students, this._scores);
+                            avgScores.push(avg);
                         }
                     });
 
@@ -9226,7 +9588,11 @@
                         return;
                     }
 
-                    const clsStus = this.store.state.data.students.filter(s => s.campus === stu.campus && s.teachingClass === stu.teachingClass).map(s=>s.id);
+                    const stuClassAtExam = Utils.getClassForExam(stu, ex);
+                    const clsStus = this.store.state.data.students.filter(s => {
+                        const sClass = Utils.getClassForExam(s, ex);
+                        return sClass.campus === stuClassAtExam.campus && sClass.teachingClass === stuClassAtExam.teachingClass;
+                    }).map(s=>s.id);
                     const clsScores = this.store.state.data.scores.filter(s => s.examId === ex.id && clsStus.includes(s.studentId) && s.total > 0 && !s.examAbsent);
 
                     let clsTotalScoreSum = clsScores.reduce((a, b) => a + b.total, 0);
@@ -9444,7 +9810,7 @@
                         trendStudents
                             .sort((a, b) => `${a.campus}-${a.teachingClass}-${a.name}`.localeCompare(`${b.campus}-${b.teachingClass}-${b.name}`, 'zh-CN', { numeric: true }))
                             .forEach(s => {
-                                stuSelector.innerHTML += `<option value="${s.id}">${s.name} (${s.campus} - ${s.teachingClass})</option>`;
+                                stuSelector.innerHTML += `<option value="${s.id}">${s.name} (${s.campus} - ${s.teachingClass})${Utils.hasTransferred(s) ? ' 🔀' : ''}</option>`;
                             });
                         if (currStu && trendStudents.some(s => s.id === currStu)) stuSelector.value = currStu;
 
@@ -9512,11 +9878,10 @@
                                 else stuData.push(null);
                             }
 
-                            const targetCampus = targetStu ? targetStu.campus : null;
-                            const targetClass = targetStu ? targetStu.teachingClass : null;
+                            const targetClassAtExam = targetStu ? Utils.getClassForExam(targetStu, ex) : null;
                             const classStudents = getValidStudentsForExam(ex).filter(s => {
-                                if (targetCampus && s.campus !== targetCampus) return false;
-                                if (targetClass && s.teachingClass !== targetClass) return false;
+                                if (targetClassAtExam && Utils.getClassForExam(s, ex).campus !== targetClassAtExam.campus) return false;
+                                if (targetClassAtExam && Utils.getClassForExam(s, ex).teachingClass !== targetClassAtExam.teachingClass) return false;
                                 return true;
                             });
 
@@ -9528,7 +9893,7 @@
                             if (classScores.length === 0) classAvgData.push(null);
                             else {
                                 const avg = classScores.reduce((a, b) => a + b, 0) / classScores.length;
-                                classAvgData.push(calcScoreByType(avg, ex, targetCampus));
+                                classAvgData.push(calcScoreByType(avg, ex, targetClassAtExam ? targetClassAtExam.campus : null));
                             }
                         });
 
@@ -9567,23 +9932,27 @@
                             // 未选学生时，显示该年级各班级的折线
                             const classColors = ['#ef4444', '#f97316', '#eab308', '#22c55e', '#0ea5e9', '#8b5cf6', '#ec4899', '#06b6d4'];
                             
-                            // 从当前考试范围的有效学生中提取所有班级
-                            let allValidStudents = [];
+                            // 从当前考试范围的有效学生中按考试日期提取所有出现过的班级
+                            const allClassNameSet = new Set();
                             candidateExams.forEach(ex => {
                                 const validForEx = getValidStudentsForExam(ex);
-                                allValidStudents.push(...validForEx);
+                                validForEx.forEach(s => {
+                                    const cls = Utils.getClassForExam(s, ex);
+                                    allClassNameSet.add(`${cls.campus} - ${cls.teachingClass}`);
+                                });
                             });
-                            const allClassNames = [...new Set(allValidStudents
-                                .map(s => `${s.campus} - ${s.teachingClass}`)
-                                .filter(Boolean))].sort((a,b)=>a.localeCompare(b,'zh-CN',{numeric:true}));
+                            const allClassNames = [...allClassNameSet]
+                                .filter(n => n !== ' - ')
+                                .sort((a,b)=>a.localeCompare(b,'zh-CN',{numeric:true}));
 
                             allClassNames.forEach((className, colorIdx) => {
                                 const classLineData = [];
                                 candidateExams.forEach(ex => {
                                     const [campus, cls] = className.split(' - ');
-                                    const classStudentsForLine = getValidStudentsForExam(ex).filter(s => 
-                                        s.campus === campus && s.teachingClass === cls
-                                    );
+                                    const classStudentsForLine = getValidStudentsForExam(ex).filter(s => {
+                                        const sc = Utils.getClassForExam(s, ex);
+                                        return sc.campus === campus && sc.teachingClass === cls;
+                                    });
                                     
                                     const classScores = [];
                                     classStudentsForLine.forEach(s => {
@@ -9625,11 +9994,11 @@
                             smooth: true,
                             symbol: 'circle',
                             symbolSize: 6,
-                            lineStyle: { width: 2, type: 'dashed', color: '#94a3b8' },
-                            itemStyle: { color: '#94a3b8' },
+                            lineStyle: { width: 2, type: 'dashed', color: Utils.cssVar('--text-faint', '#94a3b8') },
+                            itemStyle: { color: Utils.cssVar('--text-faint', '#94a3b8') },
                             z: 10
                         });
-                        trendSeriesMap['avgLine'] = { data: classAvgData, color: '#94a3b8', name: targetStu ? '班级均值' : '📈 全年级均分' };
+                        trendSeriesMap['avgLine'] = { data: classAvgData, color: Utils.cssVar('--text-faint', '#94a3b8'), name: targetStu ? '班级均值' : '📈 全年级均分' };
 
                         // 生成预测线系列
                         const xAxisNumbers = candidateExams.map((_, i) => i);
@@ -9670,7 +10039,7 @@
                         xAxisData.push(nextPhaseEstimate);
 
                         const chartTitle = targetStu
-                            ? `学生成长轨迹：${targetStu.name} (${targetStu.campus} - ${targetStu.teachingClass})`
+                            ? `学生成长轨迹：${targetStu.name} (${targetStu.campus} - ${targetStu.teachingClass}${Utils.hasTransferred(targetStu) ? ' 🔀' : ''})`
                             : '班级均分变化趋势';
 
                         // 修复：读取当前开关状态，并通过 ECharts 的 legend.selected 来控制隐藏/显示
@@ -9721,13 +10090,13 @@
 
                         if (targetStu) {
                             document.getElementById('table-title').innerHTML = `📈 成长轨迹明细 <small style="color:var(--text-sub); font-weight:normal;">(学生 vs 班级均值)</small>`;
-                            const stuRow = stuData.map(v => `<td style="font-weight:600; color:var(--primary);">${v !== null ? v : '<span style="color:#cbd5e1;">-</span>'}</td>`).join('');
-                            const avgRow = classAvgData.map(v => `<td style="font-weight:600; color:#64748b;">${v !== null ? v : '<span style="color:#cbd5e1;">-</span>'}</td>`).join('');
+                            const stuRow = stuData.map(v => `<td style="font-weight:600; color:var(--primary);">${v !== null ? v : '<span style="color:var(--line-strong);">-</span>'}</td>`).join('');
+                            const avgRow = classAvgData.map(v => `<td style="font-weight:600; color:var(--text-muted);">${v !== null ? v : '<span style="color:var(--line-strong);">-</span>'}</td>`).join('');
                             tbody.innerHTML = `<tr><td style="font-weight:700; color:#1e293b;">${targetStu.name}</td>${stuRow}</tr><tr><td style="font-weight:700; color:#334155;">班级均值</td>${avgRow}</tr>`;
                         } else {
                             document.getElementById('table-title').innerHTML = `📈 班级均分明细 <small style="color:var(--text-sub); font-weight:normal;">(默认展示当前筛选范围内的平均趋势)</small>`;
                             this._setAnalysisTableFillMode(true, false);
-                            const avgRow = classAvgData.map(v => `<td style="font-weight:600; color:#64748b;">${v !== null ? v : '<span style="color:#cbd5e1;">-</span>'}</td>`).join('');
+                            const avgRow = classAvgData.map(v => `<td style="font-weight:600; color:var(--text-muted);">${v !== null ? v : '<span style="color:var(--line-strong);">-</span>'}</td>`).join('');
                             tbody.innerHTML = `<tr><td style="font-weight:700; color:#334155;">班级均值</td>${avgRow}</tr>`;
                         }
                         return;
@@ -9765,8 +10134,7 @@
                         if (focus.campuses.length > 0) pool = pool.filter(s => focus.campuses.includes(s.campus));
                         if (focus.grades.length > 0) pool = pool.filter(s => focus.grades.includes(s.grade));
                         const checkedClasses = Array.from(document.querySelectorAll('#ms-analysis-panel input:checked')).map(cb => cb.value.replace(/&quot;/g, '"'));
-                        if (checkedClasses.length > 0) pool = pool.filter(s => checkedClasses.includes(`${s.campus} - ${s.teachingClass}`));
-                        else if (focus.tClasses.length > 0) pool = pool.filter(s => focus.tClasses.includes(s.teachingClass));
+                        if (checkedClasses.length === 0 && focus.tClasses.length > 0) pool = pool.filter(s => focus.tClasses.includes(s.teachingClass));
                         const studentById = new Map(this.store.state.data.students.map(s => [s.id, s]));
                         const selectedExamIds = new Set(selectedExams.map(ex => ex.id));
                         const scoreRecords = (this.store.state.data.scores || [])
@@ -9777,8 +10145,11 @@
                             scoreByExam.get(sc.examId).push(sc);
                         });
                         const poolIds = new Set(pool.map(s => s.id));
-                        const getLineName = (stu) => {
-                            if (compareDim === 'class') return `${stu.campus || '-'} - ${stu.teachingClass || '未分班'}`;
+                        const getLineName = (stu, examObj) => {
+                            if (compareDim === 'class') {
+                                const classAtExam = Utils.getClassForExam(stu, examObj);
+                                return `${classAtExam.campus || '-'} - ${classAtExam.teachingClass || '未分班'}`;
+                            }
                             if (compareDim === 'grade') return stu.grade || '未知年级';
                             if (compareDim === 'campus') return stu.campus || '未知校区';
                             return '选定范围';
@@ -9811,7 +10182,11 @@
                             examScores.forEach(sc => {
                                 const stu = studentById.get(sc.studentId);
                                 if (!stu || !poolIds.has(stu.id)) return;
-                                const line = getLineName(stu);
+                                const line = getLineName(stu, ex);
+                                if (checkedClasses.length > 0) {
+                                    const classAtExam = Utils.getClassForExam(stu, ex);
+                                    if (!checkedClasses.includes(`${classAtExam.campus} - ${classAtExam.teachingClass}`)) return;
+                                }
                                 const xKey = useNormalizedX ? this.normalizeExamLabel(ex.examType || ex.name) : ex.id;
                                 const val = getScoreValue(sc, ex, stu);
                                 if (val === null || !isFinite(val)) return;
@@ -9926,7 +10301,7 @@
                         tableData.forEach(row => {
                             tbHtml += `<tr><td style="font-weight:700; color:#1e293b;">${row.name}</td>`;
                             row.scores.forEach(s => {
-                                tbHtml += `<td style="font-weight:600; color:var(--primary);">${s !== null ? s : '<span style="color:#cbd5e1;">-</span>'}</td>`;
+                                tbHtml += `<td style="font-weight:600; color:var(--primary);">${s !== null ? s : '<span style="color:var(--line-strong);">-</span>'}</td>`;
                             });
                             tbHtml += `</tr>`;
                         });
@@ -9960,7 +10335,10 @@
                     const msPanel = document.getElementById('ms-analysis-panel');
                     const checkedClasses = msPanel ? Array.from(msPanel.querySelectorAll('input:checked')).map(cb => cb.value.replace(/&quot;/g, '"')) : [];
                     if (type !== 'radar' && checkedClasses.length > 0) {
-                        validStudentsForExam = validStudentsForExam.filter(s => checkedClasses.includes(`${s.campus} - ${s.teachingClass}`));
+                        validStudentsForExam = validStudentsForExam.filter(s => {
+                            const sc = Utils.getClassForExam(s, exam);
+                            return checkedClasses.includes(`${sc.campus} - ${sc.teachingClass}`);
+                        });
                     }
 
                     const res = []; 
@@ -10262,12 +10640,12 @@
                             
                             const statusColor = achieved ? '#10b981' : (needsEffort ? '#ef4444' : '#f59e0b');
                             const statusText = achieved ? '✓ 已达成' : (needsEffort ? '⚠️ 需努力' : '⚡ 即将达成');
-                            const bgColor = achieved ? '#f0fdf4' : (needsEffort ? '#fef2f2' : '#fffbeb');
+                            const bgColor = achieved ? 'var(--success-soft)' : (needsEffort ? 'var(--danger-soft)' : 'var(--warning-soft)');
                             
                             tbHtml += `<tr style="background:${bgColor};">
                                 <td style="font-weight:bold;"><a href="javascript:window.app.ui.openStudentProfile('${stu.id}')" style="cursor:pointer; text-decoration:underline; color:var(--primary);">${Utils.escapeHTML(stu.name)}</a></td>
                                 <td style="color:var(--text-sub);">${Utils.escapeHTML(stu.campus)}</td>
-                                <td style="color:var(--text-sub);">${Utils.escapeHTML(stu.teachingClass)}</td>
+                                <td style="color:var(--text-sub);">${Utils.escapeHTML(Utils.getClassForExam(stu, exam).teachingClass || stu.teachingClass || '-')}</td>
                                 <td style="font-weight:bold; font-size:15px;">${current}</td>
                                 <td style="font-weight:bold; font-size:15px; color:var(--primary);">${target}</td>
                                 <td style="color:${gap < 0 ? '#ef4444' : (gap > 0 ? '#10b981' : '#64748b')}; font-weight:bold;">${gap > 0 ? '+' : ''}${gap}</td>
@@ -10383,16 +10761,16 @@
                                 });
                             }
                             
-                            const bgColor = stu.total < passLine ? '#fef2f2' : '#fffbeb';
-                            const borderColor = stu.total < passLine ? '#fecaca' : '#fde68a';
+                            const bgColor = stu.total < passLine ? 'var(--danger-soft)' : 'var(--warning-soft)';
+                            const borderColor = stu.total < passLine ? 'rgba(255,59,48,0.22)' : 'rgba(255,149,0,0.22)';
                             
                             tbHtml += `<tr style="background:${bgColor}; border-left: 4px solid ${borderColor};">
                                 <td style="font-weight:bold; text-align:center;">${idx + 1}</td>
-                                <td style="font-weight:bold; color:#dc2626;"><a href="javascript:window.app.ui.openStudentProfile('${stu.id}')" style="cursor:pointer; text-decoration:underline;">${Utils.escapeHTML(stu.name)}</a></td>
+                                <td style="font-weight:bold; color:var(--score-fail);"><a href="javascript:window.app.ui.openStudentProfile('${stu.id}')" style="cursor:pointer; text-decoration:underline;">${Utils.escapeHTML(stu.name)}</a></td>
                                 <td style="color:var(--text-sub);">${Utils.escapeHTML(stu.campus)}</td>
-                                <td style="color:var(--text-sub);">${Utils.escapeHTML(stu.teachingClass)}</td>
-                                <td style="font-weight:bold; font-size:15px; color:${stu.total < passLine ? '#dc2626' : '#b45309'}">${stu.total}</td>
-                                <td style="color:${stu.total < passLine ? '#dc2626' : '#b45309'}; font-weight:bold;">${gapToPassing}</td>
+                                <td style="color:var(--text-sub);">${Utils.escapeHTML(Utils.getClassForExam(stu, exam).teachingClass || stu.teachingClass || '-')}</td>
+                                <td style="font-weight:bold; font-size:15px; color:${stu.total < passLine ? 'var(--score-fail)' : 'var(--score-pass)'}">${stu.total}</td>
+                                <td style="color:${stu.total < passLine ? 'var(--score-fail)' : 'var(--score-pass)'}; font-weight:bold;">${gapToPassing}</td>
                                 <td style="color:var(--text-sub);">${gapPercentage}% (${gapToPassing}分)</td>
                                 <td>${typeDetailsHtml}</td>
                             </tr>`;
@@ -10552,7 +10930,7 @@
 
                         const makeRadarSeriesData = (personalVals, gradeVals) => ([
                             { value: personalVals, name: '个人能力(%)', areaStyle: { color: this._radarAreaGradient(), opacity: 0.92 }, lineStyle: { color: '#0072B2', width: 2.5 } },
-                            { value: gradeVals, name: '年级均分(%)', symbol: 'circle', symbolSize: 6, itemStyle: { color: '#16a34a', borderColor: '#ffffff', borderWidth: 2 }, areaStyle: { color: 'rgba(142, 142, 147, 0.08)' }, lineStyle: { color: '#8e8e93', width: 2, type: 'dashed' } }
+                            { value: gradeVals, name: '年级均分(%)', symbol: 'circle', symbolSize: 6, itemStyle: { color: Utils.cssVar('--score-excellent', '#16a34a'), borderColor: '#ffffff', borderWidth: 2 }, areaStyle: { color: 'rgba(142, 142, 147, 0.08)' }, lineStyle: { color: '#8e8e93', width: 2, type: 'dashed' } }
                         ]);
                         const radarOption = {
                             animation: false,
@@ -10635,17 +11013,65 @@
 	                        const ovAvg = ovTotalCount ? ovScores.reduce((a,b)=>a+b,0) / ovTotalCount : 0;
 	                        const ovHigh = ovTotalCount ? Math.max(...ovScores) : 0;
 	                        const ovLow = ovTotalCount ? Math.min(...ovScores) : 0;
+	                        const highStudents = ovTotalCount ? ovRes.filter(r => Number(r.total) === ovHigh) : [];
+	                        const lowStudents = ovTotalCount ? ovRes.filter(r => Number(r.total) === ovLow) : [];
+	                        const formatKpiGroupedStudentList = rows => {
+	                            if (!rows.length) return '暂无学生';
+	                            const grouped = {};
+	                            rows.forEach(s => {
+	                                const cls = String(s.adminClass || '未填行政班').trim() || '未填行政班';
+	                                if (!grouped[cls]) grouped[cls] = [];
+	                                grouped[cls].push(s);
+	                            });
+	                            return Object.keys(grouped)
+	                                .sort((a,b) => a.localeCompare(b, 'zh-CN', { numeric: true }))
+	                                .map(cls => {
+	                                    const names = grouped[cls]
+	                                        .sort((a,b) => Number(b.total) - Number(a.total) || String(a.name || '').localeCompare(String(b.name || ''), 'zh-CN', { numeric: true }))
+	                                        .map(s => `${Utils.escapeHTML(s.name || '-')} <span style="color:var(--text-hint);">${Number(s.total).toFixed(1)}分</span>`)
+	                                        .join('、');
+	                                    return `<span style="display:block; margin-top:3px;"><b>${Utils.escapeHTML(cls)}</b>：${names}</span>`;
+	                                })
+	                                .join('');
+	                        };
+	                        const highHoverHtml = highStudents.length
+	                            ? `<b>最高分 ${ovHigh.toFixed(1)} 分</b><br>${formatKpiGroupedStudentList(highStudents)}`
+	                            : '<b>暂无最高分学生</b>';
+	                        const lowHoverHtml = lowStudents.length
+	                            ? `<b>最低分 ${ovLow.toFixed(1)} 分</b><br>${formatKpiGroupedStudentList(lowStudents)}`
+	                            : '<b>暂无最低分学生</b>';
 		                        const ovPassLine = ovMaxScore * 0.6;
 		                        const ovExcellentLine = ovMaxScore * 0.8;
 		                        const ovPassRate = ovTotalCount ? (ovScores.filter(s => s >= ovPassLine).length / ovTotalCount) * 100 : 0;
 		                        const ovExcellentRate = ovTotalCount ? (ovScores.filter(s => s >= ovExcellentLine).length / ovTotalCount) * 100 : 0;
+		                        const passStudents = ovRes
+		                            .filter(r => Number(r.total) >= ovPassLine)
+		                            .sort((a,b) => Number(b.total) - Number(a.total));
+		                        const excellentStudents = ovRes
+		                            .filter(r => Number(r.total) >= ovExcellentLine)
+		                            .sort((a,b) => Number(b.total) - Number(a.total));
+		                        const passHoverHtml = passStudents.length
+		                            ? `<b>及格 ${passStudents.length} 人</b><br>${formatKpiGroupedStudentList(passStudents)}`
+		                            : '<b>暂无及格学生</b>';
+		                        const excellentHoverHtml = excellentStudents.length
+		                            ? `<b>优秀 ${excellentStudents.length} 人</b><br>${formatKpiGroupedStudentList(excellentStudents)}`
+		                            : '<b>暂无优秀学生</b>';
 		                        const ovSorted = ovScores.slice().sort((a,b) => a-b);
 		                        const ovMedian = ovTotalCount > 0 ? ovSorted[Math.floor((ovTotalCount - 1) / 2)] : 0;
+		                        const medianStudents = ovTotalCount
+		                            ? ovRes
+		                                .map(r => ({ ...r, medianGap: Math.abs(Number(r.total) - ovMedian) }))
+		                                .sort((a,b) => a.medianGap - b.medianGap || Number(b.total) - Number(a.total))
+		                                .filter((r, idx, arr) => idx < 6 && r.medianGap === arr[0].medianGap)
+		                            : [];
+		                        const medianHoverHtml = medianStudents.length
+		                            ? `<b>中位数附近 ${ovMedian.toFixed(1)} 分</b><br>${formatKpiGroupedStudentList(medianStudents)}`
+		                            : '<b>暂无中位数学生</b>';
 		                        const ovStdDev = ovTotalCount > 0 ? Math.sqrt(ovScores.reduce((a,b)=>a+Math.pow(b-ovAvg,2),0)/ovTotalCount) : 0;
 		                        const summaryEl = document.getElementById('overview-summary');
 		                        if (summaryEl) {
 		                            summaryEl.innerHTML = `
-  <div class="overview-stat-card ov-kpi-c1">
+  <div class="overview-stat-card ov-kpi-c1" tabindex="0" onmouseenter="window.app.ui.showOverviewKpiHint(event, this.querySelector('.overview-attendance-hover').innerHTML)" onfocus="window.app.ui.showOverviewKpiHint(event, this.querySelector('.overview-attendance-hover').innerHTML)" onmouseleave="window.app.ui.hideOverviewKpiHint()" onblur="window.app.ui.hideOverviewKpiHint()">
     <div class="overview-stat-label">👥 参考人数 <svg class="kpi-spark" viewBox="0 0 40 18"><path d="M2 14 L10 10 L18 12 L27 6 L38 4" fill="none" stroke="currentColor" stroke-width="2"/></svg></div>
     <div class="overview-stat-value">${ovTotalCount}<span class="stat-denominator">/${ovExpectedCount}</span></div>
     <div class="overview-stat-sub">实际参考 / 应参考</div>
@@ -10656,30 +11082,35 @@
     <div class="overview-stat-value">${ovAvg.toFixed(1)}</div>
     <div class="overview-stat-sub">/ ${ovMaxScore} 分</div>
   </div>
-  <div class="overview-stat-card ov-kpi-c3">
+  <div class="overview-stat-card ov-kpi-c3" tabindex="0" onmouseenter="window.app.ui.showOverviewKpiHint(event, this.querySelector('.overview-score-hover').innerHTML)" onfocus="window.app.ui.showOverviewKpiHint(event, this.querySelector('.overview-score-hover').innerHTML)" onmouseleave="window.app.ui.hideOverviewKpiHint()" onblur="window.app.ui.hideOverviewKpiHint()">
     <div class="overview-stat-label">⬆ 最高分 <svg class="kpi-spark" viewBox="0 0 40 18"><path d="M3 15 L14 15 L14 9 L25 9 L25 4 L37 4" fill="none" stroke="currentColor" stroke-width="2"/></svg></div>
     <div class="overview-stat-value">${ovHigh.toFixed(1)}</div>
     <div class="overview-stat-sub">/ ${ovMaxScore} 分</div>
+    <div class="overview-score-hover">${highHoverHtml}</div>
   </div>
-  <div class="overview-stat-card ov-kpi-c4">
+  <div class="overview-stat-card ov-kpi-c4" tabindex="0" onmouseenter="window.app.ui.showOverviewKpiHint(event, this.querySelector('.overview-score-hover').innerHTML)" onfocus="window.app.ui.showOverviewKpiHint(event, this.querySelector('.overview-score-hover').innerHTML)" onmouseleave="window.app.ui.hideOverviewKpiHint()" onblur="window.app.ui.hideOverviewKpiHint()">
     <div class="overview-stat-label">⬇ 最低分 <svg class="kpi-spark" viewBox="0 0 40 18"><path d="M3 4 L13 4 L13 8 L25 8 L25 14 L37 14" fill="none" stroke="currentColor" stroke-width="2"/></svg></div>
     <div class="overview-stat-value">${ovLow.toFixed(1)}</div>
     <div class="overview-stat-sub">/ ${ovMaxScore} 分</div>
+    <div class="overview-score-hover">${lowHoverHtml}</div>
   </div>
-  <div class="overview-stat-card ov-kpi-c5">
+  <div class="overview-stat-card ov-kpi-c5" tabindex="0" onmouseenter="window.app.ui.showOverviewKpiHint(event, this.querySelector('.overview-score-hover').innerHTML)" onfocus="window.app.ui.showOverviewKpiHint(event, this.querySelector('.overview-score-hover').innerHTML)" onmouseleave="window.app.ui.hideOverviewKpiHint()" onblur="window.app.ui.hideOverviewKpiHint()">
     <div class="overview-stat-label">✅ 及格率 <svg class="kpi-spark" viewBox="0 0 40 18"><rect x="3" y="8" width="5" height="7" rx="2" fill="currentColor" opacity=".35"/><rect x="14" y="5" width="5" height="10" rx="2" fill="currentColor" opacity=".55"/><rect x="25" y="2" width="5" height="13" rx="2" fill="currentColor" opacity=".8"/></svg></div>
     <div class="overview-stat-value">${ovPassRate.toFixed(1)}%</div>
     <div class="overview-stat-sub">≥ ${ovPassLine.toFixed(0)} 分（满分60%）</div>
+    <div class="overview-score-hover">${passHoverHtml}</div>
   </div>
-  <div class="overview-stat-card ov-kpi-c6">
+  <div class="overview-stat-card ov-kpi-c6" tabindex="0" onmouseenter="window.app.ui.showOverviewKpiHint(event, this.querySelector('.overview-score-hover').innerHTML)" onfocus="window.app.ui.showOverviewKpiHint(event, this.querySelector('.overview-score-hover').innerHTML)" onmouseleave="window.app.ui.hideOverviewKpiHint()" onblur="window.app.ui.hideOverviewKpiHint()">
     <div class="overview-stat-label">⭐ 优秀率 <svg class="kpi-spark" viewBox="0 0 40 18"><circle cx="9" cy="10" r="4" fill="currentColor" opacity=".35"/><circle cx="22" cy="8" r="5" fill="currentColor" opacity=".55"/><circle cx="34" cy="6" r="6" fill="currentColor" opacity=".78"/></svg></div>
     <div class="overview-stat-value">${ovExcellentRate.toFixed(1)}%</div>
     <div class="overview-stat-sub">≥ ${ovExcellentLine.toFixed(0)} 分（满分80%）</div>
+    <div class="overview-score-hover">${excellentHoverHtml}</div>
   </div>
-  <div class="overview-stat-card ov-kpi-c7">
+  <div class="overview-stat-card ov-kpi-c7" tabindex="0" onmouseenter="window.app.ui.showOverviewKpiHint(event, this.querySelector('.overview-score-hover').innerHTML)" onfocus="window.app.ui.showOverviewKpiHint(event, this.querySelector('.overview-score-hover').innerHTML)" onmouseleave="window.app.ui.hideOverviewKpiHint()" onblur="window.app.ui.hideOverviewKpiHint()">
     <div class="overview-stat-label">〰 中位数 <svg class="kpi-spark" viewBox="0 0 40 18"><path d="M3 9 H37" stroke="currentColor" stroke-width="2"/><circle cx="20" cy="9" r="4" fill="currentColor" opacity=".5"/></svg></div>
     <div class="overview-stat-value">${ovMedian.toFixed(1)}</div>
     <div class="overview-stat-sub">第 50 百分位</div>
+    <div class="overview-score-hover">${medianHoverHtml}</div>
   </div>
   <div class="overview-stat-card ov-kpi-c8">
     <div class="overview-stat-label">〜 标准差 <svg class="kpi-spark" viewBox="0 0 40 18"><path d="M3 12 C9 2 14 2 20 12 S31 22 37 6" fill="none" stroke="currentColor" stroke-width="2"/></svg></div>
@@ -10710,8 +11141,9 @@
 	                                return parseFloat((pdf * ovScores.length * widths[i]).toFixed(2));
 	                            });
 	                        })();
-	                        const c1 = echarts.init(document.getElementById('chart-ov-dist'));
-	                        this._deferredChartSetOption(c1, { animation: true, animationDuration: 900, animationEasing: 'cubicOut', title: { text: '成绩分布与正态参考', left: 'center', textStyle:{fontSize:14, color:'#3b82f6'} }, tooltip: { trigger: 'axis' },
+                            const c1El = document.getElementById('chart-ov-dist');
+                            const c1 = c1El ? echarts.init(c1El) : null;
+                            if (c1) this._deferredChartSetOption(c1, { animation: true, animationDuration: 900, animationEasing: 'cubicOut', title: { text: '成绩分布与正态参考', left: 'center', textStyle:{fontSize:14, color:'#3b82f6'} }, tooltip: { trigger: 'axis' },
 	                            legend: this._overviewLegend(['实际人数', '正态参考'], { top: 24, bottom: undefined }),
 	                            grid: { top: 62, bottom: 34, left: '12%', right: '12%' },
 	                            xAxis:{type:'category', data:[`困难 <${segLines.poor.toFixed(0)}`,`待提高 ${segLines.poor.toFixed(0)}-${(segLines.fair-1).toFixed(0)}`,`良好 ${segLines.fair.toFixed(0)}-${(segLines.good-1).toFixed(0)}`,`优秀 ≥${segLines.good.toFixed(0)}`], axisLabel: { interval: 0, fontSize: 10 }},
@@ -10720,7 +11152,7 @@
 	                                { name:'实际人数', data:[{value:bins[0],itemStyle:{color:a11y.vermillion}},{value:bins[1],itemStyle:{color:a11y.amber}},{value:bins[2],itemStyle:{color:a11y.teal}},{value:bins[3],itemStyle:{color:a11y.blue}}], type:'bar', label:{show:true, position:'top'}, itemStyle:{borderRadius: [4, 4, 0, 0]} },
 	                                { name:'正态参考', data: normalRef, type:'line', smooth:true, showSymbol:false, lineStyle:{color:a11y.amber, width:2, type:'dashed'} }
 	                            ]
-	                        });
+                            });
 
                         // 2. 渲染历次考试均分变化趋势（年级主线 + 各班级对比）
                         const trendExams = this.store.state.data.exams.filter(e => ovExam && e.grade === ovExam.grade).sort((a, b) => (a.date||'').localeCompare(b.date||''));
@@ -10728,9 +11160,17 @@
                         const overallAvg = [];
                         const classAverages = {};
 
-	                        // 组合 "校区 - 班级" 作为唯一键；教师账号下使用同校区同年级口径，避免只看到本班。
-	                        const validStudents = ovValidStudentsForExam;
-	                        const allClassNames = [...new Set(validStudents.map(s => `${(s.campus||'').trim()} - ${(s.teachingClass||'').trim()}`).filter(n => n !== ' - '))].sort((a,b)=>a.localeCompare(b,'zh-CN',{numeric:true}));
+	                        // 组合 "校区 - 班级" 作为唯一键；按每次考试时的班级归属收集，兼容换班学生。
+	                        const allClassNameSet = new Set();
+	                        trendExams.forEach(ex => {
+	                            const stuForEx = getOverviewStudentsForExam(ex);
+	                            stuForEx.forEach(s => {
+	                                const cls = Utils.getClassForExam(s, ex);
+	                                const label = `${(cls.campus||'').trim()} - ${(cls.teachingClass||'').trim()}`;
+	                                if (label !== ' - ') allClassNameSet.add(label);
+	                            });
+	                        });
+	                        const allClassNames = [...allClassNameSet].sort((a,b)=>a.localeCompare(b,'zh-CN',{numeric:true}));
                         allClassNames.forEach(c => classAverages[c] = []);
 
                         // 核心计算引擎：双层遍历计算各级均分
@@ -10746,7 +11186,10 @@
                                 allClassNames.forEach(cls => {
                                     const [campus, tClass] = cls.split(' - ');
                                     // 找出属于这个班级的学生 ID 集合
-                                    const clsStuIds = new Set(trendValidStudents.filter(s => s.campus === campus && s.teachingClass === tClass).map(s=>s.id));
+                                    const clsStuIds = new Set(trendValidStudents.filter(s => {
+                                        const sc = Utils.getClassForExam(s, ex);
+                                        return sc.campus === campus && sc.teachingClass === tClass;
+                                    }).map(s=>s.id));
                                     // 从当前考试的成绩中过滤出这个班级的成绩
                                     const clsScores = exScores.filter(s => clsStuIds.has(s.studentId));
                                     
@@ -10786,8 +11229,9 @@
                             });
                         });
 
-                        const c2 = echarts.init(document.getElementById('chart-ov-trend'));
-                        this._deferredChartSetOption(c2, {
+                            const c2El = document.getElementById('chart-ov-trend');
+                            const c2 = c2El ? echarts.init(c2El) : null;
+                            if (c2) this._deferredChartSetOption(c2, {
                             animation: true,
                             animationDuration: 980,
                             animationEasing: 'cubicOut',
@@ -10798,13 +11242,14 @@
                             xAxis: { type: 'category', data: tX, axisLabel: { interval: 0, rotate: 20, margin: 12, fontSize: 8 } },
                             yAxis: { type: 'value', scale: true, name: '均分' },
                             series: seriesList
-                        });
+                            });
 
 	                        // 3. 渲染各班级均分与箱线图分布 (带一键切换功能)，统一尊重当前全局筛选口径
 	                    
 	                    const cMap = {}; 
 	                    ovRes.filter(r=>r.total>0).forEach(r => { 
-	                        const clsKey = `${r.campus || '-'} - ${r.teachingClass || '未分班'}`; 
+                            const clsAtExam = Utils.getClassForExam(r, ovExam);
+                            const clsKey = `${clsAtExam.campus || '-'} - ${clsAtExam.teachingClass || '未分班'}`; 
 	                        if(!cMap[clsKey]) cMap[clsKey]=[]; 
 	                        cMap[clsKey].push(r.total); 
 	                    });
@@ -10829,23 +11274,30 @@
                         ];
                     });
 
-                    const c4 = echarts.init(document.getElementById('chart-ov-avg'));
+                        const c4El = document.getElementById('chart-ov-avg');
+                        const c4 = c4El ? echarts.init(c4El) : null;
                     let isBoxplot = false;
 
                     // 动态注入右上角的切换按钮
-                    const c4Card = document.getElementById('chart-ov-avg').parentElement;
-                    c4Card.style.position = 'relative';
-                    let toggleBtn = document.getElementById('ov-btn-toggle-box');
-                    if(!toggleBtn) {
-                        toggleBtn = document.createElement('button');
-                        toggleBtn.id = 'ov-btn-toggle-box';
-                        toggleBtn.className = 'secondary';
-                        c4Card.appendChild(toggleBtn);
-                    }
-                    toggleBtn.style.cssText = 'position:absolute; left:12px; top:8px; z-index:var(--z-base); font-size:11px; padding:4px 8px; cursor:pointer; background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; box-shadow:0 1px 2px rgba(0,0,0,0.05); color:#475569;';
+                        let toggleBtn = null;
+                        if (c4El) {
+                            const c4Card = c4El.parentElement;
+                            if (c4Card) {
+                                c4Card.style.position = 'relative';
+                                toggleBtn = document.getElementById('ov-btn-toggle-box');
+                                if(!toggleBtn) {
+                                    toggleBtn = document.createElement('button');
+                                    toggleBtn.id = 'ov-btn-toggle-box';
+                                    toggleBtn.className = 'secondary';
+                                    c4Card.appendChild(toggleBtn);
+                                }
+                                toggleBtn.style.cssText = 'position:absolute; left:12px; top:8px; z-index:var(--z-base); font-size:11px; padding:4px 8px; cursor:pointer; background:var(--surface-2); border:1px solid var(--line); border-radius:6px; box-shadow:var(--shadow-sm); color:var(--text-muted);';
+                            }
+                        }
 
                     // 独立渲染函数
-                    const renderC4 = () => {
+                        const renderC4 = () => {
+                            if (!c4 || !toggleBtn) return;
                         toggleBtn.innerHTML = isBoxplot ? '📊 切换' : '📦 切换';
                         this._deferredChartSetOption(c4, {
                             animation: true,
@@ -10895,20 +11347,23 @@
                             }]
                         });
                     };
-                    
-                    renderC4();
-                    toggleBtn.onclick = () => { isBoxplot = !isBoxplot; renderC4(); };
+	                    
+                        if (c4 && toggleBtn) {
+                            renderC4();
+                            toggleBtn.onclick = () => { isBoxplot = !isBoxplot; renderC4(); };
+                        }
 
                         // 4. Overview: 题型得分率热力图 (chart-ov-heatmap)
                         let c6 = null;
                         try {
                             const heatEl = document.getElementById('chart-ov-heatmap');
 	                            if (heatEl && ovExam && Array.isArray(ovExam.types)) {
-	                                c6 = echarts.init(heatEl);
+                                    c6 = echarts.init(heatEl);
 	                                const typeList = ovExam.types;
 	                                const classGroups = {};
 	                                ovRes.forEach(row => {
-	                                    const clsKey = `${row.campus || '-'} - ${row.teachingClass || '未分班'}`;
+                                        const clsAtExam = Utils.getClassForExam(row, ovExam);
+                                        const clsKey = `${clsAtExam.campus || '-'} - ${clsAtExam.teachingClass || '未分班'}`;
 	                                    if (!classGroups[clsKey]) classGroups[clsKey] = [];
 	                                    classGroups[clsKey].push(row);
 	                                });
@@ -10940,8 +11395,8 @@
 	                                    grid: { top: 55, bottom: 34, left: '29%', right: '10%' },
 	                                    xAxis: { type: 'category', data: xAxisShort, position: 'top', axisLabel: { interval: 0 } },
 	                                    yAxis: { type: 'category', data: classNames, inverse: true, axisLabel: { interval: 0, fontSize: 10 } },
-	                                    visualMap: { type: 'piecewise', dimension: 2, pieces: [ { min: 85, max: 100, color: a11y.blue }, { min: 70, max: 85, color: a11y.teal }, { min: 55, max: 70, color: '#F5D76E' }, { min: 40, max: 55, color: a11y.amber }, { min: 0, max: 40, color: a11y.vermillion } ], orient: 'horizontal', bottom: 6, left: 'center' },
-	                                    series: [{ name: '得分率', type: 'heatmap', data: heatData, itemStyle: { borderColor: '#e5e7eb', borderWidth: 1 } }]
+	                                    visualMap: { type: 'piecewise', dimension: 2, pieces: [ { min: 85, max: 100, color: '#047857' }, { min: 70, max: 85, color: '#86efac' }, { min: 55, max: 70, color: '#fef3c7' }, { min: 40, max: 55, color: '#fb923c' }, { min: 0, max: 40, color: '#ef4444' } ], orient: 'horizontal', bottom: 6, left: 'center' },
+	                                    series: [{ name: '得分率', type: 'heatmap', data: heatData, itemStyle: { borderColor: '#ffffff', borderWidth: 1 } }]
 	                                });
                             }
                         } catch (e) { console.warn('ov heatmap render error', e); }
@@ -11255,7 +11710,7 @@
                             const diff = cache.prevRanks[d.id] - currRank;
                             if (diff > 0) rankValueHtml += `<span class="rank-up" title="比上次同联考上升了 ${diff} 名">↑${diff}</span>`;
                             else if (diff < 0) rankValueHtml += `<span class="rank-down" title="比上次同联考退步了 ${-diff} 名">↓${-diff}</span>`;
-                            else rankValueHtml += `<span style="color:#94a3b8; font-size:11px; margin-left:6px;" title="联考排名没变">-</span>`;
+                            else rankValueHtml += `<span style="color:var(--text-faint); font-size:11px; margin-left:6px;" title="联考排名没变">-</span>`;
                         }
 
                         let rowClass = '';
@@ -11307,7 +11762,7 @@
                         let rowBgColor = 'transparent';
                         const rankCellHtml = this._renderInlineMarkedCell(rankValueHtml, '', rankPrefixHtml);
                         const nameCellHtml = this._renderInlineMarkedCell(nameLink, diagDots);
-                        let trHtml = `<tr data-student-name="${Utils.escapeHTML(d.name || '')}" style="background: ${rowBgColor}; transition: background 0.2s;" class="${rowClass}"><td class="sticky-col-left" style="width:80px; min-width:80px; max-width:80px;">${rankCellHtml}</td><td class="sticky-col-left" style="left:80px; width:120px; min-width:120px; max-width:120px; font-weight:700;">${nameCellHtml}</td><td class="table-meta">${Utils.escapeHTML(d.campus||'-')}</td><td class="table-meta">${Utils.escapeHTML(d.teachingClass||'-')}</td><td class="table-meta">${Utils.escapeHTML(d.adminClass||'-')}</td>`;
+                        let trHtml = `<tr data-student-name="${Utils.escapeHTML(d.name || '')}" style="background: ${rowBgColor}; transition: background var(--motion-base);" class="${rowClass}"><td class="sticky-col-left" style="width:80px; min-width:80px; max-width:80px;">${rankCellHtml}</td><td class="sticky-col-left" style="left:80px; width:120px; min-width:120px; max-width:120px; font-weight:700;">${nameCellHtml}</td><td class="table-meta">${Utils.escapeHTML(d.campus||'-')}</td><td class="table-meta">${Utils.escapeHTML(d.teachingClass||'-')}</td><td class="table-meta">${Utils.escapeHTML(d.adminClass||'-')}</td>`;
                         (cache.exam.types||[]).forEach(t => {
                             const stuScore = d.details[t.name] || 0;
                             const stuRate = t.max > 0 ? (stuScore / t.max) : 0;
@@ -11441,8 +11896,8 @@
                                 <div style="color:var(--text-sub); font-size:13px; display:flex; gap:12px;">
                                     <span style="background:#f1f5f9; padding:4px 10px; border-radius:20px;">🏢 ${Utils.escapeHTML(stu.campus)}</span>
                                     <span style="background:#f1f5f9; padding:4px 10px; border-radius:20px;">📅 ${Utils.escapeHTML(stu.grade)}</span>
-                                    <span style="background:#eff6ff; color:var(--primary); padding:4px 10px; border-radius:20px; font-weight:bold;">🏫 ${Utils.escapeHTML(stu.teachingClass)}</span>
-                                    <span style="background:#fef2f2; color:var(--danger); padding:4px 10px; border-radius:20px;">原行政班: ${Utils.escapeHTML(stu.adminClass)}</span>
+                                    <span style="background:#eff6ff; color:var(--primary); padding:4px 10px; border-radius:20px; font-weight:bold;">🏫 ${Utils.escapeHTML(stu.teachingClass)}${Utils.hasTransferred(stu) ? ' 🔀' : ''}</span>
+                                    <span style="background:var(--danger-soft); color:var(--danger); padding:4px 10px; border-radius:20px;">原行政班: ${Utils.escapeHTML(stu.adminClass)}</span>
                                 </div>
                             </div>
                         </div>
@@ -11511,7 +11966,7 @@
                             const diff = prevRanks[d.id] - currRank;
                             if (diff > 0) rankValueHtml += `<span class="rank-up" title="比上次同联考上升了 ${diff} 名">↑${diff}</span>`;
                             else if (diff < 0) rankValueHtml += `<span class="rank-down" title="比上次同联考退步了 ${-diff} 名">↓${-diff}</span>`;
-                            else rankValueHtml += `<span style="color:#94a3b8; font-size:11px; margin-left:6px;" title="联考排名没变">-</span>`;
+                            else rankValueHtml += `<span style="color:var(--text-faint); font-size:11px; margin-left:6px;" title="联考排名没变">-</span>`;
                         }
 
                         let rowClass = '';
@@ -11553,10 +12008,12 @@
                         let rowBgColor = 'transparent';
                         const aiStatus = String(d.aiComment || '').trim().length > 0
                             ? '<span style="color:#10b981; background:rgba(16,185,129,0.1); padding:2px 6px; border-radius:4px; font-size:11px;">已生成</span>'
-                            : '<span style="color:#94a3b8; background:rgba(148,163,184,0.1); padding:2px 6px; border-radius:4px; font-size:11px;">未生成</span>';
+                            : '<span style="color:var(--text-faint); background:rgba(148,163,184,0.1); padding:2px 6px; border-radius:4px; font-size:11px;">未生成</span>';
                         const rankCellHtml = this._renderInlineMarkedCell(rankValueHtml, '', rankPrefixHtml);
                         const nameCellHtml = this._renderInlineMarkedCell(nameLink, diagDots);
-                        let trHtml = `<tr style="background: ${rowBgColor}; transition: background 0.2s;" class="${rowClass}"><td class="sticky-col-left" style="width:80px; min-width:80px; max-width:80px;">${rankCellHtml}</td><td class="sticky-col-left" style="left:80px; width:120px; min-width:120px; max-width:120px; font-weight:700;">${nameCellHtml}</td><td class="table-meta">${Utils.escapeHTML(d.campus||'-')}</td><td class="table-meta">${Utils.escapeHTML(d.teachingClass||'-')}</td><td class="table-meta">${Utils.escapeHTML(d.adminClass||'-')}</td>`;
+                        const classAtExam = Utils.getClassForExam(d, exam);
+                        const classCell = `${Utils.escapeHTML(classAtExam.teachingClass || d.teachingClass || '-')}${Utils.hasTransferred(d) && classAtExam.teachingClass !== d.teachingClass ? ' 🔀' : ''}`;
+                        let trHtml = `<tr style="background: ${rowBgColor}; transition: background var(--motion-base);" class="${rowClass}"><td class="sticky-col-left" style="width:80px; min-width:80px; max-width:80px;">${rankCellHtml}</td><td class="sticky-col-left" style="left:80px; width:120px; min-width:120px; max-width:120px; font-weight:700;">${nameCellHtml}</td><td class="table-meta">${Utils.escapeHTML(d.campus||'-')}</td><td class="table-meta">${classCell}</td><td class="table-meta">${Utils.escapeHTML(d.adminClass||'-')}</td>`;
                         (exam.types||[]).forEach(t => {
                             const stuScore = d.details[t.name] || 0;
                             const stuRate = t.max > 0 ? (stuScore / t.max) : 0;
@@ -11674,7 +12131,7 @@
         </div>
         <div class="details-top-actions">
             <input type="text" id="details-search-student" placeholder="🔍 搜索学生姓名或拼音..." style="width:160px; border-color:#bfdbfe;" oninput="window.app.ui.searchStudentInDetails(this.value)">
-            <button class="secondary" onclick="window.app.ui.exportDetailsToExcel('${Utils.escapeHTML(exam.name || '考试成绩')}')" style="padding: 6px 14px; border-radius: var(--radius-sm); border: none; background: rgba(0,122,255,0.1); color: var(--primary); font-weight: 600; cursor: pointer; transition: all 0.2s; display:flex; align-items:center; gap:6px;">
+            <button class="secondary" onclick="window.app.ui.exportDetailsToExcel('${Utils.escapeHTML(exam.name || '考试成绩')}')" style="padding: 6px 14px; border-radius: var(--radius-sm); border: none; background: rgba(0,122,255,0.1); color: var(--primary); font-weight: 600; cursor: pointer; transition: all var(--motion-base); display:flex; align-items:center; gap:6px;">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
                 导出表格
             </button>
@@ -11763,7 +12220,11 @@
                         stuScores.push(item.score.total);
                         if(ex.maxTotal > maxScoreOverall) maxScoreOverall = ex.maxTotal;
 
-                        const clsStus = this.store.state.data.students.filter(s => s.campus === stu.campus && s.teachingClass === stu.teachingClass).map(s=>s.id);
+                        const stuClassAtExam = Utils.getClassForExam(stu, ex);
+                        const clsStus = this.store.state.data.students.filter(s => {
+                            const sClass = Utils.getClassForExam(s, ex);
+                            return sClass.campus === stuClassAtExam.campus && sClass.teachingClass === stuClassAtExam.teachingClass;
+                        }).map(s=>s.id);
                         const clsScores = this.store.state.data.scores.filter(s => s.examId === ex.id && clsStus.includes(s.studentId) && s.total > 0 && !s.examAbsent);
                         if (clsScores.length > 0) {
                             avgScores.push(parseFloat((clsScores.reduce((a,b)=>a+b.total,0)/clsScores.length).toFixed(1)));
@@ -11796,7 +12257,11 @@
                     const indicator = ex.types.map(t => ({ name: t.name, max: 100 }));
                     const stuPct = ex.types.map(t => parseFloat((((rec.details[t.name]||0) / t.max) * 100).toFixed(1)));
                     
-                    const clsStus = this.store.state.data.students.filter(s => s.campus === stu.campus && s.teachingClass === stu.teachingClass).map(s=>s.id);
+                    const stuClassAtExam = Utils.getClassForExam(stu, ex);
+                    const clsStus = this.store.state.data.students.filter(s => {
+                        const sClass = Utils.getClassForExam(s, ex);
+                        return sClass.campus === stuClassAtExam.campus && sClass.teachingClass === stuClassAtExam.teachingClass;
+                    }).map(s=>s.id);
                     const clsScores = this.store.state.data.scores.filter(s => s.examId === ex.id && clsStus.includes(s.studentId) && s.total > 0 && !s.examAbsent);
                     
                     const avgPct = ex.types.map(t => {
@@ -11833,7 +12298,11 @@
 
                     if (!ex.types || ex.types.length === 0) return;
 
-                    const clsStus = this.store.state.data.students.filter(s => s.campus === stu.campus && s.teachingClass === stu.teachingClass).map(s=>s.id);
+                    const stuClassAtExam = Utils.getClassForExam(stu, ex);
+                    const clsStus = this.store.state.data.students.filter(s => {
+                        const sClass = Utils.getClassForExam(s, ex);
+                        return sClass.campus === stuClassAtExam.campus && sClass.teachingClass === stuClassAtExam.teachingClass;
+                    }).map(s=>s.id);
                     const clsScores = this.store.state.data.scores.filter(s => s.examId === ex.id && clsStus.includes(s.studentId) && s.total > 0 && !s.examAbsent);
 
                     let clsTotalScoreSum = clsScores.reduce((a, b) => a + b.total, 0);
@@ -11881,7 +12350,7 @@
                                 textBorderColor: '#ffffff', textBorderWidth: 2 
                             },
                             markLine: {
-                                lineStyle: { type: 'dashed', color: '#94a3b8', width: 1 },
+                                lineStyle: { type: 'dashed', color: Utils.cssVar('--text-faint', '#94a3b8'), width: 1 },
                                 symbol: 'none',
                                 label: { show: false }, 
                                 data: [ { xAxis: clsTotalRate }, { yAxis: clsTotalRate } ]
