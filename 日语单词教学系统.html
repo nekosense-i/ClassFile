@@ -1,0 +1,1443 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>日本語 単語モジュール - 高中日语单词教学系统</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700;800&family=Noto+Serif+JP:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.24.7/babel.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family: 'Noto Sans JP', 'Hiragino Sans', 'Microsoft YaHei', sans-serif; overflow-x:hidden; }
+  ::-webkit-scrollbar { width:6px; }
+  ::-webkit-scrollbar-thumb { background:#ccc; border-radius:3px; }
+  button { font-family: inherit; }
+  input, textarea, select { font-family: inherit; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); }}
+  @keyframes shake { 0%,100% { transform:translateX(0); } 25% { transform:translateX(-6px); } 75% { transform:translateX(6px); }}
+  @keyframes pop { 0% { transform:scale(0.9); opacity:0; } 100% { transform:scale(1); opacity:1; }}
+  @keyframes slideUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); }}
+  @keyframes breathe { 0%,100% { box-shadow:0 0 0 0 rgba(200,64,45,0.3); } 50% { box-shadow:0 0 0 12px rgba(200,64,45,0); }}
+  @keyframes blink { 0%,100% { opacity:1; } 50% { opacity:0.4; }}
+  .fade-in { animation: fadeIn 0.35s ease; }
+  .pop-in { animation: pop 0.3s ease; }
+  .slide-up { animation: slideUp 0.4s ease; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback, useMemo } = React;
+
+/* ===== HELPERS ===== */
+const gid = () => Math.random().toString(36).substr(2, 9);
+const shuffle = (a) => {
+  const b = [...a];
+  for (let i = b.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [b[i], b[j]] = [b[j], b[i]];
+  }
+  return b;
+};
+
+const POS_OPTIONS = ["名詞","動詞","い形容詞","な形容詞","副詞","接続詞","感動詞","助詞","連体詞","代名詞","その他"];
+const EMPTY_WORD = { kana:"", kanji:"", accent:"", pos:"名詞", meaning:"", usage:"", examples:[{ja:"",cn:""}], imageUrl:"" };
+const EXCEL_HEADERS = ["假名","汉字","声调","词性","中文释义","用法说明","例句1日文","例句1中文","例句2日文","例句2中文","例句3日文","例句3中文","图片URL"];
+const EXCEL_TEMPLATE_ROWS = [
+  { kana:"たまご", kanji:"卵", accent:"2", pos:"名詞", meaning:"鸡蛋", usage:"日常食材，可做主菜或配料", examples:[{ja:"朝ごはんに卵を食べます。",cn:"早餐吃鸡蛋。"},{ja:"卵はいくつありますか。",cn:"有几个鸡蛋？"}], imageUrl:"https://images.unsplash.com/photo-1518569656558-1f25e69d93d7?w=400&h=260&fit=crop" },
+  { kana:"あたらしい", kanji:"新しい", accent:"4", pos:"い形容詞", meaning:"新的", usage:"い形容词，修饰名词时直接接名词", examples:[{ja:"新しい本を買いました。",cn:"买了新书。"},{ja:"この教室は新しいです。",cn:"这间教室是新的。"}], imageUrl:"" },
+];
+const getCell = (row, key) => String(row[key] ?? "").trim();
+const cleanAccent = (v) => {
+  const s = String(v ?? "").trim();
+  if (!s) return "";
+  return /^(\d+|[⓪①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳]+)$/.test(s) ? s : "";
+};
+const cleanPos = (v) => {
+  const s = String(v ?? "").trim();
+  if (!s) return "名詞";
+  return POS_OPTIONS.includes(s) ? s : "その他";
+};
+const cleanImageUrl = (v) => {
+  const s = String(v ?? "").trim();
+  return /^https?:\/\//i.test(s) ? s : "";
+};
+const wordToExcelRow = (w) => {
+  const ex = Array.isArray(w.examples) ? w.examples : [];
+  return {
+    "假名": w.kana || "",
+    "汉字": w.kanji || "",
+    "声调": w.accent || "",
+    "词性": w.pos || "名詞",
+    "中文释义": w.meaning || "",
+    "用法说明": w.usage || "",
+    "例句1日文": ex[0]?.ja || "",
+    "例句1中文": ex[0]?.cn || "",
+    "例句2日文": ex[1]?.ja || "",
+    "例句2中文": ex[1]?.cn || "",
+    "例句3日文": ex[2]?.ja || "",
+    "例句3中文": ex[2]?.cn || "",
+    "图片URL": w.imageUrl || "",
+  };
+};
+const excelRowToWord = (row, rowNumber) => {
+  const kana = getCell(row, "假名");
+  const meaning = getCell(row, "中文释义");
+  if (!kana) return { skipped:true, silent:true, rowNumber, reason:"假名为空" };
+  if (!meaning) return { skipped:true, rowNumber, reason:"中文释义为空" };
+  const examples = [1,2,3].map(i => ({ ja:getCell(row, `例句${i}日文`), cn:getCell(row, `例句${i}中文`) }))
+    .filter(e => e.ja || e.cn);
+  return {
+    word: {
+      id: gid(),
+      kana,
+      kanji: getCell(row, "汉字"),
+      accent: cleanAccent(row["声调"]),
+      pos: cleanPos(row["词性"]),
+      meaning,
+      usage: getCell(row, "用法说明"),
+      examples: examples.length ? examples : [{ja:"",cn:""}],
+      imageUrl: cleanImageUrl(row["图片URL"]),
+    }
+  };
+};
+const safeSheetName = (name, used = new Set()) => {
+  const base = String(name || "单词组").replace(/[\\/?*[\]:]/g, "-").slice(0, 31) || "单词组";
+  let finalName = base;
+  let n = 2;
+  while (used.has(finalName)) {
+    const suffix = `_${n++}`;
+    finalName = base.slice(0, 31 - suffix.length) + suffix;
+  }
+  used.add(finalName);
+  return finalName;
+};
+const todayStamp = () => {
+  const d = new Date();
+  const pad = n => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+};
+const downloadBlob = (blob, filename) => {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+};
+const makeWorkbookFromGroups = (groups) => {
+  const wb = XLSX.utils.book_new();
+  const used = new Set();
+  (groups.length ? groups : [{ name:"单词组", words:[] }]).forEach(g => {
+    const rows = (g.words || []).map(wordToExcelRow);
+    const ws = XLSX.utils.aoa_to_sheet([EXCEL_HEADERS, ...rows.map(row => EXCEL_HEADERS.map(h => row[h] || ""))]);
+    XLSX.utils.book_append_sheet(wb, ws, safeSheetName(g.name, used));
+  });
+  return wb;
+};
+const parseWorkbookSheets = (arrayBuffer) => {
+  const wb = XLSX.read(arrayBuffer, { type:"array" });
+  return wb.SheetNames.map(name => {
+    const ws = wb.Sheets[name];
+    const rawRows = XLSX.utils.sheet_to_json(ws, { defval:"" });
+    const words = [];
+    const warnings = [];
+    rawRows.forEach((row, i) => {
+      const parsed = excelRowToWord(row, i + 2);
+      if (parsed.word) words.push(parsed.word);
+      else if (parsed.skipped && !parsed.silent) warnings.push({ rowNumber:parsed.rowNumber, reason:parsed.reason });
+    });
+    return {
+      name,
+      words,
+      warnings,
+      preview: rawRows.slice(0, 3).map(r => EXCEL_HEADERS.reduce((acc, h) => ({...acc, [h]:getCell(r, h)}), {})),
+    };
+  });
+};
+
+const DEMO = [
+  { id:gid(), name:"第1課 · 食べ物", words:[
+    { id:gid(), kana:"たまご", kanji:"卵", accent:"2", pos:"名詞", meaning:"鸡蛋", usage:"日常食材，既可做主菜也可做配料", examples:[{ja:"朝ごはんに卵を食べます。",cn:"早餐吃鸡蛋。"},{ja:"卵はいくつありますか。",cn:"有几个鸡蛋？"}], imageUrl:"https://images.unsplash.com/photo-1518569656558-1f25e69d93d7?w=400&h=260&fit=crop" },
+    { id:gid(), kana:"ぎゅうにゅう", kanji:"牛乳", accent:"0", pos:"名詞", meaning:"牛奶", usage:"饮料·食材，平板型声调", examples:[{ja:"毎朝牛乳を飲みます。",cn:"每天早上喝牛奶。"}], imageUrl:"https://images.unsplash.com/photo-1563636619-e9143da7973b?w=400&h=260&fit=crop" },
+    { id:gid(), kana:"やさい", kanji:"野菜", accent:"0", pos:"名詞", meaning:"蔬菜", usage:"健康饮食相关的重要词汇", examples:[{ja:"野菜が好きです。",cn:"喜欢蔬菜。"},{ja:"野菜サラダを作りましょう。",cn:"做蔬菜沙拉吧。"}], imageUrl:"https://images.unsplash.com/photo-1540420773420-3366772f4999?w=400&h=260&fit=crop" },
+    { id:gid(), kana:"さかな", kanji:"魚", accent:"0", pos:"名詞", meaning:"鱼", usage:"日式料理中的常见食材", examples:[{ja:"日本人は魚をよく食べます。",cn:"日本人经常吃鱼。"}], imageUrl:"https://images.unsplash.com/photo-1544551763-46a013bb70d5?w=400&h=260&fit=crop" },
+    { id:gid(), kana:"にく", kanji:"肉", accent:"2", pos:"名詞", meaning:"肉", usage:"泛指各种肉类", examples:[{ja:"肉と野菜を買いました。",cn:"买了肉和蔬菜。"}], imageUrl:"https://images.unsplash.com/photo-1607623814075-e51df1bdc82f?w=400&h=260&fit=crop" },
+  ]}
+];
+
+/* ===== COLORS & FONTS ===== */
+const C = {
+  bg:"#F7F3ED", card:"#FFFFFF", primary:"#C8402D", primaryLight:"#FFF0ED", primaryHover:"#B5351F",
+  green:"#3A7D5C", greenLight:"#EDFAF2", blue:"#3B6BA5", blueLight:"#EDF4FF",
+  text:"#1E1E1E", muted:"#7A7670", hint:"#B8B0A4", border:"#E6DED3", borderLight:"#F0EBE3",
+  dark:"#13131f", darkCard:"#1e1e30", darkCardHover:"#262640",
+  gold:"#C9A96E", goldDim:"rgba(201,169,110,0.4)",
+  correct:"#2D8E5A", wrong:"#D14343",
+  w100:"rgba(255,255,255,1)", w70:"rgba(255,255,255,0.7)", w50:"rgba(255,255,255,0.5)",
+  w40:"rgba(255,255,255,0.4)", w30:"rgba(255,255,255,0.3)", w20:"rgba(255,255,255,0.2)",
+  w15:"rgba(255,255,255,0.15)", w10:"rgba(255,255,255,0.1)", w06:"rgba(255,255,255,0.06)", w04:"rgba(255,255,255,0.04)",
+};
+const SF = "'Noto Serif JP','Yu Mincho',serif";
+const VH = "calc(100vh - 64px)";
+
+/* ===== STORAGE ===== */
+const storage = {
+  save(d) { try { localStorage.setItem("jp_vocab_v1", JSON.stringify(d)); } catch(e){} },
+  load() { try { const s = localStorage.getItem("jp_vocab_v1"); return s ? JSON.parse(s) : null; } catch(e){ return null; } }
+};
+
+/* ===== SVG ICONS ===== */
+const Ico = ({d, size=20, color=C.muted, style:s, ...p}) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0, ...s}} {...p}>{d}</svg>
+);
+const IPlus = (p) => <Ico {...p} d={<><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></>}/>;
+const ITrash = (p) => <Ico {...p} d={<><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></>}/>;
+const IEdit = (p) => <Ico {...p} d={<><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></>}/>;
+const IChevL = (p) => <Ico {...p} d={<polyline points="15 18 9 12 15 6"/>}/>;
+const IChevR = (p) => <Ico {...p} d={<polyline points="9 18 15 12 9 6"/>}/>;
+const IUpload = (p) => <Ico {...p} d={<><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></>}/>;
+const IDownload = (p) => <Ico {...p} d={<><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></>}/>;
+const IX = (p) => <Ico {...p} d={<><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></>}/>;
+const IEye = (p) => <Ico {...p} d={<><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></>}/>;
+
+/* ===== SHARED STYLES ===== */
+const sInput = { width:"100%", padding:"9px 13px", border:`1px solid ${C.border}`, borderRadius:8, fontSize:14, outline:"none", boxSizing:"border-box", transition:"border-color 0.2s", background:"#fff" };
+const sLabel = { fontSize:12, fontWeight:600, color:C.muted, marginBottom:5, display:"block", letterSpacing:"0.5px" };
+const sBtn = (bg, color, extra) => ({ padding:"9px 20px", background:bg, color, border:"none", borderRadius:10, cursor:"pointer", fontSize:14, fontWeight:600, transition:"all 0.15s", ...extra });
+const sBtnSm = (bg, color, extra) => ({ ...sBtn(bg, color, extra), padding:"6px 14px", fontSize:13, borderRadius:8 });
+
+/* ===== MODAL ===== */
+function Modal({ open, onClose, title, children, wide }) {
+  if (!open) return null;
+  return (
+    <div style={{ position:"fixed", inset:0, zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center", background:"rgba(0,0,0,0.5)", backdropFilter:"blur(5px)" }}
+      onClick={onClose}>
+      <div className="pop-in" style={{ background:C.card, borderRadius:18, padding:"28px 32px", width: wide?"min(780px,93vw)":"min(540px,93vw)",
+        maxHeight:"90vh", overflowY:"auto", boxShadow:"0 24px 80px rgba(0,0,0,0.25)" }}
+        onClick={e => e.stopPropagation()}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:22 }}>
+          <h3 style={{ margin:0, fontSize:18, fontWeight:700, color:C.text }}>{title}</h3>
+          <button onClick={onClose} style={{ background:"none", border:"none", cursor:"pointer", padding:4, borderRadius:6 }}><IX size={18} color={C.muted}/></button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/* ===== WORD FORM ===== */
+function WordForm({ word, onSave, onCancel }) {
+  const [w, setW] = useState(word ? {...word, examples: word.examples.map(e=>({...e}))} : {...EMPTY_WORD, id:gid(), examples:[{ja:"",cn:""}]});
+  const fileRef = useRef();
+  const set = (k,v) => setW(p => ({...p, [k]:v}));
+  const setEx = (i,k,v) => setW(p => { const exs=[...p.examples]; exs[i]={...exs[i],[k]:v}; return {...p, examples:exs}; });
+  const addEx = () => setW(p => ({...p, examples:[...p.examples,{ja:"",cn:""}]}));
+  const rmEx = (i) => setW(p => ({...p, examples: p.examples.filter((_,j)=>j!==i)}));
+  const handleImg = (e) => { const f=e.target.files[0]; if(!f) return; const r=new FileReader(); r.onload=()=>set("imageUrl",r.result); r.readAsDataURL(f); };
+  const valid = w.kana.trim() && w.meaning.trim();
+
+  return (
+    <div>
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14, marginBottom:14 }}>
+        <div><label style={sLabel}>假名（必填）</label><input style={sInput} value={w.kana} onChange={e=>set("kana",e.target.value)} placeholder="例：たまご"/></div>
+        <div><label style={sLabel}>汉字</label><input style={sInput} value={w.kanji} onChange={e=>set("kanji",e.target.value)} placeholder="例：卵"/></div>
+        <div><label style={sLabel}>声调</label><input style={sInput} value={w.accent} onChange={e=>set("accent",e.target.value)} placeholder="例：0 / ②"/></div>
+        <div><label style={sLabel}>词性</label>
+          <select style={{...sInput, background:"#fff"}} value={w.pos} onChange={e=>set("pos",e.target.value)}>
+            {POS_OPTIONS.map(p=><option key={p}>{p}</option>)}
+          </select>
+        </div>
+      </div>
+      <div style={{ marginBottom:14 }}>
+        <label style={sLabel}>中文释义（必填）</label>
+        <input style={sInput} value={w.meaning} onChange={e=>set("meaning",e.target.value)} placeholder="例：鸡蛋"/>
+      </div>
+      <div style={{ marginBottom:14 }}>
+        <label style={sLabel}>用法说明</label>
+        <textarea style={{...sInput, minHeight:48, resize:"vertical"}} value={w.usage} onChange={e=>set("usage",e.target.value)} placeholder="可选：补充该词的用法、搭配等"/>
+      </div>
+      <div style={{ marginBottom:14 }}>
+        <label style={sLabel}>配图</label>
+        <div style={{ display:"flex", gap:8 }}>
+          <input style={{...sInput, flex:1}} value={w.imageUrl?.startsWith("data:")?"（已上传本地图片）":w.imageUrl} onChange={e=>set("imageUrl",e.target.value)} placeholder="粘贴图片URL"/>
+          <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={handleImg}/>
+          <button onClick={()=>fileRef.current?.click()} style={sBtnSm(C.blueLight, C.blue, {whiteSpace:"nowrap"})}>上传图片</button>
+        </div>
+        {w.imageUrl && <img src={w.imageUrl} alt="" style={{ marginTop:8, maxHeight:110, borderRadius:8, objectFit:"cover" }} onError={e=>e.target.style.display="none"}/>}
+      </div>
+      <div style={{ marginBottom:14 }}>
+        <label style={sLabel}>例句</label>
+        {w.examples.map((ex,i) => (
+          <div key={i} style={{ display:"flex", gap:8, marginBottom:8, alignItems:"start" }}>
+            <div style={{ flex:1 }}>
+              <input style={{...sInput, marginBottom:4}} value={ex.ja} onChange={e=>setEx(i,"ja",e.target.value)} placeholder="日语例句"/>
+              <input style={sInput} value={ex.cn} onChange={e=>setEx(i,"cn",e.target.value)} placeholder="中文翻译"/>
+            </div>
+            {w.examples.length > 1 && <button onClick={()=>rmEx(i)} style={{ background:"none", border:"none", cursor:"pointer", marginTop:8 }}><IX size={15} color={C.wrong}/></button>}
+          </div>
+        ))}
+        <button onClick={addEx} style={{ background:"none", border:`1px dashed ${C.border}`, borderRadius:8, padding:"5px 14px", fontSize:13, cursor:"pointer", color:C.muted }}>＋ 添加例句</button>
+      </div>
+      <div style={{ display:"flex", gap:10, justifyContent:"flex-end", marginTop:22, borderTop:`1px solid ${C.borderLight}`, paddingTop:18 }}>
+        <button onClick={onCancel} style={sBtn(C.bg, C.muted)}>取消</button>
+        <button onClick={()=>valid&&onSave(w)} disabled={!valid} style={sBtn(valid?C.primary:"#ccc", "#fff", {cursor:valid?"pointer":"not-allowed", boxShadow:valid?"0 2px 10px rgba(200,64,45,0.25)":"none"})}>保存</button>
+      </div>
+    </div>
+  );
+}
+
+/* ===== EDIT MODE ===== */
+function EditMode({ groups, setGroups, gid: curGid, setGid: setCurGid }) {
+  const [showForm, setShowForm] = useState(false);
+  const [editWord, setEditWord] = useState(null);
+  const [renaming, setRenaming] = useState(null);
+  const [renameVal, setRenameVal] = useState("");
+  const group = groups.find(g => g.id === curGid);
+
+  const addGroup = () => { const ng = { id:gid(), name:`单词组 ${groups.length+1}`, words:[] }; setGroups([...groups, ng]); setCurGid(ng.id); };
+  const delGroup = (id) => { if(!confirm("确定删除该单词组及其中所有单词？")) return; const ng=groups.filter(g=>g.id!==id); setGroups(ng); if(curGid===id) setCurGid(ng[0]?.id||null); };
+  const startRename = (g) => { setRenaming(g.id); setRenameVal(g.name); };
+  const finishRename = () => { if(renameVal.trim()) setGroups(groups.map(g=>g.id===renaming?{...g,name:renameVal.trim()}:g)); setRenaming(null); };
+  const saveWord = (w) => {
+    setGroups(groups.map(g => {
+      if (g.id !== curGid) return g;
+      const exists = g.words.find(x=>x.id===w.id);
+      return {...g, words: exists ? g.words.map(x=>x.id===w.id?w:x) : [...g.words, w]};
+    }));
+    setShowForm(false); setEditWord(null);
+  };
+  const delWord = (wid) => { if(!confirm("删除该单词？")) return; setGroups(groups.map(g=>g.id!==curGid?g:{...g, words:g.words.filter(w=>w.id!==wid)})); };
+  const moveWord = (idx, dir) => {
+    setGroups(groups.map(g => {
+      if (g.id !== curGid) return g;
+      const ws=[...g.words]; const ni=idx+dir; if(ni<0||ni>=ws.length) return g;
+      [ws[idx],ws[ni]]=[ws[ni],ws[idx]]; return {...g, words:ws};
+    }));
+  };
+
+  return (
+    <div style={{ display:"flex", height:"calc(100vh - 64px)" }}>
+      {/* Sidebar */}
+      <div style={{ width:250, borderRight:`1px solid ${C.border}`, background:C.card, display:"flex", flexDirection:"column", flexShrink:0 }}>
+        <div style={{ padding:"14px 16px", borderBottom:`1px solid ${C.borderLight}`, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+          <span style={{ fontSize:14, fontWeight:700, color:C.text }}>📁 单词组</span>
+          <button onClick={addGroup} style={{ background:C.primaryLight, border:"none", borderRadius:8, width:30, height:30, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>
+            <IPlus size={15} color={C.primary}/>
+          </button>
+        </div>
+        <div style={{ flex:1, overflowY:"auto", padding:8 }}>
+          {groups.map(g => (
+            <div key={g.id} onClick={()=>setCurGid(g.id)}
+              style={{ padding:"10px 12px", borderRadius:10, marginBottom:3, cursor:"pointer",
+                background: g.id===curGid ? C.primaryLight : "transparent",
+                border: g.id===curGid ? `1.5px solid rgba(200,64,45,0.2)` : "1.5px solid transparent",
+                transition:"all 0.15s" }}>
+              {renaming === g.id ? (
+                <input autoFocus value={renameVal} onChange={e=>setRenameVal(e.target.value)}
+                  onBlur={finishRename} onKeyDown={e=>e.key==="Enter"&&finishRename()}
+                  style={{ width:"100%", padding:"3px 6px", border:`1.5px solid ${C.primary}`, borderRadius:5, fontSize:13, outline:"none" }}
+                  onClick={e=>e.stopPropagation()}/>
+              ) : (
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                  <div>
+                    <div style={{ fontSize:13, fontWeight:600, color:C.text, lineHeight:1.3 }}>{g.name}</div>
+                    <div style={{ fontSize:11, color:C.muted, marginTop:2 }}>{g.words.length} 个单词</div>
+                  </div>
+                  <div style={{ display:"flex", gap:2 }} onClick={e=>e.stopPropagation()}>
+                    <button onClick={()=>startRename(g)} style={{ background:"none", border:"none", cursor:"pointer", padding:3, borderRadius:4 }}><IEdit size={13}/></button>
+                    <button onClick={()=>delGroup(g.id)} style={{ background:"none", border:"none", cursor:"pointer", padding:3, borderRadius:4 }}><ITrash size={13} color={C.wrong}/></button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+          {groups.length === 0 && <div style={{ textAlign:"center", color:C.muted, fontSize:13, marginTop:50, lineHeight:1.8 }}>暂无单词组<br/>点击 ＋ 创建</div>}
+        </div>
+      </div>
+
+      {/* Main content */}
+      <div style={{ flex:1, overflowY:"auto", padding:"24px 28px", background:C.bg }}>
+        {group ? (
+          <div className="fade-in">
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:22 }}>
+              <h2 style={{ margin:0, fontSize:21, fontWeight:700, color:C.text }}>{group.name}</h2>
+              <button onClick={()=>{setEditWord(null);setShowForm(true)}}
+                style={sBtn(C.primary,"#fff",{ display:"flex", alignItems:"center", gap:6, boxShadow:"0 3px 12px rgba(200,64,45,0.25)" })}>
+                <IPlus size={15} color="#fff"/> 添加单词
+              </button>
+            </div>
+            {group.words.length === 0 ? (
+              <div style={{ textAlign:"center", padding:"70px 20px", color:C.muted }}>
+                <div style={{ fontSize:52, marginBottom:14 }}>📝</div>
+                <div style={{ fontSize:15 }}>该组还没有单词，点击上方按钮开始添加</div>
+              </div>
+            ) : (
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(290px, 1fr))", gap:14 }}>
+                {group.words.map((w, idx) => (
+                  <div key={w.id} className="fade-in" style={{ background:C.card, borderRadius:14, padding:16, border:`1px solid ${C.borderLight}`, transition:"box-shadow 0.2s, transform 0.2s" }}
+                    onMouseEnter={e=>{e.currentTarget.style.boxShadow="0 6px 20px rgba(0,0,0,0.08)";e.currentTarget.style.transform="translateY(-2px)";}}
+                    onMouseLeave={e=>{e.currentTarget.style.boxShadow="none";e.currentTarget.style.transform="none";}}>
+                    {w.imageUrl && <img src={w.imageUrl} alt="" style={{ width:"100%", height:130, objectFit:"cover", borderRadius:10, marginBottom:12 }} onError={e=>e.target.style.display="none"}/>}
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+                      <div>
+                        <div style={{ fontSize:22, fontWeight:700, fontFamily:SF, color:C.text }}>
+                          {w.kanji || w.kana}
+                          {w.accent && <sup style={{ fontSize:11, color:C.primary, marginLeft:4, fontFamily:"sans-serif" }}>[{w.accent}]</sup>}
+                        </div>
+                        {w.kanji && <div style={{ fontSize:14, color:C.muted, marginTop:1 }}>{w.kana}</div>}
+                        <span style={{ display:"inline-block", padding:"2px 8px", borderRadius:20, background:C.greenLight, color:C.green, fontSize:11, fontWeight:600, marginTop:5 }}>{w.pos}</span>
+                      </div>
+                      <div style={{ fontSize:16, fontWeight:700, color:C.primary, textAlign:"right", maxWidth:"40%" }}>{w.meaning}</div>
+                    </div>
+                    {w.usage && <div style={{ fontSize:12, color:C.muted, marginTop:8, fontStyle:"italic" }}>💡 {w.usage}</div>}
+                    {w.examples.filter(e=>e.ja).length > 0 && (
+                      <div style={{ marginTop:10, padding:"8px 10px", background:C.bg, borderRadius:8, fontSize:12 }}>
+                        {w.examples.filter(e=>e.ja).map((ex,i) => (
+                          <div key={i} style={{ marginBottom: i<w.examples.filter(e=>e.ja).length-1 ? 5:0 }}>
+                            <div style={{ color:C.text, fontFamily:SF }}>{ex.ja}</div>
+                            {ex.cn && <div style={{ color:C.muted }}>{ex.cn}</div>}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div style={{ display:"flex", gap:4, marginTop:10, justifyContent:"flex-end" }}>
+                      {idx > 0 && <button onClick={()=>moveWord(idx,-1)} style={{ background:C.bg, border:"none", borderRadius:6, width:28, height:28, cursor:"pointer", fontSize:13 }}>↑</button>}
+                      {idx < group.words.length-1 && <button onClick={()=>moveWord(idx,1)} style={{ background:C.bg, border:"none", borderRadius:6, width:28, height:28, cursor:"pointer", fontSize:13 }}>↓</button>}
+                      <button onClick={()=>{setEditWord(w);setShowForm(true)}} style={{ background:C.blueLight, border:"none", borderRadius:6, width:28, height:28, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}><IEdit size={13} color={C.blue}/></button>
+                      <button onClick={()=>delWord(w.id)} style={{ background:"#FFF0F0", border:"none", borderRadius:6, width:28, height:28, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}><ITrash size={13} color={C.wrong}/></button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div style={{ textAlign:"center", padding:"100px 20px", color:C.muted, fontSize:15 }}>
+            <div style={{ fontSize:48, marginBottom:14 }}>👈</div>
+            请在左侧选择或创建一个单词组
+          </div>
+        )}
+      </div>
+
+      <Modal open={showForm} onClose={()=>{setShowForm(false);setEditWord(null)}} title={editWord?"编辑单词":"添加单词"} wide>
+        <WordForm word={editWord} onSave={saveWord} onCancel={()=>{setShowForm(false);setEditWord(null)}}/>
+      </Modal>
+    </div>
+  );
+}
+
+/* ===== TEACH MODE ===== */
+function TeachMode({ groups, gid: curGid }) {
+  const group = groups.find(g => g.id === curGid);
+  const words = group?.words || [];
+  const [page, setPage] = useState(0);
+  const [cardCount, setCardCount] = useState(4);
+  const [showMeaningMap, setShowMeaningMap] = useState({});
+  const [showExamplesMap, setShowExamplesMap] = useState({});
+  const [quizPhase, setQuizPhase] = useState(null);
+  const [countdownTotal, setCountdownTotal] = useState(60);
+  const [countdownLeft, setCountdownLeft] = useState(0);
+  const [selectedCard, setSelectedCard] = useState(null);
+  const [cardStatus, setCardStatus] = useState({});
+  const [revealedCard, setRevealedCard] = useState(null);
+  const [scores, setScores] = useState({ kana:{correct:0,total:0}, reverse:{correct:0,total:0} });
+  const [kanaResults, setKanaResults] = useState({});
+  const [reverseResults, setReverseResults] = useState({});
+  const [quizWords, setQuizWords] = useState([]);
+  const CELL_CONFIG = {
+    1: { cols:1, rows:1, imgFlex:"0 0 50%", textPadding:"48px 56px", textLineWidth:848, showImg:true, showUsage:true, showExamples:true, kanjiSize:72, noImgKanjiSize:84, kanaSize:32, meaningSize:56, tagSize:18, tagPadding:"6px 18px", tagRadius:24, usageSize:20, exJaSize:24, exCnSize:20, maxExamples:99, exBarWidth:3, blurRadius:10 },
+    4: { cols:2, rows:2, imgFlex:"0 0 50%", textPadding:"20px 24px", textLineWidth:432, showImg:true, showUsage:true, showExamples:true, kanjiSize:40, kanaSize:20, meaningSize:32, tagSize:13, tagPadding:"4px 12px", tagRadius:20, usageSize:14, exJaSize:16, exCnSize:14, maxExamples:99, exBarWidth:2, blurRadius:7 },
+    6: { cols:3, rows:2, imgFlex:"0 0 50%", textPadding:"14px 18px", textLineWidth:284, showImg:true, showUsage:true, showExamples:true, kanjiSize:30, kanaSize:16, meaningSize:24, tagSize:12, tagPadding:"3px 10px", tagRadius:16, usageSize:13, exJaSize:14, exCnSize:12, maxExamples:99, exBarWidth:2, blurRadius:6 },
+  };
+  const countOptions = [
+    { label:"大", count:1, desc:"单词大图展示" },
+    { label:"中", count:4, desc:"2×2 四宫格" },
+    { label:"小", count:6, desc:"2×3 六宫格" },
+  ];
+  const getDefaultCount = (len) => len >= 4 ? 4 : 1;
+  const requestedCount = ((cardCount === 4 && words.length < 4) || (cardCount === 6 && words.length < 6)) ? getDefaultCount(words.length) : cardCount;
+  const effectiveCount = CELL_CONFIG[requestedCount] ? requestedCount : getDefaultCount(words.length);
+  const totalPages = Math.max(1, Math.ceil((words.length || 1) / effectiveCount));
+  const safePage = Math.min(page, totalPages - 1);
+  const pageWords = words.slice(safePage * effectiveCount, safePage * effectiveCount + effectiveCount);
+  const quizActive = ["kana","reverse","result"].includes(quizPhase) && quizWords.length > 0;
+  const currentWords = quizActive ? quizWords : pageWords;
+  const cfg = CELL_CONFIG[effectiveCount] || CELL_CONFIG[4];
+  const gridColumns = cfg.cols;
+  const gridRows = cfg.rows;
+  const getCellPosition = (i) => {
+    const cols = gridColumns;
+    return { col:(i % cols) + 1, span:1, row:Math.floor(i / cols) + 1, cols, rows:gridRows };
+  };
+  const pct = ((safePage + 1) / totalPages) * 100;
+  const pageHasExamples = currentWords.some(w => (w.examples || []).some(e => e.ja));
+  const allMeaningShown = currentWords.length > 0 && currentWords.every((_, i) => showMeaningMap[i]);
+  const allExamplesShown = !cfg.showExamples || !pageHasExamples || currentWords.every((w, i) => !(w.examples || []).some(e => e.ja) || showExamplesMap[i]);
+  const revealLabel = !allMeaningShown ? "👁 揭示释义" : (cfg.showExamples && !allExamplesShown ? "📖 揭示例句" : "✓ 已全部揭示");
+  const pendingIndexes = currentWords.map((_, i) => i).filter(i => cardStatus[i] === "pending");
+  const allQuizDone = currentWords.length > 0 && currentWords.every((_, i) => cardStatus[i] && cardStatus[i] !== "pending");
+  const countdownRatio = countdownTotal ? countdownLeft / countdownTotal : 0;
+  const countdownColor = countdownRatio > 0.5 ? C.green : countdownRatio > 0.2 ? "#E8A040" : C.primary;
+  const wrongWords = useMemo(() => currentWords.filter((_, i) => kanaResults[i] === "wrong" || reverseResults[i] === "wrong"), [kanaResults, reverseResults, currentWords]);
+
+  const resetReveal = () => { setShowMeaningMap({}); setShowExamplesMap({}); };
+  const resetQuizState = () => {
+    setQuizPhase(null);
+    setCountdownLeft(0);
+    setSelectedCard(null);
+    setCardStatus({});
+    setRevealedCard(null);
+    setScores({ kana:{correct:0,total:0}, reverse:{correct:0,total:0} });
+    setKanaResults({});
+    setReverseResults({});
+    setQuizWords([]);
+  };
+  const goPage = (n) => {
+    setPage(Math.max(0, Math.min(n, totalPages - 1)));
+    resetReveal();
+    resetQuizState();
+  };
+  const smartBreak = (text, lang, fontSize) => {
+    if (!text) return text;
+    const raw = String(text);
+    const maxChars = Math.max(6, Math.floor((cfg.textLineWidth / fontSize) * (lang === "ja" ? 1.08 : 0.96)));
+    if (raw.length <= maxChars) return raw;
+    const marks = ["、","，",",","。","．",".","；",";","：",":","！","!","？","?"];
+    let idx = -1;
+    marks.forEach(mark => {
+      const found = raw.lastIndexOf(mark, raw.length - 2);
+      if (found > idx) idx = found;
+    });
+    if (idx < 1 || idx >= raw.length - 1) return raw;
+    return <>{raw.slice(0, idx + 1)}<br/>{raw.slice(idx + 1).trimStart()}</>;
+  };
+  const chooseCount = (n) => {
+    if (![1,4,6].includes(n)) return;
+    if ((n === 4 && words.length < 4) || (n === 6 && words.length < 6)) return;
+    resetQuizState();
+    setCardCount(n);
+    setPage(0);
+    resetReveal();
+  };
+  const startCountdown = (seconds) => {
+    setCountdownTotal(seconds);
+    setCountdownLeft(seconds);
+  };
+  const enterKanaPhase = useCallback(() => {
+    const nextQuizWords = shuffle(pageWords);
+    setQuizWords(nextQuizWords);
+    setQuizPhase("kana");
+    setCardStatus(Object.fromEntries(nextQuizWords.map((_, i) => [i, "pending"])));
+    setSelectedCard(null);
+    setRevealedCard(null);
+  }, [pageWords]);
+  const enterReversePhase = () => {
+    setKanaResults({...cardStatus});
+    setQuizPhase("reverse");
+    setCardStatus(Object.fromEntries((quizWords.length ? quizWords : currentWords).map((_, i) => [i, "pending"])));
+    setSelectedCard(null);
+    setRevealedCard(null);
+  };
+  const enterResultPhase = () => {
+    setReverseResults({...cardStatus});
+    setQuizPhase("result");
+    setSelectedCard(null);
+    setRevealedCard(null);
+  };
+  const restartQuiz = () => {
+    setQuizPhase("countdown");
+    setCountdownLeft(0);
+    setScores({ kana:{correct:0,total:0}, reverse:{correct:0,total:0} });
+    setCardStatus({});
+    setSelectedCard(null);
+    setRevealedCard(null);
+    setKanaResults({});
+    setReverseResults({});
+    setQuizWords([]);
+  };
+  const exitAndNextPage = () => {
+    resetQuizState();
+    if (safePage < totalPages - 1) goPage(safePage + 1);
+  };
+  const pickRandomCard = () => {
+    const pending = currentWords.map((_, i) => i).filter(i => cardStatus[i] === "pending");
+    if (pending.length === 0) return;
+    setSelectedCard(pending[Math.floor(Math.random() * pending.length)]);
+    setRevealedCard(null);
+  };
+  const handleCardClick = (i) => {
+    if (!["kana","reverse"].includes(quizPhase) || cardStatus[i] !== "pending") return;
+    if (revealedCard !== null) return;
+    if (selectedCard === i) setRevealedCard(i);
+    else setSelectedCard(i);
+  };
+  const markCard = (i, result) => {
+    if (!["kana","reverse"].includes(quizPhase)) return;
+    const phaseKey = quizPhase === "kana" ? "kana" : "reverse";
+    const newStatus = { ...cardStatus, [i]: result };
+    setCardStatus(newStatus);
+    setScores(prev => ({
+      ...prev,
+      [phaseKey]: {
+        correct: prev[phaseKey].correct + (result === "correct" ? 1 : 0),
+        total: prev[phaseKey].total + 1
+      }
+    }));
+    setRevealedCard(null);
+    setSelectedCard(null);
+  };
+  const revealAll = useCallback(() => {
+    if (!currentWords.length) return;
+    if (!currentWords.every((_, i) => showMeaningMap[i])) {
+      setShowMeaningMap(Object.fromEntries(currentWords.map((_, i) => [i, true])));
+      return;
+    }
+    if (cfg.showExamples && currentWords.some((w, i) => (w.examples || []).some(e => e.ja) && !showExamplesMap[i])) {
+      setShowExamplesMap(Object.fromEntries(currentWords.map((w, i) => [i, (w.examples || []).some(e => e.ja)])));
+    }
+  }, [currentWords, showMeaningMap, showExamplesMap, cfg.showExamples]);
+
+  useEffect(() => { setPage(0); setCardCount(getDefaultCount(words.length)); resetReveal(); }, [curGid]);
+  useEffect(() => {
+    if (words.length > 0 && ((cardCount === 4 && words.length < 4) || (cardCount === 6 && words.length < 6))) { setCardCount(getDefaultCount(words.length)); setPage(0); resetReveal(); }
+    else if (page > totalPages - 1) { setPage(totalPages - 1); resetReveal(); }
+  }, [words.length, cardCount, page, totalPages]);
+
+  useEffect(() => {
+    const h = (e) => {
+      if (!words.length) return;
+      if (quizPhase) {
+        if (e.key === "ArrowRight" || e.key === "ArrowLeft") { e.preventDefault(); return; }
+        if (e.key === " ") {
+          e.preventDefault();
+          if (quizPhase === "countdown") enterKanaPhase();
+          else if (["kana","reverse"].includes(quizPhase)) {
+            if (selectedCard === null) pickRandomCard();
+            else if (revealedCard === null && cardStatus[selectedCard] === "pending") setRevealedCard(selectedCard);
+          }
+        }
+        if (e.key === "1" && revealedCard !== null) markCard(revealedCard, "correct");
+        if (e.key === "2" && revealedCard !== null) markCard(revealedCard, "wrong");
+        return;
+      }
+      if (e.key === "ArrowRight" && safePage < totalPages - 1) goPage(safePage + 1);
+      if (e.key === "ArrowLeft" && safePage > 0) goPage(safePage - 1);
+      if (e.key === " ") { e.preventDefault(); revealAll(); }
+    };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, [words.length, safePage, totalPages, revealAll, quizPhase, selectedCard, revealedCard, cardStatus, enterKanaPhase]);
+
+  useEffect(() => {
+    if (quizPhase !== "countdown" || countdownLeft <= 0) return;
+    const timer = setInterval(() => {
+      setCountdownLeft(prev => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          enterKanaPhase();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [quizPhase, countdownLeft, enterKanaPhase]);
+
+  if (!group || group.words.length === 0) return (
+    <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:VH, overflow:"hidden", background:C.bg, color:C.muted, fontSize:16 }}>
+      请先在「编辑」模式中选择一个含有单词的单词组
+    </div>
+  );
+
+  const renderCard = (w, localIdx) => {
+    const pos = getCellPosition(localIdx);
+    const isRightEdge = pos.col + pos.span - 1 >= pos.cols;
+    const isBottomEdge = pos.row >= pos.rows;
+    const showMeaning = !!showMeaningMap[localIdx];
+    const showExamples = !!showExamplesMap[localIdx];
+    const examples = (w.examples || []).filter(e => e.ja).slice(0, cfg.maxExamples);
+    const hasImage = cfg.showImg && w.imageUrl;
+    const noImageSingle = effectiveCount === 1 && !hasImage;
+    const isQuizCard = ["kana","reverse"].includes(quizPhase);
+    const status = cardStatus[localIdx];
+    const isRevealed = !isQuizCard || revealedCard === localIdx || status !== "pending";
+    const isSelected = isQuizCard && selectedCard === localIdx && status === "pending";
+    const dimCard = isQuizCard && selectedCard !== null && !isSelected && status === "pending" && revealedCard === null;
+    const showFullInfo = !isQuizCard || isRevealed;
+    const showTags = !isQuizCard || isRevealed;
+    const showMeaningBlock = !isQuizCard || quizPhase === "reverse" || isRevealed;
+    const showExamplesBlock = !isQuizCard || (quizPhase === "reverse" && isRevealed);
+    const mainText = quizPhase === "kana" ? w.kana : quizPhase === "reverse" && !isRevealed ? "？？？" : (w.kanji || w.kana);
+    const subText = quizPhase === "kana" ? (isRevealed ? (w.kanji || "") : "？？？") : quizPhase === "reverse" ? (isRevealed ? w.kana : "？？？") : (w.kanji ? w.kana : "");
+    return (
+      <div className="fade-in" key={w.id} style={{ background:C.card, borderRadius:0, padding:0,
+        height:"100%", boxShadow:"none", border:"none", borderRight:isRightEdge?"none":`1px solid ${C.borderLight}`, borderBottom:isBottomEdge?"none":`1px solid ${C.borderLight}`, display:"flex",
+        flexDirection:"row", gap:0, alignItems:"stretch", minHeight:0, position:"relative", cursor:isQuizCard&&status==="pending"?"pointer":"default",
+        opacity:dimCard?0.45:1, outline:isSelected?`3px solid ${C.primary}`:"none", outlineOffset:-3, animation:isSelected?"breathe 1.5s ease-in-out infinite":undefined }}
+        onClick={()=>handleCardClick(localIdx)}>
+        {hasImage && (
+          <div style={{ flex:cfg.imgFlex, background:"rgba(0,0,0,0.04)",
+            borderRadius:0, display:"flex", alignItems:"center", justifyContent:"center", overflow:"hidden", minHeight:0, position:"relative", zIndex:1 }}>
+            <img src={w.imageUrl} alt="" style={{ width:"100%", height:"100%", objectFit:"contain" }} onError={e=>e.currentTarget.parentElement.style.display="none"}/>
+            {quizPhase === "kana" && !isRevealed && (
+              <div style={{ position:"absolute", inset:0, background:"#000000", display:"flex", alignItems:"center", justifyContent:"center", borderRadius:0, zIndex:2 }}>
+                <span style={{ fontSize:48, color:"rgba(255,255,255,0.3)", fontWeight:700 }}>？</span>
+              </div>
+            )}
+          </div>
+        )}
+        <div style={{ flex:1, minWidth:0, padding:cfg.textPadding, display:"flex", flexDirection:"column", justifyContent:"space-between", textAlign:noImageSingle?"center":"left", position:"relative", zIndex:3 }}>
+          <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", width:"100%", textAlign:"center", position:"relative", zIndex:3 }}>
+            <div style={{ width:"100%", fontSize:noImageSingle ? cfg.noImgKanjiSize : cfg.kanjiSize, fontWeight:700, fontFamily:SF, color:isQuizCard&&!isRevealed&&quizPhase==="reverse"?C.border:C.text, lineHeight:1.12, overflowWrap:"anywhere", textAlign:"center", borderBottom:isQuizCard&&!isRevealed&&quizPhase==="reverse"?`2px dashed ${C.border}`:"none", display:"block" }}>{mainText}</div>
+            {subText && <div style={{ width:"100%", fontSize:(quizPhase==="kana" || (quizPhase==="reverse" && !isRevealed)) ? cfg.kanjiSize : cfg.kanaSize, color:isQuizCard&&!isRevealed?C.border:C.muted, marginTop:4, fontFamily:SF, overflowWrap:"anywhere", textAlign:"center", borderBottom:isQuizCard&&!isRevealed?`2px dashed ${C.border}`:"none", display:"block" }}>{subText}</div>}
+            {showTags && <div style={{ display:"flex", gap:8, marginTop:8, alignItems:"center", justifyContent:"center", flexWrap:"wrap" }}>
+              {w.accent && <span style={{ padding:cfg.tagPadding, borderRadius:cfg.tagRadius, background:C.primaryLight, color:C.primary, fontSize:cfg.tagSize, fontWeight:600 }}>声调 {w.accent}</span>}
+              <span style={{ padding:cfg.tagPadding, borderRadius:cfg.tagRadius, background:C.greenLight, color:C.green, fontSize:cfg.tagSize, fontWeight:600 }}>{w.pos}</span>
+            </div>}
+          </div>
+          {showMeaningBlock && <div onClick={()=>!quizPhase&&!showMeaning&&setShowMeaningMap(p=>({...p,[localIdx]:true}))}
+            style={{ flex:1, display:"flex", flexDirection:"column", justifyContent:"center", textAlign:"center", cursor:!quizPhase&&!showMeaning?"pointer":"default", filter:quizPhase||showMeaning?"none":`blur(${cfg.blurRadius}px)`, opacity:quizPhase||showMeaning?1:0.32, transition:"filter 0.2s, opacity 0.2s" }}>
+            <div style={{ fontSize:cfg.meaningSize, fontWeight:700, color:C.primary, lineHeight:1.22, overflowWrap:"anywhere", textAlign:"center" }}>{smartBreak(w.meaning, "cn", cfg.meaningSize)}</div>
+            {cfg.showUsage && w.usage && (quizPhase !== "kana" || isRevealed) && <div style={{ fontSize:cfg.usageSize, color:C.muted, marginTop:6, lineHeight:1.35, textAlign:"center" }}>💡 {smartBreak(w.usage, "cn", cfg.usageSize)}</div>}
+          </div>}
+          <div style={{ maxHeight:"35%", overflow:"auto", display:"flex", justifyContent:"center" }}>
+            {showExamplesBlock && cfg.showExamples && examples.length > 0 && (
+            <div onClick={()=>!quizPhase&&!showExamples&&setShowExamplesMap(p=>({...p,[localIdx]:true}))}
+              style={{ width:"fit-content", maxWidth:"100%", cursor:!quizPhase&&!showExamples?"pointer":"default", filter:quizPhase||showExamples?"none":`blur(${cfg.blurRadius}px)`, opacity:quizPhase||showExamples?1:0.32, transition:"filter 0.2s, opacity 0.2s" }}>
+              {examples.map((ex,i) => (
+                <div key={i} style={{ marginBottom:6, paddingLeft:8, borderLeft:`${cfg.exBarWidth}px solid ${C.primary}`, textAlign:"left" }}>
+                  <div style={{ fontSize:cfg.exJaSize, color:C.text, fontFamily:SF, lineHeight:1.35 }}>{smartBreak(ex.ja, "ja", cfg.exJaSize)}</div>
+                </div>
+              ))}
+            </div>
+            )}
+          </div>
+        </div>
+        {isQuizCard && status === "correct" && <div style={{ position:"absolute", right:12, bottom:12, width:28, height:28, borderRadius:"50%", background:C.greenLight, color:C.green, fontSize:16, fontWeight:800, display:"flex", alignItems:"center", justifyContent:"center", zIndex:8 }}>✓</div>}
+        {isQuizCard && status === "wrong" && <div style={{ position:"absolute", right:12, bottom:12, width:28, height:28, borderRadius:"50%", background:"rgba(209,67,67,0.1)", color:C.wrong, fontSize:16, fontWeight:800, display:"flex", alignItems:"center", justifyContent:"center", zIndex:8 }}>✗</div>}
+        {isQuizCard && revealedCard === localIdx && (
+          <div style={{ position:"absolute", bottom:12, left:"50%", transform:"translateX(-50%)", display:"flex", gap:10, zIndex:10 }}>
+            <button onClick={(e)=>{ e.stopPropagation(); markCard(localIdx, "correct"); }}
+              style={{ padding:"6px 20px", borderRadius:20, background:C.greenLight, border:`1.5px solid rgba(58,125,92,0.3)`, color:C.green, fontSize:14, fontWeight:700, cursor:"pointer" }}>✓ 正确</button>
+            <button onClick={(e)=>{ e.stopPropagation(); markCard(localIdx, "wrong"); }}
+              style={{ padding:"6px 20px", borderRadius:20, background:"rgba(209,67,67,0.08)", border:`1.5px solid rgba(209,67,67,0.2)`, color:C.wrong, fontSize:14, fontWeight:700, cursor:"pointer" }}>✗ 错误</button>
+          </div>
+        )}
+      </div>
+    );
+  };
+  const startQuiz = () => {
+    setShowMeaningMap(Object.fromEntries(pageWords.map((_, i) => [i, true])));
+    setShowExamplesMap(Object.fromEntries(pageWords.map((w, i) => [i, (w.examples || []).some(e => e.ja)])));
+    restartQuiz();
+  };
+  const renderStageBar = () => {
+    const phases = [
+      { key:"countdown", label:"限时记忆" },
+      { key:"kana", label:"假名速认" },
+      { key:"reverse", label:"看中文说单词" },
+    ];
+    const activeIdx = quizPhase === "result" ? 3 : Math.max(0, phases.findIndex(p => p.key === quizPhase));
+    return (
+      <div style={{ height:32, flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center", position:"relative", borderTop:`1px solid ${C.borderLight}`, background:C.card }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          {phases.map((p, i) => {
+            const done = activeIdx >= i;
+            return (
+              <React.Fragment key={p.key}>
+                {i > 0 && <div style={{ width:70, height:2, background:activeIdx >= i ? C.primary : C.borderLight }} />}
+                <div style={{ display:"flex", alignItems:"center", gap:6, color:done?C.primary:C.muted, fontSize:13, fontWeight:done?700:500 }}>
+                  <span style={{ fontSize:14 }}>{done ? "●" : "○"}</span>{p.label}
+                </div>
+              </React.Fragment>
+            );
+          })}
+        </div>
+        <button onClick={resetQuizState} style={{ position:"absolute", right:16, top:4, height:24, padding:"0 10px", borderRadius:12, border:`1px solid ${C.border}`, background:C.bg, color:C.muted, fontSize:12, fontWeight:700, cursor:"pointer" }}>✕ 退出</button>
+      </div>
+    );
+  };
+  const renderResult = () => (
+    <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:24, padding:40 }}>
+      <div style={{ fontSize:28, fontWeight:700, color:C.text }}>📊 背记结果</div>
+      <div style={{ display:"flex", gap:40, alignItems:"center" }}>
+        <div style={{ textAlign:"center" }}>
+          <div style={{ fontSize:15, color:C.muted, marginBottom:8 }}>假名速认（正向）</div>
+          <div style={{ display:"flex", gap:4, justifyContent:"center", marginBottom:6 }}>
+            {currentWords.map((_, i) => <div key={i} style={{ width:14, height:14, borderRadius:"50%", background:i < scores.kana.correct ? C.green : C.borderLight }} />)}
+          </div>
+          <div style={{ fontSize:24, fontWeight:700, color:C.text }}>{scores.kana.correct} / {scores.kana.total}</div>
+        </div>
+        <div style={{ width:1, height:60, background:C.borderLight }} />
+        <div style={{ textAlign:"center" }}>
+          <div style={{ fontSize:15, color:C.muted, marginBottom:8 }}>逆向产出（反向）</div>
+          <div style={{ display:"flex", gap:4, justifyContent:"center", marginBottom:6 }}>
+            {currentWords.map((_, i) => <div key={i} style={{ width:14, height:14, borderRadius:"50%", background:i < scores.reverse.correct ? C.green : C.borderLight }} />)}
+          </div>
+          <div style={{ fontSize:24, fontWeight:700, color:C.text }}>{scores.reverse.correct} / {scores.reverse.total}</div>
+        </div>
+      </div>
+      {wrongWords.length > 0 && (
+        <div style={{ marginTop:8, textAlign:"center" }}>
+          <div style={{ fontSize:14, color:C.muted, marginBottom:6 }}>需要加强的单词：</div>
+          <div style={{ fontSize:18, fontWeight:600, color:C.primary }}>{wrongWords.map(w => w.kanji || w.kana).join("、")}</div>
+        </div>
+      )}
+      <div style={{ display:"flex", gap:14, marginTop:16 }}>
+        <button onClick={restartQuiz} style={{ padding:"10px 28px", borderRadius:12, background:C.primary, color:"#fff", fontSize:15, fontWeight:700, border:"none", cursor:"pointer" }}>🔄 再来一次</button>
+        <button onClick={exitAndNextPage} style={{ padding:"10px 28px", borderRadius:12, background:C.bg, border:`1px solid ${C.border}`, color:C.text, fontSize:15, fontWeight:700, cursor:"pointer" }}>→ 下一页继续授课</button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ height:VH, overflow:"hidden", background:C.bg, display:"flex", flexDirection:"column" }}>
+      {/* Progress */}
+      <div style={{ height:40, padding:"0 16px", flexShrink:0, display:"flex", alignItems:"center", gap:14, whiteSpace:"nowrap" }}>
+        <span style={{ color:C.muted, fontSize:13, maxWidth:260, overflow:"hidden", textOverflow:"ellipsis" }}>{group.name}</span>
+        {quizPhase === "countdown" && countdownLeft > 0 && (
+          <button onClick={enterKanaPhase} style={{ padding:"5px 11px", borderRadius:18, border:`1px solid ${C.border}`, background:C.bg, color:C.muted, fontSize:12, fontWeight:700, cursor:"pointer" }}>⏭ 跳过</button>
+        )}
+        <div style={{ height:3, background:C.borderLight, borderRadius:3, flex:1, minWidth:80 }}>
+          <div style={{ height:3, background:quizPhase === "countdown" && countdownLeft > 0 ? countdownColor : C.primary, borderRadius:3, width:quizPhase === "countdown" && countdownLeft > 0 ? `${countdownRatio * 100}%` : `${pct}%`, transition:"width 0.4s", animation:quizPhase === "countdown" && countdownRatio < 0.2 ? "blink 0.5s infinite" : undefined }}/>
+        </div>
+        {quizPhase === "countdown" && countdownLeft > 0 && <span style={{ color:countdownColor, fontSize:16, fontWeight:700, minWidth:44, textAlign:"right" }}>{countdownLeft}s</span>}
+        <div style={{ display:"flex", alignItems:"center", gap:10, justifyContent:"flex-end" }}>
+          {!quizPhase && (
+            <div style={{ display:"flex", gap:4, background:C.bg, border:`1px solid ${C.borderLight}`, borderRadius:20, padding:3 }}>
+              {countOptions.map(opt => {
+                const disabled = (opt.count === 4 && words.length < 4) || (opt.count === 6 && words.length < 6);
+                return (
+                <button key={opt.count} onClick={()=>chooseCount(opt.count)} title={opt.desc} disabled={disabled}
+                  style={{ padding:"4px 16px", borderRadius:16, border:"none", cursor:disabled?"not-allowed":"pointer", pointerEvents:disabled?"none":"auto", opacity:disabled?0.35:1, background:effectiveCount===opt.count?C.primary:"transparent", color:effectiveCount===opt.count?"#fff":C.muted, fontSize:13, fontWeight:600, transition:"all 0.2s" }}>
+                  {opt.label}
+                </button>
+                );
+              })}
+            </div>
+          )}
+            {!quizPhase && (allMeaningShown ? (
+              <button onClick={startQuiz}
+                style={{ background:C.primary, color:"#fff", padding:"5px 14px", borderRadius:20, border:"none", fontWeight:700, fontSize:13, cursor:"pointer" }}>
+                🧠 开始背记
+              </button>
+            ) : (
+              <button onClick={revealAll}
+                style={{ padding:"5px 11px", background:C.bg, border:`1px solid ${C.border}`, borderRadius:20, cursor:"pointer", color:C.muted, fontSize:12, fontWeight:600 }}>
+                {revealLabel}
+              </button>
+            ))}
+            {["kana","reverse"].includes(quizPhase) && !allQuizDone && (
+              <button onClick={pickRandomCard} disabled={pendingIndexes.length===0}
+                style={{ padding:"5px 14px", background:pendingIndexes.length?C.primary:C.borderLight, color:pendingIndexes.length?"#fff":C.hint, border:"none", borderRadius:20, cursor:pendingIndexes.length?"pointer":"not-allowed", fontSize:13, fontWeight:700 }}>
+                🎲 随机抽词
+              </button>
+            )}
+            {quizPhase === "kana" && allQuizDone && (
+              <button onClick={enterReversePhase} style={{ padding:"5px 14px", background:C.primary, color:"#fff", border:"none", borderRadius:20, cursor:"pointer", fontSize:13, fontWeight:700 }}>下一阶段 →</button>
+            )}
+            {quizPhase === "reverse" && allQuizDone && (
+              <button onClick={enterResultPhase} style={{ padding:"5px 14px", background:C.primary, color:"#fff", border:"none", borderRadius:20, cursor:"pointer", fontSize:13, fontWeight:700 }}>查看结果 →</button>
+            )}
+            <span style={{ color:C.muted, fontSize:13 }}>第 {safePage+1} / {totalPages} 页</span>
+        </div>
+      </div>
+      {quizPhase && renderStageBar()}
+
+      {/* Card */}
+      <div style={{ flex:1, display:"flex", alignItems:"stretch", justifyContent:"stretch", padding:0, minHeight:0, overflow:"hidden", position:"relative" }}>
+        {quizPhase === "result" ? renderResult() : (
+        <div style={{ width:"100%", height:"100%", display:"grid", gap:0,
+          gridTemplateColumns:`repeat(${gridColumns}, minmax(0, 1fr))`,
+          gridTemplateRows:`repeat(${gridRows}, minmax(0, 1fr))`,
+          justifyContent:"center", alignItems:"stretch" }}>
+          {currentWords.map((word, i) => (
+            <div key={word.id} style={{ minHeight:0, height:"100%", width:"100%" }}>
+              {renderCard(word, i)}
+            </div>
+          ))}
+        </div>
+        )}
+        {quizPhase === "countdown" && countdownLeft === 0 && (
+          <div style={{ position:"absolute", inset:0, background:"rgba(247,243,237,0.72)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:30 }}>
+            <div className="pop-in" style={{ background:C.card, borderRadius:16, padding:"32px 40px", boxShadow:"0 8px 30px rgba(0,0,0,0.1)", textAlign:"center", border:`1px solid ${C.borderLight}` }}>
+              <div style={{ fontSize:22, fontWeight:700, color:C.text, marginBottom:22 }}>选择记忆时间</div>
+              <div style={{ display:"flex", gap:12, justifyContent:"center" }}>
+                {[30,60,90].map(sec => (
+                  <button key={sec} onClick={()=>startCountdown(sec)}
+                    style={{ padding:"8px 22px", borderRadius:20, border:"none", cursor:"pointer", background:sec===countdownTotal?C.primary:C.bg, color:sec===countdownTotal?"#fff":C.muted, fontSize:14, fontWeight:700 }}>
+                    {`${sec}秒`}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Navigation */}
+      <div style={{ height:36, display:"flex", justifyContent:"center", gap:14, padding:"0 16px", alignItems:"center", flexShrink:0 }}>
+        <button onClick={()=>safePage>0&&goPage(safePage-1)} disabled={safePage===0}
+          style={{ padding:"0 14px", height:30, borderRadius:16, background:safePage>0?C.bg:C.borderLight, border:`1px solid ${C.border}`, cursor:safePage>0?"pointer":"not-allowed", display:"flex", alignItems:"center", justifyContent:"center", gap:8, color:safePage>0?C.text:C.hint, fontSize:13, fontWeight:600, transition:"all 0.2s" }}>
+          <IChevL size={18} color={safePage>0?C.text:C.hint}/> 上一页
+        </button>
+        {totalPages <= 20 && (
+          <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+            {Array.from({length:totalPages}).map((_,i) => (
+              <button key={i} onClick={()=>goPage(i)}
+                style={{ width:i===safePage?26:10, height:10, borderRadius:5, border:"none", cursor:"pointer",
+                  background: i===safePage?C.primary : i<safePage?"rgba(200,64,45,0.3)":C.borderLight, transition:"all 0.3s" }}/>
+            ))}
+          </div>
+        )}
+        {totalPages > 20 && <span style={{ color:C.muted, fontSize:13, minWidth:88, textAlign:"center" }}>第 {safePage+1} / {totalPages} 页</span>}
+        <button onClick={()=>safePage<totalPages-1&&goPage(safePage+1)} disabled={safePage>=totalPages-1}
+          style={{ padding:"0 14px", height:30, borderRadius:16, background:safePage<totalPages-1?C.bg:C.borderLight, border:`1px solid ${C.border}`, cursor:safePage<totalPages-1?"pointer":"not-allowed", display:"flex", alignItems:"center", justifyContent:"center", gap:8, color:safePage<totalPages-1?C.text:C.hint, fontSize:13, fontWeight:600, transition:"all 0.2s" }}>
+          下一页 <IChevR size={18} color={safePage<totalPages-1?C.text:C.hint}/>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ===== PRACTICE: FLASHCARD ===== */
+function FlashcardPractice({ words, onBack }) {
+  const [deck, setDeck] = useState(() => shuffle(words));
+  const [idx, setIdx] = useState(0);
+  const [flipped, setFlipped] = useState(false);
+  const [known, setKnown] = useState(0);
+  const reset = () => { setDeck(shuffle(words)); setIdx(0); setFlipped(false); setKnown(0); };
+
+  if (idx >= deck.length) return (
+    <div className="fade-in" style={{ textAlign:"center", padding:40, color:C.text }}>
+      <div style={{ fontSize:48, marginBottom:16 }}>🎉</div>
+      <div style={{ fontSize:26, fontWeight:700, marginBottom:8 }}>练习完成！</div>
+      <div style={{ fontSize:16, color:C.muted, marginBottom:28 }}>已掌握 {known} / {deck.length} 个单词</div>
+      <div style={{ width:200, height:8, background:C.borderLight, borderRadius:4, margin:"0 auto 24px" }}>
+        <div style={{ width:`${(known/deck.length)*100}%`, height:8, background: known===deck.length?C.green:C.primary, borderRadius:4, transition:"width 0.5s" }}/>
+      </div>
+      <div style={{ display:"flex", gap:12, justifyContent:"center" }}>
+        <button onClick={reset} style={sBtn(C.primary, "#fff", {fontWeight:700})}>🔄 再来一次</button>
+        <button onClick={onBack} style={sBtn(C.bg, C.text, {border:`1px solid ${C.border}`})}>返回</button>
+      </div>
+    </div>
+  );
+
+  const w = deck[idx];
+  const next = (ok) => { if(ok) setKnown(k=>k+1); setFlipped(false); setTimeout(()=>setIdx(i=>i+1), 120); };
+
+  return (
+    <div style={{ flex:1, minHeight:0, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"20px 36px" }}>
+      <div style={{ color:C.muted, fontSize:14, marginBottom:22 }}>闪卡记忆　{idx+1} / {deck.length}</div>
+      <div onClick={()=>setFlipped(!flipped)} className={flipped?"fade-in":""}
+        style={{ width:"min(500px,88vw)", maxHeight:"min(420px, 55vh)", background:C.card, borderRadius:22, padding:28, cursor:"pointer",
+          display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", textAlign:"center",
+          border:`1.5px solid ${flipped?"rgba(200,64,45,0.2)":C.borderLight}`, boxShadow:"0 6px 24px rgba(0,0,0,0.06)", transition:"border-color 0.3s", position:"relative" }}>
+        {!flipped ? (
+          <>
+            <div style={{ fontSize:48, fontWeight:700, fontFamily:SF, color:C.text }}>{w.kanji || w.kana}</div>
+            {w.kanji && <div style={{ fontSize:22, color:C.muted, marginTop:8, fontFamily:SF }}>{w.kana}</div>}
+            <div style={{ position:"absolute", bottom:18, color:C.hint, fontSize:12 }}>👆 点击翻面查看释义</div>
+          </>
+        ) : (
+          <>
+            {w.imageUrl && (
+              <div style={{ width:130, maxHeight:"min(80px, 10vh)", background:"rgba(255,255,255,0.03)", borderRadius:12, marginBottom:14, display:"flex", alignItems:"center", justifyContent:"center", overflow:"hidden" }}>
+                <img src={w.imageUrl} alt="" style={{ width:"100%", maxHeight:"min(80px, 10vh)", objectFit:"contain", borderRadius:12 }} onError={e=>e.currentTarget.parentElement.style.display="none"}/>
+              </div>
+            )}
+            <div style={{ fontSize:"clamp(22px, 3.5vh, 30px)", fontWeight:700, color:C.primary, marginBottom:6 }}>{w.meaning}</div>
+            <div style={{ fontSize:14, color:C.muted }}>{w.pos}{w.accent?` · 声调 ${w.accent}`:""}</div>
+            {w.examples.filter(e=>e.ja).length > 0 && (
+              <div style={{ marginTop:16, fontSize:16, color:C.muted, fontFamily:SF, lineHeight:1.6 }}>{w.examples[0].ja}</div>
+            )}
+          </>
+        )}
+      </div>
+      {flipped && (
+        <div className="slide-up" style={{ display:"flex", gap:14, marginTop:14 }}>
+          <button onClick={()=>next(false)} style={{ padding:"10px 28px", background:"rgba(209,67,67,0.06)", color:C.wrong, border:`1.5px solid rgba(209,67,67,0.2)`, borderRadius:12, cursor:"pointer", fontSize:16, fontWeight:600, transition:"all 0.15s" }}
+            onMouseEnter={e=>e.currentTarget.style.background="rgba(209,67,67,0.08)"} onMouseLeave={e=>e.currentTarget.style.background="rgba(209,67,67,0.06)"}>
+            还没记住 😣
+          </button>
+          <button onClick={()=>next(true)} style={{ padding:"10px 28px", background:C.greenLight, color:C.green, border:`1.5px solid rgba(58,125,92,0.25)`, borderRadius:12, cursor:"pointer", fontSize:16, fontWeight:600, transition:"all 0.15s" }}
+            onMouseEnter={e=>e.currentTarget.style.background="#DDF4E6"} onMouseLeave={e=>e.currentTarget.style.background=C.greenLight}>
+            已掌握 ✌️
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ===== PRACTICE: CHOICE ===== */
+function ChoicePractice({ words, onBack }) {
+  const [mode, setMode] = useState("ja2cn");
+  const [questions, setQuestions] = useState([]);
+  const [qi, setQi] = useState(0);
+  const [sel, setSel] = useState(null);
+  const [score, setScore] = useState(0);
+
+  const generate = useCallback((m) => {
+    return shuffle(words).map(w => {
+      const pool = words.filter(x=>x.id!==w.id);
+      const wrongs = shuffle(pool).slice(0, Math.min(3, pool.length));
+      const opts = shuffle([
+        { label: m==="cn2ja"?(w.kanji||w.kana):w.meaning, correct:true },
+        ...wrongs.map(x => ({ label: m==="cn2ja"?(x.kanji||x.kana):x.meaning, correct:false }))
+      ]);
+      return { word:w, options:opts };
+    });
+  }, [words]);
+
+  useEffect(() => { setQuestions(generate(mode)); setQi(0); setSel(null); setScore(0); }, [mode, generate]);
+
+  if (!questions.length) return null;
+
+  if (qi >= questions.length) return (
+    <div className="fade-in" style={{ textAlign:"center", padding:40, color:C.text }}>
+      <div style={{ fontSize:48, marginBottom:16 }}>{score>=questions.length*0.8?"🏆":score>=questions.length*0.5?"👍":"💪"}</div>
+      <div style={{ fontSize:26, fontWeight:700, marginBottom:8 }}>得分：{score} / {questions.length}</div>
+      <div style={{ fontSize:16, color:C.muted, marginBottom:28 }}>正确率 {Math.round(score/questions.length*100)}%</div>
+      <div style={{ display:"flex", gap:12, justifyContent:"center" }}>
+        <button onClick={()=>{setQuestions(generate(mode));setQi(0);setSel(null);setScore(0)}} style={sBtn(C.primary,"#fff",{fontWeight:700})}>🔄 再来一次</button>
+        <button onClick={onBack} style={sBtn(C.bg,C.text,{border:`1px solid ${C.border}`})}>返回</button>
+      </div>
+    </div>
+  );
+
+  const q = questions[qi];
+  const pick = (i) => {
+    if (sel !== null) return;
+    setSel(i);
+    if (q.options[i].correct) setScore(s=>s+1);
+    setTimeout(() => { setSel(null); setQi(qi+1); }, 1000);
+  };
+
+  return (
+    <div style={{ flex:1, minHeight:0, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"16px 36px" }}>
+      <div style={{ display:"flex", gap:8, marginBottom:10 }}>
+        {[["ja2cn","日语 → 中文"],["cn2ja","中文 → 日语"]].map(([k,l])=>(
+          <button key={k} onClick={()=>setMode(k)} style={{ padding:"7px 18px", borderRadius:8, border:`1.5px solid ${mode===k?"rgba(200,64,45,0.2)":C.border}`, background:mode===k?C.primaryLight:"transparent", color:mode===k?C.primary:C.muted, cursor:"pointer", fontSize:13, fontWeight:600, transition:"all 0.15s" }}>{l}</button>
+        ))}
+      </div>
+      <div style={{ color:C.muted, fontSize:14, marginBottom:18 }}>选择题　{qi+1} / {questions.length}</div>
+      <div className="fade-in" key={qi} style={{ background:C.card, borderRadius:22, padding:"22px 30px", width:"min(520px,88vw)", textAlign:"center", border:`1px solid ${C.borderLight}` }}>
+        {mode==="ja2cn" && q.word.imageUrl && (
+          <div style={{ width:170, maxHeight:"min(100px, 13vh)", background:"rgba(255,255,255,0.03)", borderRadius:14, margin:"0 auto 18px", display:"flex", alignItems:"center", justifyContent:"center", overflow:"hidden" }}>
+            <img src={q.word.imageUrl} alt="" style={{ width:"100%", maxHeight:"min(100px, 13vh)", objectFit:"contain", borderRadius:14 }} onError={e=>e.currentTarget.parentElement.style.display="none"}/>
+          </div>
+        )}
+        <div style={{ fontSize:"clamp(24px, 4vh, 36px)", fontWeight:700, fontFamily:SF, color:C.text, marginBottom:14 }}>{mode==="cn2ja"?q.word.meaning:(q.word.kanji||q.word.kana)}</div>
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+          {q.options.map((opt,i) => {
+            let bg=C.bg, bdr=C.border, clr=C.text;
+            if (sel !== null) {
+              if (opt.correct) { bg="rgba(58,125,92,0.12)"; bdr="rgba(58,125,92,0.3)"; clr=C.green; }
+              else if (i===sel && !opt.correct) { bg="rgba(209,67,67,0.08)"; bdr="rgba(209,67,67,0.2)"; clr=C.wrong; }
+            }
+            return (
+              <button key={i} onClick={()=>pick(i)}
+                style={{ padding:"10px 14px", background:bg, border:`1.5px solid ${bdr}`, borderRadius:12, cursor:sel!==null?"default":"pointer", color:clr, fontSize:15, fontWeight:500, fontFamily:mode==="cn2ja"?SF:"inherit", transition:"all 0.2s", animation:sel===i&&!q.options[i].correct?"shake 0.3s":"none" }}
+                onMouseEnter={e=>{if(sel===null)e.currentTarget.style.background=C.borderLight}}
+                onMouseLeave={e=>{if(sel===null)e.currentTarget.style.background=C.bg}}>
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ===== PRACTICE: MATCH ===== */
+function MatchPractice({ words, onBack }) {
+  const [items, setItems] = useState(() => shuffle(words).slice(0, Math.min(6, words.length)));
+  const [leftOrd] = useState(() => shuffle([...Array(Math.min(6,words.length)).keys()]));
+  const [rightOrd] = useState(() => shuffle([...Array(Math.min(6,words.length)).keys()]));
+  const [selL, setSelL] = useState(null);
+  const [matched, setMatched] = useState(new Set());
+  const [wrong, setWrong] = useState(null);
+  const [done, setDone] = useState(false);
+
+  const clickL = (i) => { if(matched.has(i)) return; setSelL(i); setWrong(null); };
+  const clickR = (i) => {
+    if (selL===null || matched.has(i)) return;
+    if (selL === i) {
+      const nm = new Set([...matched, i]);
+      setMatched(nm); setSelL(null);
+      if (nm.size === items.length) setTimeout(()=>setDone(true), 350);
+    } else {
+      setWrong(i);
+      setTimeout(() => { setWrong(null); setSelL(null); }, 550);
+    }
+  };
+  const reset = () => {
+    const ni = shuffle(words).slice(0,Math.min(6,words.length));
+    setItems(ni); setMatched(new Set()); setSelL(null); setWrong(null); setDone(false);
+  };
+
+  if (done) return (
+    <div className="fade-in" style={{ textAlign:"center", padding:40, color:C.text }}>
+      <div style={{ fontSize:48, marginBottom:16 }}>✨</div>
+      <div style={{ fontSize:26, fontWeight:700, marginBottom:24 }}>全部配对成功！</div>
+      <div style={{ display:"flex", gap:12, justifyContent:"center" }}>
+        <button onClick={reset} style={sBtn(C.primary,"#fff",{fontWeight:700})}>🔄 再来一次</button>
+        <button onClick={onBack} style={sBtn(C.bg,C.text,{border:`1px solid ${C.border}`})}>返回</button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ flex:1, minHeight:0, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"16px 36px" }}>
+      <div style={{ color:C.muted, fontSize:14, marginBottom:22 }}>配对连线　已完成 {matched.size} / {items.length}</div>
+      <div style={{ display:"flex", gap:44, width:"min(640px,92vw)", justifyContent:"center" }}>
+        <div style={{ flex:1, display:"flex", flexDirection:"column", gap:7 }}>
+          <div style={{ fontSize:12, color:C.hint, fontWeight:600, textAlign:"center", marginBottom:4 }}>日本語</div>
+          {leftOrd.map(i => {
+            const w=items[i]; const m=matched.has(i); const s=selL===i;
+            return (
+              <button key={i} onClick={()=>clickL(i)} disabled={m}
+                style={{ padding:"10px 14px", background:m?C.greenLight:s?C.primaryLight:C.bg,
+                  border:`1.5px solid ${m?"rgba(58,125,92,0.25)":s?"rgba(200,64,45,0.3)":C.border}`,
+                  borderRadius:12, cursor:m?"default":"pointer", fontSize:17, fontFamily:SF,
+                  color:m?C.green:s?C.primary:C.text, transition:"all 0.2s", opacity:m?0.6:1 }}>
+                {w.kanji||w.kana}
+              </button>
+            );
+          })}
+        </div>
+        <div style={{ flex:1, display:"flex", flexDirection:"column", gap:7 }}>
+          <div style={{ fontSize:12, color:C.hint, fontWeight:600, textAlign:"center", marginBottom:4 }}>中 文</div>
+          {rightOrd.map(i => {
+            const w=items[i]; const m=matched.has(i); const isW=wrong===i;
+            return (
+              <button key={i} onClick={()=>clickR(i)} disabled={m}
+                style={{ padding:"10px 14px", background:m?C.greenLight:isW?"rgba(209,67,67,0.08)":C.bg,
+                  border:`1.5px solid ${m?"rgba(58,125,92,0.25)":isW?"rgba(209,67,67,0.2)":C.border}`,
+                  borderRadius:12, cursor:m?"default":"pointer", fontSize:15, fontWeight:500,
+                  color:m?C.green:isW?C.wrong:C.text, transition:"all 0.2s", opacity:m?0.6:1,
+                  animation:isW?"shake 0.35s":"none" }}>
+                {w.meaning}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+      <div style={{ color:C.hint, fontSize:12, marginTop:10 }}>提示：先点击左侧日语，再点击右侧对应中文释义</div>
+    </div>
+  );
+}
+
+/* ===== PRACTICE WRAPPER ===== */
+function PracticeMode({ groups, gid: curGid }) {
+  const group = groups.find(g => g.id === curGid);
+  const [type, setType] = useState(null);
+
+  if (!group || group.words.length < 2) return (
+    <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:VH, overflow:"hidden", background:C.bg, color:C.muted, fontSize:16 }}>
+      请选择一个包含至少 2 个单词的单词组进行练习
+    </div>
+  );
+
+  if (!type) return (
+    <div style={{ height:VH, overflow:"hidden", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center" }}>
+      <div style={{ textAlign:"center" }}>
+        <div style={{ fontSize:14, color:C.muted, marginBottom:10 }}>{group.name} · {group.words.length} 个单词</div>
+        <h2 style={{ color:C.text, fontSize:28, fontWeight:700, marginBottom:36, margin:"0 0 36px" }}>选择练习方式</h2>
+        <div style={{ display:"flex", gap:18, flexWrap:"wrap", justifyContent:"center" }}>
+          {[
+            { key:"flash", icon:"🃏", title:"闪卡记忆", desc:"逐张翻面 · 自我检测" },
+            { key:"choice", icon:"✅", title:"选择题", desc:"四选一 · 快速判断" },
+            { key:"match", icon:"🔗", title:"配对连线", desc:"左右匹配 · 强化关联" },
+          ].map(t => (
+            <button key={t.key} onClick={()=>setType(t.key)}
+              style={{ width:170, padding:"22px 18px", background:C.card, border:`1.5px solid ${C.borderLight}`, borderRadius:18, cursor:"pointer", textAlign:"center", transition:"all 0.25s" }}
+              onMouseEnter={e=>{e.currentTarget.style.borderColor="rgba(200,64,45,0.25)";e.currentTarget.style.transform="translateY(-5px)";e.currentTarget.style.boxShadow="0 8px 24px rgba(0,0,0,0.08)";}}
+              onMouseLeave={e=>{e.currentTarget.style.borderColor=C.borderLight;e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none";}}>
+              <div style={{ fontSize:40, marginBottom:12 }}>{t.icon}</div>
+              <div style={{ fontSize:17, fontWeight:700, color:C.text, marginBottom:6 }}>{t.title}</div>
+              <div style={{ fontSize:12, color:C.muted, lineHeight:1.5 }}>{t.desc}</div>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
+  const pp = { words: group.words, onBack:()=>setType(null) };
+  return (
+    <div style={{ height:VH, overflow:"hidden", background:C.bg, display:"flex", flexDirection:"column" }}>
+      <div style={{ padding:"10px 28px", flexShrink:0 }}>
+        <button onClick={()=>setType(null)} style={{ background:C.bg, border:`1px solid ${C.border}`, borderRadius:8, padding:"7px 16px", cursor:"pointer", color:C.muted, fontSize:13, transition:"all 0.15s" }}
+          onMouseEnter={e=>e.currentTarget.style.background=C.borderLight} onMouseLeave={e=>e.currentTarget.style.background=C.bg}>
+          ← 选择其他练习
+        </button>
+      </div>
+      {type==="flash" && <FlashcardPractice {...pp}/>}
+      {type==="choice" && <ChoicePractice {...pp}/>}
+      {type==="match" && <MatchPractice {...pp}/>}
+    </div>
+  );
+}
+
+/* ===== MAIN APP ===== */
+function App() {
+  const [groups, setGroups] = useState([]);
+  const [curGid, setCurGid] = useState(null);
+  const [mode, setMode] = useState("edit");
+  const [ready, setReady] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importMode, setImportMode] = useState("replace");
+  const [importDraft, setImportDraft] = useState(null);
+  const [importStatus, setImportStatus] = useState("");
+  const [importResult, setImportResult] = useState(null);
+  const fileRef = useRef();
+
+  useEffect(() => {
+    const saved = storage.load();
+    if (saved && saved.length > 0) { setGroups(saved); setCurGid(saved[0].id); }
+    else { setGroups(DEMO); setCurGid(DEMO[0].id); }
+    setReady(true);
+  }, []);
+
+  useEffect(() => { if (ready) storage.save(groups); }, [groups, ready]);
+
+  const handleExportJson = () => {
+    const blob = new Blob([JSON.stringify(groups, null, 2)], {type:"application/json"});
+    downloadBlob(blob, `日语单词_${todayStamp()}_JSON备份.json`);
+    setShowExportMenu(false);
+  };
+  const handleExportExcel = () => {
+    const wb = makeWorkbookFromGroups(groups);
+    XLSX.writeFile(wb, `日语单词_${todayStamp()}.xlsx`);
+    setShowExportMenu(false);
+  };
+  const handleDownloadTemplate = () => {
+    const wb = makeWorkbookFromGroups([{ id:gid(), name:"示例单词组", words:EXCEL_TEMPLATE_ROWS.map(w => ({...w, id:gid()})) }]);
+    XLSX.writeFile(wb, `日语单词导入模板_${todayStamp()}.xlsx`);
+  };
+  const handleImport = (e) => {
+    const f = e.target.files[0]; if(!f) return;
+    const r = new FileReader();
+    setImportOpen(true);
+    setImportDraft(null);
+    setImportResult(null);
+    setImportStatus("正在解析 Excel 文件...");
+    r.onload = () => {
+      try {
+        const sheets = parseWorkbookSheets(r.result);
+        const totalWords = sheets.reduce((sum, s) => sum + s.words.length, 0);
+        const totalSkipped = sheets.reduce((sum, s) => sum + s.warnings.length, 0);
+        setImportDraft({ fileName:f.name, sheets, totalWords, totalSkipped });
+        setImportStatus(sheets.length ? "请选择导入模式并确认导入。" : "未找到可导入的工作表。");
+      } catch {
+        setImportStatus("无法解析文件，请确认文件为 .xlsx 或 .xls 格式。");
+      }
+    };
+    r.onerror = () => setImportStatus("读取文件失败，请重新选择文件。");
+    r.readAsArrayBuffer(f);
+    e.target.value="";
+  };
+  const applyImport = () => {
+    if (!importDraft) return;
+    setImportStatus("正在导入数据...");
+    const sheets = importDraft.sheets;
+    const activeSheets = importMode === "append" ? sheets.slice(0, 1) : sheets;
+    const skipped = activeSheets.reduce((sum, s) => sum + s.warnings.length, 0);
+    let added = 0;
+    let updated = 0;
+    let nextGroups = groups;
+    if (importMode === "replace") {
+      nextGroups = sheets.map(s => ({ id:gid(), name:s.name || "单词组", words:s.words }));
+      added = sheets.reduce((sum, s) => sum + s.words.length, 0);
+    } else if (importMode === "append") {
+      const first = sheets[0];
+      if (first) {
+        added = first.words.length;
+        if (curGid && groups.some(g => g.id === curGid)) {
+          nextGroups = groups.map(g => g.id === curGid ? {...g, words:[...(g.words || []), ...first.words]} : g);
+        } else {
+          const ng = { id:gid(), name:first.name || "单词组", words:first.words };
+          nextGroups = [...groups, ng];
+          setCurGid(ng.id);
+        }
+      }
+    } else {
+      nextGroups = groups.map(g => ({...g, words:[...(g.words || [])]}));
+      sheets.forEach(sheet => {
+        let group = nextGroups.find(g => g.name === sheet.name);
+        if (!group) {
+          group = { id:gid(), name:sheet.name || "单词组", words:[] };
+          nextGroups.push(group);
+        }
+        sheet.words.forEach(word => {
+          const idx = group.words.findIndex(w => w.kana === word.kana);
+          if (idx >= 0) {
+            group.words[idx] = {...group.words[idx], ...word, id:group.words[idx].id};
+            updated++;
+          } else {
+            group.words.push(word);
+            added++;
+          }
+        });
+      });
+    }
+    setGroups(nextGroups);
+    if (nextGroups.length && (importMode === "replace" || !curGid)) setCurGid(nextGroups[0].id);
+    setImportResult({ added, updated, skipped, warnings:activeSheets.flatMap(s => s.warnings.map(w => ({...w, sheet:s.name}))) });
+    setImportStatus("导入完成。");
+  };
+
+  const modes = [
+    { key:"edit", label:"📝 编辑", color:C.primary },
+    { key:"teach", label:"📖 授课", color:C.primary },
+    { key:"practice", label:"🎯 练习", color:C.primary },
+  ];
+
+  return (
+    <div style={{ minHeight:"100vh", background:C.bg }}>
+      {/* Header */}
+      <div style={{ height:64, background:C.card, borderBottom:`1px solid ${C.border}`,
+        display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 22px", position:"sticky", top:0, zIndex:100 }}>
+        <div style={{ fontSize:20, fontWeight:800, fontFamily:SF, color:C.primary, userSelect:"none" }}>
+          <span style={{ color:C.primary, fontSize:24 }}>言葉</span> 勉強システム
+        </div>
+        <div style={{ display:"flex", alignItems:"center", gap:4, background:C.bg, borderRadius:12, padding:4 }}>
+          {modes.map(m => (
+            <button key={m.key} onClick={()=>setMode(m.key)}
+              style={{ padding:"8px 20px", borderRadius:9, border:"none", cursor:"pointer", fontSize:14, fontWeight:600, transition:"all 0.2s",
+                background: mode===m.key ? C.card : "transparent",
+                color: mode===m.key ? C.text : C.muted,
+                boxShadow: mode===m.key ? "0 2px 8px rgba(0,0,0,0.1)" : "none" }}>
+              {m.label}
+            </button>
+          ))}
+        </div>
+        <div style={{ display:"flex", gap:8, position:"relative" }}>
+          <button onClick={handleDownloadTemplate} style={sBtnSm(C.bg, C.muted, {display:"flex",alignItems:"center",gap:5, border:`1px solid ${C.border}`})}>
+            下载模板
+          </button>
+          <div style={{ position:"relative" }}>
+            <button onClick={()=>setShowExportMenu(v=>!v)} style={sBtnSm(C.greenLight, C.green, {display:"flex",alignItems:"center",gap:5})}>
+              <IDownload size={14} color={C.green}/> 导出
+            </button>
+            {showExportMenu && (
+              <div style={{ position:"absolute", right:0, top:38, width:150, background:C.card, border:`1px solid ${C.border}`, borderRadius:10, boxShadow:"0 10px 30px rgba(0,0,0,0.14)", padding:6, zIndex:20 }}>
+                <button onClick={handleExportExcel} style={{ width:"100%", textAlign:"left", padding:"8px 10px", border:"none", background:"transparent", borderRadius:7, cursor:"pointer", color:C.text, fontSize:13 }}>导出 Excel</button>
+                <button onClick={handleExportJson} style={{ width:"100%", textAlign:"left", padding:"8px 10px", border:"none", background:"transparent", borderRadius:7, cursor:"pointer", color:C.text, fontSize:13 }}>导出 JSON 备份</button>
+              </div>
+            )}
+          </div>
+          <input ref={fileRef} type="file" accept=".xlsx,.xls" style={{display:"none"}} onChange={handleImport}/>
+          <button onClick={()=>fileRef.current?.click()} style={sBtnSm(C.blueLight, C.blue, {display:"flex",alignItems:"center",gap:5})}>
+            <IUpload size={14} color={C.blue}/> 导入
+          </button>
+        </div>
+      </div>
+
+      {/* Content */}
+      {mode==="edit" && <EditMode groups={groups} setGroups={setGroups} gid={curGid} setGid={setCurGid}/>}
+      {mode==="teach" && <TeachMode groups={groups} gid={curGid}/>}
+      {mode==="practice" && <PracticeMode groups={groups} gid={curGid}/>}
+
+      <Modal open={importOpen} onClose={()=>setImportOpen(false)} title="导入 Excel 单词表" wide>
+        <div>
+          <div style={{ padding:"12px 14px", borderRadius:10, background:C.bg, color:C.muted, fontSize:13, marginBottom:16 }}>
+            {importStatus}
+          </div>
+          {importDraft && (
+            <>
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(3, 1fr)", gap:10, marginBottom:16 }}>
+                <div style={{ background:C.primaryLight, borderRadius:10, padding:12 }}>
+                  <div style={{ fontSize:12, color:C.muted }}>工作表</div>
+                  <div style={{ fontSize:22, fontWeight:800, color:C.primary }}>{importDraft.sheets.length}</div>
+                </div>
+                <div style={{ background:C.greenLight, borderRadius:10, padding:12 }}>
+                  <div style={{ fontSize:12, color:C.muted }}>可导入单词</div>
+                  <div style={{ fontSize:22, fontWeight:800, color:C.green }}>{importDraft.totalWords}</div>
+                </div>
+                <div style={{ background:C.blueLight, borderRadius:10, padding:12 }}>
+                  <div style={{ fontSize:12, color:C.muted }}>需跳过行</div>
+                  <div style={{ fontSize:22, fontWeight:800, color:C.blue }}>{importDraft.totalSkipped}</div>
+                </div>
+              </div>
+              <div style={{ marginBottom:16 }}>
+                <label style={sLabel}>导入模式</label>
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(3, 1fr)", gap:10 }}>
+                  {[
+                    { key:"replace", title:"全量替换", desc:"清空现有数据，用 Excel 全部工作表替换" },
+                    { key:"append", title:"追加到当前组", desc:"只取第一个工作表，追加到当前单词组" },
+                    { key:"merge", title:"智能合并", desc:"按组名和假名匹配，新增或更新" },
+                  ].map(item => (
+                    <button key={item.key} onClick={()=>setImportMode(item.key)}
+                      style={{ textAlign:"left", padding:"12px 13px", borderRadius:10, cursor:"pointer", background:importMode===item.key?C.primaryLight:"#fff", border:`1.5px solid ${importMode===item.key?C.primary:C.border}`, color:C.text }}>
+                      <div style={{ fontSize:14, fontWeight:700, marginBottom:4 }}>{item.title}</div>
+                      <div style={{ fontSize:12, lineHeight:1.45, color:C.muted }}>{item.desc}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div style={{ marginBottom:16 }}>
+                <label style={sLabel}>导入预览</label>
+                <div style={{ maxHeight:260, overflowY:"auto", border:`1px solid ${C.borderLight}`, borderRadius:10 }}>
+                  {importDraft.sheets.map(sheet => (
+                    <div key={sheet.name} style={{ padding:12, borderBottom:`1px solid ${C.borderLight}` }}>
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+                        <strong style={{ color:C.text, fontSize:14 }}>{sheet.name}</strong>
+                        <span style={{ color:C.muted, fontSize:12 }}>{sheet.words.length} 个单词</span>
+                      </div>
+                      <div style={{ overflowX:"auto" }}>
+                        <table style={{ width:"100%", borderCollapse:"collapse", fontSize:12 }}>
+                          <thead>
+                            <tr>{["假名","汉字","中文释义","词性"].map(h => <th key={h} style={{ textAlign:"left", color:C.muted, padding:"5px 6px", borderBottom:`1px solid ${C.borderLight}` }}>{h}</th>)}</tr>
+                          </thead>
+                          <tbody>
+                            {sheet.preview.length ? sheet.preview.map((row, i) => (
+                              <tr key={i}>
+                                {["假名","汉字","中文释义","词性"].map(h => <td key={h} style={{ padding:"5px 6px", color:C.text, borderBottom:`1px solid ${C.borderLight}` }}>{row[h] || "—"}</td>)}
+                              </tr>
+                            )) : (
+                              <tr><td colSpan="4" style={{ padding:"6px", color:C.muted }}>此工作表没有数据行</td></tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              {importResult && (
+                <div style={{ padding:"12px 14px", borderRadius:10, background:C.greenLight, color:C.green, fontSize:13, marginBottom:16, lineHeight:1.7 }}>
+                  <strong>导入结果：</strong>新增 {importResult.added} 个，更新 {importResult.updated} 个，跳过 {importResult.skipped} 行。
+                  {importResult.warnings.length > 0 && (
+                    <div style={{ color:C.muted, marginTop:5 }}>
+                      跳过明细：{importResult.warnings.slice(0, 8).map(w => `${w.sheet} 第${w.rowNumber}行（${w.reason}）`).join("；")}
+                      {importResult.warnings.length > 8 ? "；更多行已略去" : ""}
+                    </div>
+                  )}
+                </div>
+              )}
+              <div style={{ display:"flex", justifyContent:"flex-end", gap:10, borderTop:`1px solid ${C.borderLight}`, paddingTop:16 }}>
+                <button onClick={()=>setImportOpen(false)} style={sBtn(C.bg, C.muted)}>{importResult ? "关闭" : "取消"}</button>
+                {!importResult && <button onClick={applyImport} disabled={importDraft.totalWords===0} style={sBtn(importDraft.totalWords?C.primary:"#ccc", "#fff", {cursor:importDraft.totalWords?"pointer":"not-allowed"})}>确认导入</button>}
+              </div>
+            </>
+          )}
+        </div>
+      </Modal>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
