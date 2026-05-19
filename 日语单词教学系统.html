@@ -22,6 +22,7 @@
   @keyframes slideUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); }}
   @keyframes breathe { 0%,100% { box-shadow:0 0 0 0 rgba(200,64,45,0.3); } 50% { box-shadow:0 0 0 12px rgba(200,64,45,0); }}
   @keyframes blink { 0%,100% { opacity:1; } 50% { opacity:0.4; }}
+  @keyframes spin { from { transform:rotate(0deg); } to { transform:rotate(360deg); }}
   .fade-in { animation: fadeIn 0.35s ease; }
   .pop-in { animation: pop 0.3s ease; }
   .slide-up { animation: slideUp 0.4s ease; }
@@ -121,6 +122,119 @@ const todayStamp = () => {
   const pad = n => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
 };
+const CLOUD_SYNC_BASE = "https://sync.nekosensei.cn/classtango";
+const LEGACY_STORAGE_KEY = "jp_vocab_v1";
+const DEFAULT_SYNC_GROUP_ID = "default";
+const sanitizeGroupId = (value) => {
+  const raw = String(value ?? "").trim();
+  if (!raw) return DEFAULT_SYNC_GROUP_ID;
+  return raw.replace(/[^a-zA-Z0-9_-]/g, "_").replace(/_+/g, "_").replace(/^_+|_+$/g, "") || DEFAULT_SYNC_GROUP_ID;
+};
+const parseGroupIdFromUrl = () => {
+  try {
+    const url = new URL(window.location.href);
+    const queryGroup = sanitizeGroupId(url.searchParams.get("group"));
+    if (queryGroup) return queryGroup;
+    const path = url.pathname.replace(/\/+$/, "");
+    const tail = path.split("/").filter(Boolean).pop();
+    if (tail && !/\.[a-z0-9]+$/i.test(tail)) return sanitizeGroupId(tail);
+  } catch (e) {}
+  return DEFAULT_SYNC_GROUP_ID;
+};
+const syncUrlGroupId = (groupId) => {
+  try {
+    const url = new URL(window.location.href);
+    url.searchParams.set("group", sanitizeGroupId(groupId));
+    window.history.replaceState({}, "", url.toString());
+  } catch (e) {}
+};
+const cloneGroups = (groups) => JSON.parse(JSON.stringify(Array.isArray(groups) ? groups : []));
+const normalizeSyncPayload = (payload, fallbackGroupId = DEFAULT_SYNC_GROUP_ID) => {
+  if (Array.isArray(payload)) {
+    const now = Date.now();
+    return { group_id: sanitizeGroupId(fallbackGroupId), last_updated: now, synced_at: now, groups: cloneGroups(payload) };
+  }
+  if (payload && typeof payload === "object") {
+    const groups = Array.isArray(payload.groups) ? payload.groups : Array.isArray(payload.data) ? payload.data : [];
+    const lastUpdated = Number(payload.last_updated || payload.updated_at || payload.timestamp || Date.now()) || Date.now();
+    const syncedAt = Number(payload.synced_at || payload.last_synced_at || payload.syncedAt || lastUpdated) || lastUpdated;
+    return {
+      ...payload,
+      group_id: sanitizeGroupId(payload.group_id || payload.groupId || fallbackGroupId),
+      last_updated: lastUpdated,
+      synced_at: syncedAt,
+      groups: cloneGroups(groups),
+    };
+  }
+  const now = Date.now();
+  return { group_id: sanitizeGroupId(fallbackGroupId), last_updated: now, synced_at: now, groups: [] };
+};
+const hasUnsyncedLocalChanges = (payload) => Number(payload?.last_updated || 0) > Number(payload?.synced_at || 0);
+const formatSyncTime = (value) => {
+  const ts = Number(value || 0);
+  if (!ts) return "未同步";
+  const d = new Date(ts);
+  if (Number.isNaN(d.getTime())) return "未同步";
+  const pad = n => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+const mergeGroups = (localGroups, remoteGroups) => {
+  const merged = cloneGroups(remoteGroups);
+  const index = new Map(merged.map(g => [g.id, g]));
+  cloneGroups(localGroups).forEach(group => {
+    const existing = index.get(group.id);
+    if (!existing) {
+      const nextGroup = { ...group, words: cloneGroups(group.words || []) };
+      merged.push(nextGroup);
+      index.set(nextGroup.id, nextGroup);
+      return;
+    }
+    const wordMap = new Map((existing.words || []).map(word => [word.id || word.kana, { ...word }]));
+    (group.words || []).forEach(word => {
+      const key = word.id || word.kana;
+      const prev = wordMap.get(key) || {};
+      wordMap.set(key, { ...prev, ...word });
+    });
+    existing.words = [...wordMap.values()];
+    existing.name = group.name || existing.name;
+  });
+  return merged;
+};
+const requestJson = async (url, options = {}, timeoutMs = 10000) => {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, { ...options, signal: controller.signal });
+    const text = await response.text();
+    let data = null;
+    if (text) {
+      try { data = JSON.parse(text); } catch (e) { data = { raw: text }; }
+    }
+    if (!response.ok) {
+      throw new Error((data && (data.message || data.error)) || `请求失败（${response.status}）`);
+    }
+    return data || {};
+  } finally {
+    clearTimeout(timer);
+  }
+};
+const pullFromCloud = async (groupId) => {
+  const url = new URL(CLOUD_SYNC_BASE);
+  url.searchParams.set("group", sanitizeGroupId(groupId));
+  const data = await requestJson(url.toString(), { method:"GET", headers:{ Accept:"application/json" } });
+  return normalizeSyncPayload(data.data ?? data.payload ?? data, groupId);
+};
+const pushToCloud = async (groupId, data) => {
+  const payload = normalizeSyncPayload(data, groupId);
+  const url = new URL(CLOUD_SYNC_BASE);
+  url.searchParams.set("group", sanitizeGroupId(groupId));
+  const res = await requestJson(url.toString(), {
+    method:"POST",
+    headers:{ "Content-Type":"application/json", Accept:"application/json" },
+    body: JSON.stringify({ group_id:sanitizeGroupId(groupId), ...payload }),
+  });
+  return normalizeSyncPayload(res.data ?? res.payload ?? payload, groupId);
+};
 const downloadBlob = (blob, filename) => {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -187,8 +301,24 @@ const VH = "calc(100vh - 64px)";
 
 /* ===== STORAGE ===== */
 const storage = {
-  save(d) { try { localStorage.setItem("jp_vocab_v1", JSON.stringify(d)); } catch(e){} },
-  load() { try { const s = localStorage.getItem("jp_vocab_v1"); return s ? JSON.parse(s) : null; } catch(e){ return null; } }
+  key(groupId) { return `classtango_data_${sanitizeGroupId(groupId)}`; },
+  save(groupId, data) { try { localStorage.setItem(this.key(groupId), JSON.stringify(normalizeSyncPayload(data, groupId))); } catch(e){} },
+  load(groupId) {
+    try {
+      const key = this.key(groupId);
+      const s = localStorage.getItem(key);
+      if (s) return normalizeSyncPayload(JSON.parse(s), groupId);
+      if (sanitizeGroupId(groupId) === DEFAULT_SYNC_GROUP_ID) {
+        const legacy = localStorage.getItem(LEGACY_STORAGE_KEY);
+        if (legacy) {
+          const normalized = normalizeSyncPayload(JSON.parse(legacy), groupId);
+          this.save(groupId, normalized);
+          return normalized;
+        }
+      }
+      return null;
+    } catch(e){ return null; }
+  }
 };
 
 /* ===== SVG ICONS ===== */
@@ -1191,24 +1321,314 @@ function PracticeMode({ groups, gid: curGid }) {
 function App() {
   const [groups, setGroups] = useState([]);
   const [curGid, setCurGid] = useState(null);
+  const [groupId, setGroupId] = useState(() => parseGroupIdFromUrl());
   const [mode, setMode] = useState("edit");
   const [ready, setReady] = useState(false);
+  const [syncMeta, setSyncMeta] = useState({ loading:false, status:"idle", message:"", lastSyncedAt:null, error:"" });
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [importMode, setImportMode] = useState("replace");
   const [importDraft, setImportDraft] = useState(null);
   const [importStatus, setImportStatus] = useState("");
   const [importResult, setImportResult] = useState(null);
+  const [showSyncPopover, setShowSyncPopover] = useState(false);
+  const [syncConflict, setSyncConflict] = useState(null);
   const fileRef = useRef();
+  const syncTimerRef = useRef(null);
+  const groupsRef = useRef(groups);
+  const groupIdRef = useRef(groupId);
+  const curGidRef = useRef(curGid);
+  const lastSyncRef = useRef(null);
+  const syncLoadingRef = useRef(false);
+  const suppressAutoSyncRef = useRef(true);
+  const pendingAutoSyncRef = useRef(false);
+
+  useEffect(() => { groupsRef.current = groups; }, [groups]);
+  useEffect(() => { groupIdRef.current = groupId; }, [groupId]);
+  useEffect(() => { curGidRef.current = curGid; }, [curGid]);
+
+  const currentWordGroup = useMemo(() => groups.find(g => g.id === curGid) || groups[0] || null, [groups, curGid]);
+  const persistSyncPayload = useCallback((groupIdValue, payload) => {
+    const normalized = normalizeSyncPayload(payload, groupIdValue);
+    storage.save(groupIdValue, normalized);
+    lastSyncRef.current = Number(normalized.synced_at || normalized.last_updated || Date.now());
+    return normalized;
+  }, []);
+  const applyPayloadToState = useCallback((groupIdValue, payload, { message, status = "synced", loading = false, error = "" } = {}) => {
+    const normalized = normalizeSyncPayload(payload, groupIdValue);
+    suppressAutoSyncRef.current = true;
+    setGroups(normalized.groups);
+    setCurGid(prev => normalized.groups.some(g => g.id === prev) ? prev : (normalized.groups[0]?.id || null));
+    persistSyncPayload(groupIdValue, normalized);
+    setSyncMeta({
+      loading,
+      status,
+      message,
+      lastSyncedAt: Number(normalized.synced_at || normalized.last_updated || Date.now()),
+      error,
+    });
+    return normalized;
+  }, [persistSyncPayload]);
+  const openConflictModal = useCallback((groupIdValue, localPayload, remotePayload, source) => {
+    setSyncConflict({ open:true, groupId:groupIdValue, localPayload:normalizeSyncPayload(localPayload, groupIdValue), remotePayload:normalizeSyncPayload(remotePayload, groupIdValue), source });
+    setSyncMeta(prev => ({
+      ...prev,
+      loading:false,
+      status:"conflict",
+      message:"检测到本地与云端同时有改动，请选择处理方式。",
+      error:"",
+    }));
+  }, []);
+  const backgroundRevalidate = useCallback(async (groupIdValue) => {
+    if (syncLoadingRef.current) {
+      pendingAutoSyncRef.current = true;
+      return null;
+    }
+    syncLoadingRef.current = true;
+    if (syncTimerRef.current) {
+      clearTimeout(syncTimerRef.current);
+      syncTimerRef.current = null;
+    }
+    setSyncMeta(prev => ({ ...prev, loading:true, status:"syncing", message:"后台静默同步中...", error:"" }));
+    try {
+      const remotePayload = await pullFromCloud(groupIdValue);
+      const localPayload = normalizeSyncPayload(storage.load(groupIdValue) || { group_id: groupIdValue, last_updated: Date.now(), synced_at: Date.now(), groups: groupsRef.current }, groupIdValue);
+      const remoteStamp = Number(remotePayload.last_updated || 0);
+      const syncedStamp = Number(localPayload.synced_at || 0);
+      const localDirty = hasUnsyncedLocalChanges(localPayload);
+      if (remoteStamp <= syncedStamp) {
+        setSyncMeta(prev => ({
+          ...prev,
+          loading:false,
+          status:"synced",
+          message: prev.message || "当前已是最新数据",
+          lastSyncedAt: Number(localPayload.synced_at || localPayload.last_updated || Date.now()),
+          error:"",
+        }));
+        return remotePayload;
+      }
+      if (!localDirty) {
+        applyPayloadToState(groupIdValue, { ...remotePayload, synced_at: remoteStamp }, {
+          status:"synced",
+          message:"已自动同步最新数据",
+          loading:false,
+          error:"",
+        });
+        return remotePayload;
+      }
+      openConflictModal(groupIdValue, localPayload, remotePayload, "background");
+      return remotePayload;
+    } catch (error) {
+      const message = error?.name === "AbortError" ? "后台同步超时，请检查网络。" : (error?.message || "后台同步失败，请稍后重试。");
+      setSyncMeta(prev => ({ ...prev, loading:false, status:"error", message, error:message }));
+      return null;
+    } finally {
+      syncLoadingRef.current = false;
+      if (pendingAutoSyncRef.current) {
+        pendingAutoSyncRef.current = false;
+        syncTimerRef.current = setTimeout(() => { backgroundRevalidate(groupIdValue).catch(() => {}); }, 500);
+      }
+    }
+  }, [applyPayloadToState, openConflictModal]);
+  const syncNow = useCallback(async ({ source = "manual" } = {}) => {
+    if (syncLoadingRef.current) {
+      pendingAutoSyncRef.current = true;
+      return null;
+    }
+    const activeGroupId = sanitizeGroupId(groupIdRef.current);
+    syncLoadingRef.current = true;
+    if (syncTimerRef.current) {
+      clearTimeout(syncTimerRef.current);
+      syncTimerRef.current = null;
+    }
+    setSyncMeta(prev => ({ ...prev, loading:true, status:"syncing", message: source === "manual" ? "正在手动同步..." : "正在同步...", error:"" }));
+    try {
+      const remotePayload = await pullFromCloud(activeGroupId);
+      const localPayload = normalizeSyncPayload(storage.load(activeGroupId) || { group_id: activeGroupId, last_updated: Date.now(), synced_at: Date.now(), groups: groupsRef.current }, activeGroupId);
+      const remoteStamp = Number(remotePayload.last_updated || 0);
+      const syncedStamp = Number(localPayload.synced_at || 0);
+      const localDirty = hasUnsyncedLocalChanges(localPayload);
+      const remoteNewer = remoteStamp > syncedStamp;
+      if (remoteNewer && !localDirty) {
+        applyPayloadToState(activeGroupId, { ...remotePayload, synced_at: remoteStamp }, {
+          status:"synced",
+          message:"已自动同步最新数据",
+          loading:false,
+          error:"",
+        });
+        return remotePayload;
+      }
+      if (remoteNewer && localDirty) {
+        openConflictModal(activeGroupId, localPayload, remotePayload, "manual");
+        return remotePayload;
+      }
+      if (!localDirty) {
+        setSyncMeta({
+          loading:false,
+          status:"synced",
+          message:"当前已是最新数据",
+          lastSyncedAt:Number(localPayload.synced_at || localPayload.last_updated || Date.now()),
+          error:"",
+        });
+        return remotePayload;
+      }
+      const payloadToPush = normalizeSyncPayload({ ...localPayload, synced_at: Number(localPayload.last_updated || Date.now()) }, activeGroupId);
+      const pushed = await pushToCloud(activeGroupId, payloadToPush);
+      const syncedAt = Number(pushed.last_updated || payloadToPush.last_updated || Date.now());
+      const finalPayload = normalizeSyncPayload({ group_id: activeGroupId, last_updated: payloadToPush.last_updated || syncedAt, synced_at: syncedAt, groups: cloneGroups(payloadToPush.groups) }, activeGroupId);
+      persistSyncPayload(activeGroupId, finalPayload);
+      suppressAutoSyncRef.current = true;
+      setGroups(finalPayload.groups);
+      setCurGid(prev => finalPayload.groups.some(g => g.id === prev) ? prev : (finalPayload.groups[0]?.id || null));
+      setSyncMeta({ loading:false, status:"synced", message:`同步成功 · ${formatSyncTime(syncedAt)}`, lastSyncedAt:syncedAt, error:"" });
+      return pushed;
+    } catch (error) {
+      const message = error?.name === "AbortError" ? "同步超时，请检查网络后重试。" : (error?.message || "同步失败，请稍后再试。");
+      setSyncMeta(prev => ({ ...prev, loading:false, status:"error", message, error:message }));
+      if (source === "manual") window.alert(`同步失败：${message}`);
+      return null;
+    } finally {
+      syncLoadingRef.current = false;
+      if (pendingAutoSyncRef.current) {
+        pendingAutoSyncRef.current = false;
+        syncTimerRef.current = setTimeout(() => { backgroundRevalidate(activeGroupId).catch(() => {}); }, 500);
+      }
+    }
+  }, [backgroundRevalidate, openConflictModal, persistSyncPayload]);
+  const resolveSyncConflict = useCallback(async (choice) => {
+    if (!syncConflict) return;
+    const { groupId: conflictGroupId, localPayload, remotePayload } = syncConflict;
+    setSyncConflict(null);
+    const local = normalizeSyncPayload(localPayload, conflictGroupId);
+    const remote = normalizeSyncPayload(remotePayload, conflictGroupId);
+    setSyncMeta(prev => ({ ...prev, loading:true, status:"syncing", message:"正在处理冲突...", error:"" }));
+    try {
+      if (choice === "local") {
+        const now = Date.now();
+        const payloadToPush = normalizeSyncPayload({ group_id: conflictGroupId, last_updated: now, synced_at: now, groups: local.groups }, conflictGroupId);
+        await pushToCloud(conflictGroupId, payloadToPush);
+        applyPayloadToState(conflictGroupId, payloadToPush, { status:"synced", message:"已保留本地并同步到云端", loading:false, error:"" });
+        return;
+      }
+      if (choice === "remote") {
+        const payloadToApply = normalizeSyncPayload({ ...remote, synced_at: Number(remote.last_updated || Date.now()) }, conflictGroupId);
+        applyPayloadToState(conflictGroupId, payloadToApply, { status:"synced", message:"已使用云端最新数据", loading:false, error:"" });
+        return;
+      }
+      const mergedGroups = mergeGroups(local.groups, remote.groups);
+      const now = Date.now();
+      const mergedPayload = normalizeSyncPayload({ group_id: conflictGroupId, last_updated: now, synced_at: now, groups: mergedGroups }, conflictGroupId);
+      await pushToCloud(conflictGroupId, mergedPayload);
+      applyPayloadToState(conflictGroupId, mergedPayload, { status:"synced", message:"已智能合并并同步最新数据", loading:false, error:"" });
+    } catch (error) {
+      const message = error?.name === "AbortError" ? "冲突处理超时，请重试。" : (error?.message || "冲突处理失败，请稍后再试。");
+      setSyncMeta(prev => ({ ...prev, loading:false, status:"error", message, error:message }));
+      window.alert(`冲突处理失败：${message}`);
+    }
+  }, [applyPayloadToState, syncConflict]);
+  const handleManualSync = useCallback(() => {
+    if (syncTimerRef.current) {
+      clearTimeout(syncTimerRef.current);
+      syncTimerRef.current = null;
+    }
+    syncNow({ source:"manual" }).catch(() => {});
+  }, [syncNow]);
 
   useEffect(() => {
-    const saved = storage.load();
-    if (saved && saved.length > 0) { setGroups(saved); setCurGid(saved[0].id); }
-    else { setGroups(DEMO); setCurGid(DEMO[0].id); }
-    setReady(true);
-  }, []);
+    let cancelled = false;
+    const init = async () => {
+      const resolvedGroupId = parseGroupIdFromUrl();
+      syncUrlGroupId(resolvedGroupId);
+      setGroupId(resolvedGroupId);
+      setReady(false);
+      setSyncMeta(prev => ({ ...prev, loading:true, status:"loading", message:"正在读取分组数据...", error:"" }));
+      let localPayload = null;
+      try {
+        localPayload = storage.load(resolvedGroupId);
+        if (localPayload?.groups?.length) {
+          const hydrated = normalizeSyncPayload(localPayload, resolvedGroupId);
+          if (cancelled) return;
+          suppressAutoSyncRef.current = true;
+          lastSyncRef.current = hydrated.synced_at || hydrated.last_updated || Date.now();
+          setGroups(hydrated.groups);
+          setCurGid(hydrated.groups[0]?.id || null);
+          setReady(true);
+          setSyncMeta({
+            loading:true,
+            status:"syncing",
+            message:"本地缓存已加载，正在后台检查云端最新数据...",
+            lastSyncedAt: Number(hydrated.synced_at || hydrated.last_updated || Date.now()),
+            error:"",
+          });
+          backgroundRevalidate(resolvedGroupId).catch(() => {});
+          return;
+        }
+        setSyncMeta(prev => ({ ...prev, message:"本地无缓存，正在从云端拉取..." }));
+        const remotePayload = await pullFromCloud(resolvedGroupId);
+        const remoteGroups = remotePayload?.groups?.length ? remotePayload.groups : cloneGroups(DEMO);
+        const normalized = normalizeSyncPayload({ group_id: resolvedGroupId, last_updated: remotePayload?.last_updated || Date.now(), synced_at: remotePayload?.last_updated || Date.now(), groups: remoteGroups }, resolvedGroupId);
+        if (cancelled) return;
+        suppressAutoSyncRef.current = true;
+        lastSyncRef.current = normalized.synced_at || normalized.last_updated;
+        setGroups(normalized.groups);
+        setCurGid(normalized.groups[0]?.id || null);
+        setReady(true);
+        storage.save(resolvedGroupId, normalized);
+        setSyncMeta({
+          loading:false,
+          status:"synced",
+          message: remotePayload?.groups?.length ? "已从云端加载当前分组" : "已载入示例分组",
+          lastSyncedAt: normalized.synced_at || normalized.last_updated,
+          error:"",
+        });
+      } catch (error) {
+        if (cancelled) return;
+        const fallbackGroups = cloneGroups(DEMO);
+        const normalized = normalizeSyncPayload({ group_id: resolvedGroupId, last_updated: Date.now(), synced_at: Date.now(), groups: fallbackGroups }, resolvedGroupId);
+        storage.save(resolvedGroupId, normalized);
+        suppressAutoSyncRef.current = true;
+        lastSyncRef.current = normalized.synced_at || normalized.last_updated;
+        setGroups(fallbackGroups);
+        setCurGid(fallbackGroups[0]?.id || null);
+        setReady(true);
+        setSyncMeta({
+          loading:false,
+          status:"error",
+          message:`初始化失败，已切换到示例数据：${error?.message || "请检查网络后重试"}`,
+          lastSyncedAt: normalized.synced_at || normalized.last_updated,
+          error:error?.message || "初始化失败",
+        });
+      }
+    };
+    init();
+    return () => {
+      cancelled = true;
+      if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+    };
+  }, [backgroundRevalidate]);
 
-  useEffect(() => { if (ready) storage.save(groups); }, [groups, ready]);
+  useEffect(() => {
+    if (!ready) return;
+    groupsRef.current = groups;
+    const activeGroupId = sanitizeGroupId(groupIdRef.current);
+    const isHydratedWrite = suppressAutoSyncRef.current;
+    const payload = normalizeSyncPayload({
+      group_id: activeGroupId,
+      last_updated: isHydratedWrite ? (lastSyncRef.current || Date.now()) : Date.now(),
+      synced_at: isHydratedWrite ? (lastSyncRef.current || Date.now()) : Number(lastSyncRef.current || Date.now()),
+      groups,
+    }, activeGroupId);
+    persistSyncPayload(activeGroupId, payload);
+    if (suppressAutoSyncRef.current) {
+      suppressAutoSyncRef.current = false;
+      return;
+    }
+    setSyncMeta(prev => ({ ...prev, status:"dirty", message:"本地已更新，等待同步...", error:"" }));
+    if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+    syncTimerRef.current = setTimeout(() => {
+      syncNow({ source:"auto" }).catch(() => {});
+    }, 1200);
+  }, [groups, ready, persistSyncPayload, syncNow]);
 
   const handleExportJson = () => {
     const blob = new Blob([JSON.stringify(groups, null, 2)], {type:"application/json"});
@@ -1307,8 +1727,35 @@ function App() {
       {/* Header */}
       <div style={{ height:64, background:C.card, borderBottom:`1px solid ${C.border}`,
         display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 22px", position:"sticky", top:0, zIndex:100 }}>
-        <div style={{ fontSize:20, fontWeight:800, fontFamily:SF, color:C.primary, userSelect:"none" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10, position:"relative", fontSize:20, fontWeight:800, fontFamily:SF, color:C.primary, userSelect:"none" }}>
           <span style={{ color:C.primary, fontSize:24 }}>言葉</span> 勉強システム
+          <button
+            type="button"
+            onClick={handleManualSync}
+            onMouseEnter={()=>setShowSyncPopover(true)}
+            onMouseLeave={()=>setShowSyncPopover(false)}
+            aria-label="同步状态"
+            title="同步状态"
+            disabled={syncMeta.loading}
+            style={{ width:12, height:12, borderRadius:"50%", border:"none", padding:0, cursor:syncMeta.loading?"not-allowed":"pointer", background: syncMeta.loading ? C.blue : (syncMeta.status === "error" ? C.wrong : syncMeta.status === "synced" ? C.green : syncMeta.status === "dirty" ? C.primary : C.border), boxShadow: syncMeta.loading ? `0 0 0 4px rgba(59,107,165,0.14)` : `0 0 0 3px rgba(200,64,45,0.08)`, position:"relative" }}
+          >
+            {syncMeta.loading && <span style={{ position:"absolute", inset:-4, borderRadius:"50%", border:`2px solid ${C.blueLight}`, borderTopColor:C.blue, animation:"spin 0.9s linear infinite" }} />}
+          </button>
+          {showSyncPopover && (
+            <div
+              onMouseEnter={()=>setShowSyncPopover(true)}
+              onMouseLeave={()=>setShowSyncPopover(false)}
+              style={{ position:"absolute", left:"50%", top:"calc(100% + 10px)", transform:"translateX(-50%)", width:240, maxWidth:"calc(100vw - 24px)", maxHeight:"calc(100vh - 120px)", overflowY:"auto", background:"rgba(255,255,255,0.98)", border:`1px solid ${C.border}`, borderRadius:12, boxShadow:"0 14px 30px rgba(0,0,0,0.12)", padding:"10px 12px", zIndex:120 }}>
+              <div style={{ fontSize:12, fontWeight:800, color:C.text, marginBottom:6 }}>同步状态</div>
+              <div style={{ fontSize:12, color:C.muted, lineHeight:1.6 }}>
+                <div>云端分组：{groupId}</div>
+                <div>当前词组：{currentWordGroup?.name || "未选择"}</div>
+                <div>状态：{syncMeta.loading ? "同步中" : (syncMeta.status === "error" ? "异常" : syncMeta.status === "dirty" ? "待同步" : "正常")}</div>
+                <div>上次同步：{formatSyncTime(syncMeta.lastSyncedAt)}</div>
+                <div style={{ marginTop:6, color:syncMeta.status === "error" ? C.wrong : C.muted }}>{syncMeta.message || "自动同步已启用"}</div>
+              </div>
+            </div>
+          )}
         </div>
         <div style={{ display:"flex", alignItems:"center", gap:4, background:C.bg, borderRadius:12, padding:4 }}>
           {modes.map(m => (
@@ -1347,6 +1794,26 @@ function App() {
       {mode==="edit" && <EditMode groups={groups} setGroups={setGroups} gid={curGid} setGid={setCurGid}/>}
       {mode==="teach" && <TeachMode groups={groups} gid={curGid}/>}
       {mode==="practice" && <PracticeMode groups={groups} gid={curGid}/>}
+
+      {syncConflict?.open && (
+        <div style={{ position:"fixed", inset:0, zIndex:140, background:"rgba(0,0,0,0.34)", display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
+          <div style={{ width:"min(520px, 94vw)", background:C.card, borderRadius:16, border:`1px solid ${C.border}`, boxShadow:"0 24px 80px rgba(0,0,0,0.22)", padding:24 }}>
+            <div style={{ fontSize:18, fontWeight:800, color:C.text, marginBottom:10 }}>检测到同步冲突</div>
+            <div style={{ fontSize:13, color:C.muted, lineHeight:1.75, marginBottom:18 }}>
+              <div>云端更新时间：{formatSyncTime(syncConflict.remotePayload?.last_updated)}</div>
+              <div>本地更新时间：{formatSyncTime(syncConflict.localPayload?.last_updated)}</div>
+              <div>本地已同步时间：{formatSyncTime(syncConflict.localPayload?.synced_at)}</div>
+              <div style={{ marginTop:8 }}>本地和云端都发生了改动，请选择处理方式。</div>
+            </div>
+            <div style={{ display:"flex", gap:10, flexWrap:"wrap", justifyContent:"flex-end" }}>
+              <button onClick={()=>resolveSyncConflict("local")} style={sBtnSm(C.bg, C.text, { border:`1px solid ${C.border}` })}>保留本地</button>
+              <button onClick={()=>resolveSyncConflict("remote")} style={sBtnSm(C.blueLight, C.blue)}>使用云端</button>
+              <button onClick={()=>resolveSyncConflict("merge")} style={sBtnSm(C.primary, "#fff")}>智能合并</button>
+              <button onClick={()=>setSyncConflict(null)} style={sBtnSm(C.bg, C.muted, { border:`1px solid ${C.border}` })}>取消</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <Modal open={importOpen} onClose={()=>setImportOpen(false)} title="导入 Excel 单词表" wide>
         <div>
