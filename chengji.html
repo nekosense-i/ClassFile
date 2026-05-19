@@ -860,6 +860,10 @@
 
         dialog { margin: auto; padding: 30px; border: none; border-radius: 22px; background: rgba(255,255,255,0.92); backdrop-filter: saturate(180%) blur(28px); -webkit-backdrop-filter: saturate(180%) blur(28px); box-shadow: var(--shadow-float); width: 520px; z-index: var(--z-modal); transition: transform var(--motion-base) ease, box-shadow var(--motion-base) ease, background var(--motion-base) ease; }
         dialog::backdrop { background: rgba(28,28,30,0.22); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
+        .confirm-dialog { text-align: center; }
+        .confirm-dialog .dialog-title { justify-content: center; }
+        .confirm-dialog .dialog-note { text-align: center; }
+        .confirm-dialog .dialog-footer { justify-content: center; }
         
         #toast-container { position: fixed; top: 20px; right: 20px; z-index: var(--z-toast); display: flex; flex-direction: column; gap: 10px; }
         .toast { background: rgba(28,28,30,0.85); color: #fff; padding: 14px 24px; border-radius: 12px; box-shadow: var(--shadow-float); animation: slideIn var(--motion-base) cubic-bezier(0.16, 1, 0.3, 1); font-size: 14px; font-weight: 500; display: flex; align-items: center; backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); }
@@ -3858,15 +3862,6 @@
                         const rawShowModal = HTMLDialogElement.prototype.showModal;
                         HTMLDialogElement.prototype.showModal = function(...args) {
                             this.__lastFocus = document.activeElement;
-                            if (!this.querySelector('.dialog-close-x')) {
-                                const closeBtn = document.createElement('button');
-                                closeBtn.type = 'button';
-                                closeBtn.className = 'dialog-close-x no-export';
-                                closeBtn.setAttribute('aria-label', '关闭');
-                                closeBtn.textContent = '×';
-                                closeBtn.onclick = () => this.close();
-                                this.prepend(closeBtn);
-                            }
                             const ret = rawShowModal.apply(this, args);
                             setTimeout(() => {
                                 const first = this.querySelector('input, select, textarea, button');
@@ -3936,7 +3931,7 @@
                     const dialog = document.createElement('dialog');
                     dialog.setAttribute('aria-modal', 'true');
                     dialog.setAttribute('aria-label', '确认操作');
-                    dialog.className = 'dialog-shell dialog--md';
+                    dialog.className = 'dialog-shell dialog--md confirm-dialog';
                     dialog.innerHTML = `
                         <div class="mb-md">
                             <div class="dialog-title" style="font-size:16px; margin-bottom:12px;">
@@ -4017,17 +4012,7 @@
                 }
 
                 _enhanceDialogs() {
-                    document.querySelectorAll('dialog').forEach(dialog => {
-                        if (!dialog.querySelector('.dialog-close-x')) {
-                            const closeBtn = document.createElement('button');
-                            closeBtn.type = 'button';
-                            closeBtn.className = 'dialog-close-x no-export';
-                            closeBtn.setAttribute('aria-label', '关闭');
-                            closeBtn.textContent = '×';
-                            closeBtn.onclick = () => dialog.close();
-                            dialog.prepend(closeBtn);
-                        }
-                    });
+                    document.querySelectorAll('dialog .dialog-close-x').forEach(btn => btn.remove());
                 }
 
                 openGlobalSearch() {
