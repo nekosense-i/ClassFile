@@ -696,6 +696,15 @@
         .settings-tab.active { background: #fff; color: var(--primary); border-color: transparent; box-shadow: var(--shadow-sm); }
         .settings-panel { display: none; }
         .settings-panel.active { display: flex; flex-direction: column; gap: 10px; }
+        #settings-panel-ai select {
+            appearance: none;
+            -webkit-appearance: none;
+            padding-right: 46px !important;
+            background-image: url("data:image/svg+xml,%3Csvg width='14' height='14' viewBox='0 0 14 14' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M3 5l4 4 4-4' fill='none' stroke='%231f2937' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") !important;
+            background-repeat: no-repeat !important;
+            background-position: right 18px center !important;
+            background-size: 14px 14px !important;
+        }
         
         .card { background: rgba(255,255,255,0.94); border-radius: var(--radius-lg); box-shadow: var(--shadow); padding: 20px; margin-bottom: 12px; border: 0.5px solid var(--border); transition: box-shadow var(--motion-base) ease, background var(--motion-base) ease; }
         .card:hover { box-shadow: var(--shadow); }
@@ -2357,12 +2366,21 @@
                 <label class="field-label">服务提供方</label>
                 <select id="ai-provider-select" onchange="localStorage.setItem('gakuten_ai_provider', this.value)">
                     <option value="deepseek">DeepSeek（默认）</option>
+                    <option value="gemini">Gemini</option>
+                    <option value="qwen">Qwen / 通义千问</option>
                     <option value="openai-compatible">兼容 OpenAI 格式中转 API</option>
                 </select>
                 <label class="field-label">Base URL</label>
                 <input type="text" id="ai-base-url" placeholder="https://api.deepseek.com 或你的代理 Base URL" oninput="localStorage.setItem('gakuten_ai_base_url', this.value.trim())">
+                <label class="field-label">模型名称</label>
+                <div class="flex-row gap-sm">
+                    <select id="ai-model-input" class="flex-1" onchange="localStorage.setItem('gakuten_ai_model', this.value)"></select>
+                    <button type="button" class="secondary btn--compact" id="ai-model-refresh-btn" onclick="window.__gakutenRefreshAiModels && window.__gakutenRefreshAiModels(false)">刷新</button>
+                </div>
+                <input type="text" id="ai-model-custom" placeholder="列表没有？可手动输入模型名，如 qwen3.6-plus" oninput="if(this.value.trim()){ localStorage.setItem('gakuten_ai_model', this.value.trim()); }">
+                <div id="ai-model-status" class="field-hint">会优先从服务商接口自动读取模型列表。</div>
                 <label class="field-label">API Key</label>
-                <input type="password" id="api-key-input" placeholder="sk-..." onchange="localStorage.setItem('gakuten_ai_key', this.value)">
+                <input type="password" id="api-key-input" placeholder="sk-... / AIza..." onchange="localStorage.setItem('gakuten_ai_key', this.value)">
                 <div class="dialog-warning">⚠️ Key 仅存于本机，请勿在公共电脑使用。</div>
             </div>
             <div class="dialog-body settings-panel" id="settings-panel-data">
@@ -3551,6 +3569,7 @@
                             localStorage.removeItem('gakuten_ai_key');
                             localStorage.removeItem('gakuten_ai_provider');
                             localStorage.removeItem('gakuten_ai_base_url');
+                            localStorage.removeItem('gakuten_ai_model');
                             location.reload();
                         },
                         "清空所有数据"
@@ -8813,42 +8832,70 @@
                     if (!ctx) throw new Error('未找到该生当次考试数据');
 
                     const apiKey = localStorage.getItem('gakuten_ai_key');
-                    if (!apiKey) throw new Error('请先在左侧导航栏底部输入 DeepSeek API Key！');
+                    if (!apiKey) throw new Error('请先在系统设置中填写 AI API Key！');
 
                     const providerSelect = document.getElementById('ai-provider-select');
                     const baseUrlInput = document.getElementById('ai-base-url');
+                    const modelInput = document.getElementById('ai-model-input');
                     const provider = (localStorage.getItem('gakuten_ai_provider') || (providerSelect && providerSelect.value) || 'deepseek').trim();
                     const rawBaseUrl = (localStorage.getItem('gakuten_ai_base_url') || (baseUrlInput && baseUrlInput.value) || '').trim();
+                    const modelFromInput = (localStorage.getItem('gakuten_ai_model') || (modelInput && modelInput.value) || '').trim();
+                    const defaultModelMap = {
+                        deepseek: 'deepseek-v4-flash',
+                        gemini: 'gemini-3-flash-preview',
+                        qwen: 'qwen3.6-plus',
+                        'openai-compatible': 'gpt-4o-mini'
+                    };
+                    const modelName = modelFromInput || defaultModelMap[provider] || 'deepseek-v4-flash';
                     const normalizedBaseUrl = rawBaseUrl.replace(/\/+$/, '');
-                    const defaultDeepSeekUrl = 'https://api.deepseek.com';
-                    const apiBaseUrl = provider === 'deepseek'
-                        ? (normalizedBaseUrl || defaultDeepSeekUrl)
-                        : normalizedBaseUrl;
+                    const defaultBaseUrlMap = {
+                        deepseek: 'https://api.deepseek.com',
+                        gemini: 'https://generativelanguage.googleapis.com/v1beta',
+                        qwen: 'https://dashscope.aliyuncs.com/compatible-mode/v1'
+                    };
+                    const apiBaseUrl = normalizedBaseUrl || defaultBaseUrlMap[provider] || '';
                     if (provider === 'openai-compatible' && !apiBaseUrl) {
                         throw new Error('请选择并填写 OpenAI 兼容中转 API 的 Base URL');
                     }
 
                     const prompt = this._buildAISummaryPrompt(studentName, ctx);
-                    const response = await fetch(`${apiBaseUrl}/chat/completions`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${apiKey}`
-                        },
-                        body: JSON.stringify({
-                            model: 'deepseek-chat',
-                            messages: [
-	                                { role: 'system', content: '你是一位温和、细致、擅长鼓励学生的高中日语老师。你会基于成绩数据给出准确但不生硬的反馈，先肯定努力，再指出方向，最后给出可执行的小建议。' },
-                                { role: 'user', content: prompt }
-                            ],
-                            temperature: 0.7
-                        })
-                    });
-
-                    const data = await response.json();
-                    if (data.error) throw new Error(data.error.message);
-
-                    const commentText = (data.choices?.[0]?.message?.content || '').trim();
+                    const systemPrompt = '你是一位温和、细致、擅长鼓励学生的高中日语老师。你会基于成绩数据给出准确但不生硬的反馈，先肯定努力，再指出方向，最后给出可执行的小建议。';
+                    let response;
+                    let data;
+                    let commentText = '';
+                    if (provider === 'gemini') {
+                        response = await fetch(`${apiBaseUrl}/models/${encodeURIComponent(modelName)}:generateContent?key=${encodeURIComponent(apiKey)}`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                systemInstruction: { parts: [{ text: systemPrompt }] },
+                                contents: [{ role: 'user', parts: [{ text: prompt }] }],
+                                generationConfig: { temperature: 0.7 }
+                            })
+                        });
+                        data = await response.json();
+                        if (data.error) throw new Error(data.error.message || 'Gemini 请求失败');
+                        commentText = (data.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('').trim();
+                    } else {
+                        response = await fetch(`${apiBaseUrl}/chat/completions`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${apiKey}`
+                            },
+                            body: JSON.stringify({
+                                model: modelName,
+                                messages: [
+	                                { role: 'system', content: systemPrompt },
+                                    { role: 'user', content: prompt }
+                                ],
+                                temperature: 0.7
+                            })
+                        });
+                        data = await response.json();
+                        if (data.error) throw new Error(data.error.message || 'AI 请求失败');
+                        commentText = (data.choices?.[0]?.message?.content || '').trim();
+                    }
                     if (!commentText) throw new Error('未返回有效内容');
 
                     ctx.studentScore.aiComment = commentText;
@@ -12518,36 +12565,221 @@
             window.app.ui = new AppCore.UI(window.app.store);
             const aiProviderSelect = document.getElementById('ai-provider-select');
             const aiBaseUrlInput = document.getElementById('ai-base-url');
+            const aiModelInput = document.getElementById('ai-model-input');
+            const aiModelCustomInput = document.getElementById('ai-model-custom');
+            const aiModelStatus = document.getElementById('ai-model-status');
+            const aiModelRefreshBtn = document.getElementById('ai-model-refresh-btn');
+            const aiDefaults = {
+                deepseek: { baseUrl: 'https://api.deepseek.com', model: 'deepseek-v4-flash', placeholder: 'https://api.deepseek.com' },
+                gemini: { baseUrl: 'https://generativelanguage.googleapis.com/v1beta', model: 'gemini-3-flash-preview', placeholder: 'https://generativelanguage.googleapis.com/v1beta' },
+                qwen: { baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', model: 'qwen3.6-plus', placeholder: 'https://dashscope.aliyuncs.com/compatible-mode/v1' },
+                'openai-compatible': { baseUrl: '', model: 'gpt-4o-mini', placeholder: 'https://your-proxy.example.com/v1' }
+            };
+            const aiModelOptions = {
+                deepseek: [
+                    ['deepseek-v4-flash', 'DeepSeek V4 Flash（默认）'],
+                    ['deepseek-v4-pro', 'DeepSeek V4 Pro']
+                ],
+                gemini: [
+                    ['gemini-3-flash-preview', 'Gemini 3 Flash Preview（默认）'],
+                    ['gemini-3.1-pro-preview', 'Gemini 3.1 Pro Preview'],
+                    ['gemini-3.1-flash-lite', 'Gemini 3.1 Flash-Lite']
+                ],
+                qwen: [
+                    ['qwen3.6-plus', 'Qwen3.6 Plus（默认）'],
+                    ['qwen3.6-max-preview', 'Qwen3.6 Max Preview'],
+                    ['qwen3.6-flash', 'Qwen3.6 Flash']
+                ],
+                'openai-compatible': [
+                    ['gpt-4o-mini', 'gpt-4o-mini'],
+                    ['gpt-4.1-mini', 'gpt-4.1-mini'],
+                    ['gpt-4.1', 'gpt-4.1']
+                ]
+            };
+            const populateAiModelOptions = (provider, preferredModel) => {
+                if (!aiModelInput) return;
+                const options = aiModelOptions[provider] || aiModelOptions.deepseek;
+                const values = new Set(options.map(([value]) => value));
+                const preferred = preferredModel || aiDefaults[provider]?.model || options[0]?.[0] || '';
+                const fullOptions = values.has(preferred) || !preferred
+                    ? options
+                    : [[preferred, `${preferred}（当前自定义）`], ...options];
+                aiModelInput.innerHTML = fullOptions.map(([value, label]) => `<option value="${value}">${label}</option>`).join('');
+                aiModelInput.value = preferred;
+                localStorage.setItem('gakuten_ai_model', aiModelInput.value);
+                if (aiModelCustomInput && values.has(preferred)) aiModelCustomInput.value = '';
+            };
+            const setAiModelStatus = (text, tone = 'hint') => {
+                if (!aiModelStatus) return;
+                aiModelStatus.textContent = text;
+                aiModelStatus.style.color = tone === 'error' ? 'var(--danger)' : (tone === 'ok' ? 'var(--success)' : 'var(--text-hint)');
+            };
+            const populateAiModelOptionsFromIds = (provider, preferredModel, ids) => {
+                if (!aiModelInput || !Array.isArray(ids) || ids.length === 0) return false;
+                const uniq = [...new Set(ids.map(v => String(v || '').trim()).filter(Boolean))];
+                if (!uniq.length) return false;
+                const preferred = preferredModel && uniq.includes(preferredModel) ? preferredModel : (preferredModel || uniq[0]);
+                const fullIds = uniq.includes(preferred) ? uniq : [preferred, ...uniq];
+                aiModelInput.innerHTML = fullIds.map(id => `<option value="${id}">${id}</option>`).join('');
+                aiModelInput.value = preferred;
+                localStorage.setItem('gakuten_ai_model', aiModelInput.value);
+                if (aiModelCustomInput && uniq.includes(preferred)) aiModelCustomInput.value = '';
+                return true;
+            };
+            const getAiModelCacheKey = (provider, baseUrl) => `gakuten_ai_models_${provider}_${(baseUrl || '').replace(/[^\w.-]+/g, '_')}`;
+            const loadCachedAiModels = (provider, baseUrl) => {
+                try {
+                    const cached = JSON.parse(localStorage.getItem(getAiModelCacheKey(provider, baseUrl)) || 'null');
+                    if (cached && Array.isArray(cached.models)) return cached.models;
+                } catch(e) {}
+                return null;
+            };
+            const saveCachedAiModels = (provider, baseUrl, models) => {
+                try {
+                    localStorage.setItem(getAiModelCacheKey(provider, baseUrl), JSON.stringify({ ts: Date.now(), models }));
+                } catch(e) {}
+            };
+            const fetchAiModels = async (quiet = true) => {
+                const provider = (aiProviderSelect && aiProviderSelect.value) || 'deepseek';
+                const preset = aiDefaults[provider] || aiDefaults.deepseek;
+                const baseUrl = ((aiBaseUrlInput && aiBaseUrlInput.value) || preset.baseUrl || '').trim().replace(/\/+$/, '');
+                const apiKey = (document.getElementById('api-key-input')?.value || localStorage.getItem('gakuten_ai_key') || '').trim();
+                const customModel = (aiModelCustomInput && aiModelCustomInput.value.trim()) || '';
+                const currentModel = customModel || (aiModelInput && aiModelInput.value) || localStorage.getItem('gakuten_ai_model') || preset.model;
+                if (!apiKey) {
+                    const cached = loadCachedAiModels(provider, baseUrl);
+                    if (cached && populateAiModelOptionsFromIds(provider, currentModel, cached)) {
+                        setAiModelStatus('已显示上次缓存的模型列表；填写 API Key 后可刷新最新列表。');
+                    } else {
+                        populateAiModelOptions(provider, currentModel);
+                        setAiModelStatus('未填写 API Key，已显示内置模型列表；也可手动输入模型名。');
+                    }
+                    return;
+                }
+                if (provider === 'openai-compatible' && !baseUrl) {
+                    populateAiModelOptions(provider, currentModel);
+                    setAiModelStatus('请先填写 OpenAI 兼容接口的 Base URL；当前仍可手动输入模型名。');
+                    return;
+                }
+                try {
+                    if (aiModelRefreshBtn) aiModelRefreshBtn.disabled = true;
+                    setAiModelStatus('正在读取服务商模型列表...');
+                    let data;
+                    if (provider === 'gemini') {
+                        const url = `${baseUrl || aiDefaults.gemini.baseUrl}/models?key=${encodeURIComponent(apiKey)}`;
+                        const response = await fetch(url);
+                        data = await response.json();
+                        if (!response.ok || data.error) throw new Error(data.error?.message || 'Gemini 模型列表读取失败');
+                        const ids = (data.models || [])
+                            .filter(m => !Array.isArray(m.supportedGenerationMethods) || m.supportedGenerationMethods.includes('generateContent'))
+                            .map(m => String(m.name || '').replace(/^models\//, ''))
+                            .filter(id => id && !/embedding|tts|live|image|veo|imagen|lyria/i.test(id));
+                        if (!populateAiModelOptionsFromIds(provider, currentModel, ids)) throw new Error('未读取到可用文本模型');
+                        saveCachedAiModels(provider, baseUrl, ids);
+                    } else {
+                        const response = await fetch(`${baseUrl}/models`, {
+                            headers: { 'Authorization': `Bearer ${apiKey}` }
+                        });
+                        data = await response.json();
+                        if (!response.ok || data.error) throw new Error(data.error?.message || '模型列表读取失败');
+                        const ids = (data.data || data.models || [])
+                            .map(m => typeof m === 'string' ? m : (m.id || m.name || ''))
+                            .filter(Boolean);
+                        if (!populateAiModelOptionsFromIds(provider, currentModel, ids)) throw new Error('未读取到可用模型');
+                        saveCachedAiModels(provider, baseUrl, ids);
+                    }
+                    setAiModelStatus(`已从服务商同步 ${aiModelInput.options.length} 个模型。`, 'ok');
+                    if (!quiet && window.app?.ui) Utils.msg('模型列表已更新');
+                } catch(error) {
+                    const cached = loadCachedAiModels(provider, baseUrl);
+                    if (cached && populateAiModelOptionsFromIds(provider, currentModel, cached)) {
+                        setAiModelStatus(`自动读取未成功，已使用上次缓存列表。原因：${error.message}`);
+                    } else {
+                        populateAiModelOptions(provider, currentModel);
+                        setAiModelStatus(`自动读取未成功，已使用内置列表；如需新模型可手动输入。原因：${error.message}`);
+                    }
+                } finally {
+                    if (aiModelRefreshBtn) aiModelRefreshBtn.disabled = false;
+                }
+            };
+            window.__gakutenRefreshAiModels = fetchAiModels;
+            const staleAiModelMap = {
+                'deepseek-chat': 'deepseek-v4-flash',
+                'deepseek-reasoner': 'deepseek-v4-pro',
+                'gemini-1.5-flash': 'gemini-3-flash-preview',
+                'gemini-1.5-pro': 'gemini-3.1-pro-preview',
+                'qwen-plus': 'qwen3.6-plus',
+                'qwen-turbo': 'qwen3.6-flash',
+                'qwen-max': 'qwen3.6-max-preview'
+            };
             const savedProvider = localStorage.getItem('gakuten_ai_provider') || 'deepseek';
             const savedBaseUrl = localStorage.getItem('gakuten_ai_base_url') || '';
+            let savedModel = localStorage.getItem('gakuten_ai_model') || '';
+            if (staleAiModelMap[savedModel]) {
+                savedModel = staleAiModelMap[savedModel];
+                localStorage.setItem('gakuten_ai_model', savedModel);
+            }
             if (aiProviderSelect) {
                 try { aiProviderSelect.value = savedProvider; } catch(e) {}
             }
             if (aiBaseUrlInput) {
                 try {
-                    aiBaseUrlInput.value = savedBaseUrl || (savedProvider === 'deepseek' ? 'https://api.deepseek.com' : '');
+                    aiBaseUrlInput.value = savedBaseUrl || (aiDefaults[savedProvider]?.baseUrl || '');
                 } catch(e) {}
-                aiBaseUrlInput.placeholder = savedProvider === 'deepseek' ? 'https://api.deepseek.com' : 'https://your-proxy.example.com/v1';
+                aiBaseUrlInput.placeholder = aiDefaults[savedProvider]?.placeholder || 'https://your-proxy.example.com/v1';
                 aiBaseUrlInput.addEventListener('input', () => {
                     localStorage.setItem('gakuten_ai_base_url', aiBaseUrlInput.value.trim());
                 });
             }
+            if (aiModelInput) {
+                try { populateAiModelOptions(savedProvider, savedModel || (aiDefaults[savedProvider]?.model || 'deepseek-v4-flash')); } catch(e) {}
+                aiModelInput.addEventListener('change', () => {
+                    localStorage.setItem('gakuten_ai_model', aiModelInput.value);
+                    if (aiModelCustomInput) aiModelCustomInput.value = '';
+                });
+            }
+            if (aiModelCustomInput && savedModel) {
+                const savedOptions = (aiModelOptions[savedProvider] || []).map(([value]) => value);
+                if (!savedOptions.includes(savedModel)) aiModelCustomInput.value = savedModel;
+                aiModelCustomInput.addEventListener('input', () => {
+                    const val = aiModelCustomInput.value.trim();
+                    if (val) localStorage.setItem('gakuten_ai_model', val);
+                });
+            } else if (aiModelCustomInput) {
+                aiModelCustomInput.addEventListener('input', () => {
+                    const val = aiModelCustomInput.value.trim();
+                    if (val) localStorage.setItem('gakuten_ai_model', val);
+                });
+            }
             if (aiProviderSelect) {
                 aiProviderSelect.addEventListener('change', () => {
-                    localStorage.setItem('gakuten_ai_provider', aiProviderSelect.value);
+                    const nextProvider = aiProviderSelect.value;
+                    localStorage.setItem('gakuten_ai_provider', nextProvider);
+                    const preset = aiDefaults[nextProvider] || aiDefaults.deepseek;
                     if (aiBaseUrlInput) {
-                        aiBaseUrlInput.placeholder = aiProviderSelect.value === 'deepseek' ? 'https://api.deepseek.com' : 'https://your-proxy.example.com/v1';
-                        if (!aiBaseUrlInput.value.trim() && aiProviderSelect.value === 'deepseek') {
-                            aiBaseUrlInput.value = 'https://api.deepseek.com';
-                            localStorage.setItem('gakuten_ai_base_url', aiBaseUrlInput.value);
-                        }
+                        aiBaseUrlInput.placeholder = preset.placeholder;
+                        aiBaseUrlInput.value = preset.baseUrl || '';
+                        localStorage.setItem('gakuten_ai_base_url', aiBaseUrlInput.value.trim());
                     }
+                    if (aiModelInput) {
+                        populateAiModelOptions(nextProvider, preset.model || '');
+                    }
+                    if (aiModelCustomInput) aiModelCustomInput.value = '';
+                    fetchAiModels(true);
                 });
             }
                 const savedKey = localStorage.getItem('gakuten_ai_key');
-                if (savedKey && document.getElementById('api-key-input')) {
-                    try { document.getElementById('api-key-input').value = savedKey; } catch(e){}
+                const apiKeyInput = document.getElementById('api-key-input');
+                if (savedKey && apiKeyInput) {
+                    try { apiKeyInput.value = savedKey; } catch(e){}
                 }
+                if (apiKeyInput) {
+                    apiKeyInput.addEventListener('change', () => {
+                        localStorage.setItem('gakuten_ai_key', apiKeyInput.value);
+                        fetchAiModels(false);
+                    });
+                }
+            fetchAiModels(true);
             window.app.ui.switchView('analysis');
             window.app.store.updateUndoButton();
             window.app.sync.pull().catch(()=>{});
