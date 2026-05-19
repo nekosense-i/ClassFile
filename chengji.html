@@ -612,6 +612,51 @@
         .top-navbar.scrolled { box-shadow: var(--shadow-sm); background: rgba(242,242,247,0.88); backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px); }
         .page-title { font-size: 18px; font-weight: 800; color: var(--text-main); display: flex; align-items: center; gap: 8px;}
         .top-actions { display: flex; gap: 10px; align-items: center; }
+        .top-navbar .top-actions button,
+        .top-navbar .top-actions input,
+        .top-navbar .top-actions select,
+        .top-navbar .details-top-actions button,
+        .top-navbar .details-top-actions input,
+        .top-navbar .details-top-actions select {
+            height: 36px !important;
+            min-height: 36px !important;
+            box-sizing: border-box;
+            border-radius: var(--radius-sm) !important;
+            line-height: 1 !important;
+        }
+        .top-navbar .top-actions button,
+        .top-navbar .details-top-actions button {
+            padding: 0 14px !important;
+            align-items: center;
+            justify-content: center;
+            white-space: nowrap;
+            font-size: 13px;
+        }
+        .top-navbar .top-actions input,
+        .top-navbar .top-actions select,
+        .top-navbar .details-top-actions input,
+        .top-navbar .details-top-actions select {
+            padding-top: 0 !important;
+            padding-bottom: 0 !important;
+            display: inline-flex;
+            align-items: center;
+        }
+        .top-navbar .top-actions .global-search-trigger,
+        .top-navbar .details-top-actions .global-search-trigger {
+            width: 36px !important;
+            min-width: 36px !important;
+            padding: 0 !important;
+            flex: 0 0 36px;
+        }
+        .top-navbar .top-actions .search-with-status,
+        .top-navbar .details-top-actions .search-with-status {
+            height: 36px;
+            align-items: center;
+        }
+        .top-navbar .top-actions input[type="file"].is-hidden,
+        .top-navbar .details-top-actions input[type="file"].is-hidden {
+            display: none !important;
+        }
         
         .content-body { flex: 1; overflow-y: auto; padding: 16px 28px; scroll-behavior: smooth; position: relative;}
         
@@ -860,7 +905,7 @@
 
         dialog { margin: auto; padding: 30px; border: none; border-radius: 22px; background: rgba(255,255,255,0.92); backdrop-filter: saturate(180%) blur(28px); -webkit-backdrop-filter: saturate(180%) blur(28px); box-shadow: var(--shadow-float); width: 520px; z-index: var(--z-modal); transition: transform var(--motion-base) ease, box-shadow var(--motion-base) ease, background var(--motion-base) ease; }
         dialog::backdrop { background: rgba(28,28,30,0.22); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); }
-        .confirm-dialog { text-align: center; }
+        .confirm-dialog { text-align: center; width: min(360px, calc(100vw - 40px)) !important; padding: 24px 26px !important; }
         .confirm-dialog .dialog-title { justify-content: center; }
         .confirm-dialog .dialog-note { text-align: center; }
         .confirm-dialog .dialog-footer { justify-content: center; }
@@ -2232,7 +2277,7 @@
         </div>
         
         <div class="nav-menu">
-            <div class="nav-item" role="tab" aria-selected="false" title="录入与维护考试成绩" onclick="window.app.ui.switchView('exams', this)"><span>📝</span> 考试成绩录入 <span id="nav-badge-exam" class="nav-badge"></span></div>
+            <div class="nav-item" role="tab" aria-selected="false" title="录入与维护考试成绩" onclick="window.app.ui.switchView('exams', this)"><span>✏️</span> 考试成绩录入 <span id="nav-badge-exam" class="nav-badge"></span></div>
             <div class="nav-item active" role="tab" aria-selected="true" title="查看班级整体数据和分析图表" onclick="window.app.ui.switchView('analysis', this)"><span>🎯</span> 班级学情诊断<span id="nav-badge-analysis" class="nav-badge"></span></div>
             <div class="nav-item" role="tab" aria-selected="false" title="查看当前考试的学生成绩明细" onclick="window.app.ui.switchView('details', this)"><span>📋</span> 学生成绩详情<span id="nav-badge-details" class="nav-badge"></span></div>
             <div class="nav-item" role="tab" aria-selected="false" title="添加、导入和管理学生名单" onclick="window.app.ui.switchView('students', this)"><span>👥</span> 学生名单管理 <span id="nav-badge-student" class="nav-badge"></span></div>
@@ -2355,7 +2400,7 @@
 
         <section id="view-exams" class="view-section">
             <div class="top-navbar">
-                <div class="page-title">考试成绩录入<span class="exam-status-legend" aria-label="录入状态说明"><span><i class="legend-dot"></i>未填</span><span><i class="legend-dot legend-dot--partial"></i>未完</span><span><i class="legend-dot legend-dot--complete"></i>完成</span><span><i class="legend-dot legend-dot--absent"></i>缺考</span><span>点状态点切换缺考</span></span></div>
+                <div class="page-title">📒 考试成绩录入<span class="exam-status-legend" aria-label="录入状态说明"><span><i class="legend-dot"></i>未填</span><span><i class="legend-dot legend-dot--partial"></i>未完</span><span><i class="legend-dot legend-dot--complete"></i>完成</span><span><i class="legend-dot legend-dot--absent"></i>缺考</span><span>点状态点切换缺考</span></span></div>
                 <div class="top-actions">
                     <button class="secondary btn--compact btn--soft-primary flex-row items-center gap-sm" id="undo-btn-exams" onclick="window.app.store.undo()" title="撤销最后一次操作" disabled>↩️ 撤销</button>
                     <!-- legacy save-indicator removed; replaced by header sync-dot -->
