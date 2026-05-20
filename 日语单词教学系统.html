@@ -20,12 +20,22 @@
   @keyframes shake { 0%,100% { transform:translateX(0); } 25% { transform:translateX(-6px); } 75% { transform:translateX(6px); }}
   @keyframes pop { 0% { transform:scale(0.9); opacity:0; } 100% { transform:scale(1); opacity:1; }}
   @keyframes slideUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); }}
+  @keyframes flipInY { from { opacity:0; transform:rotateY(-84deg); } to { opacity:1; transform:rotateY(0deg); }}
   @keyframes breathe { 0%,100% { box-shadow:0 0 0 0 rgba(200,64,45,0.3); } 50% { box-shadow:0 0 0 12px rgba(200,64,45,0); }}
   @keyframes blink { 0%,100% { opacity:1; } 50% { opacity:0.4; }}
   @keyframes spin { from { transform:rotate(0deg); } to { transform:rotate(360deg); }}
   .fade-in { animation: fadeIn 0.35s ease; }
   .pop-in { animation: pop 0.3s ease; }
   .slide-up { animation: slideUp 0.4s ease; }
+  @keyframes drawAccentPath {
+    from { stroke-dashoffset: 120; }
+    to { stroke-dashoffset: 0; }
+  }
+  .accent-path-animated {
+    stroke-dasharray: 120;
+    stroke-dashoffset: 120;
+    animation: drawAccentPath 0.55s cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
+  }
 </style>
 </head>
 <body>
@@ -561,6 +571,130 @@ function EditMode({ groups, setGroups, gid: curGid, setGid: setCurGid }) {
   );
 }
 
+/* ===== VISUAL ACCENT CURVE ENGINE ===== */
+function VisualAccentCurve({ kana, accent, color = "#C8402D", fontSize = 20 }) {
+  const morae = useMemo(() => {
+    if (!kana) return [];
+    const res = [];
+    const smalls = ["ゃ","ゅ","ょ","ャ","ュ","ョ","ぁ","ぃ","ぅ","ぇ","ぉ","ァ","ィ","ゥ","ェ","ォ"];
+    for (let i = 0; i < kana.length; i++) {
+      const char = kana[i];
+      if (i > 0 && smalls.includes(char)) {
+        res[res.length - 1] += char;
+      } else {
+        res.push(char);
+      }
+    }
+    return res;
+  }, [kana]);
+
+  const accentNum = useMemo(() => {
+    if (accent === undefined || accent === null || accent === "") return null;
+    const clean = String(accent).trim();
+    const circleMap = {
+      "⓪":0,"①":1,"②":2,"③":3,"④":4,"⑤":5,"⑥":6,"⑦":7,"⑧":8,"⑨":9,"⑩":10
+    };
+    if (circleMap[clean] !== undefined) return circleMap[clean];
+    const parsed = parseInt(clean.replace(/[^0-9]/g, ""), 10);
+    return isNaN(parsed) ? null : parsed;
+  }, [accent]);
+
+  if (accentNum === null || morae.length === 0) {
+    return <span style={{ fontFamily: "'Noto Serif JP', serif" }}>{kana}</span>;
+  }
+
+  const N = morae.length;
+  const A = accentNum;
+
+  // true for High, false for Low
+  const pitchLevels = Array(N).fill(false);
+  if (A === 0) {
+    pitchLevels[0] = N === 1;
+    for (let i = 1; i < N; i++) pitchLevels[i] = true;
+  } else if (A === 1) {
+    pitchLevels[0] = true;
+    for (let i = 1; i < N; i++) pitchLevels[i] = false;
+  } else {
+    pitchLevels[0] = false;
+    for (let i = 1; i < Math.min(A, N); i++) pitchLevels[i] = true;
+    for (let i = A; i < N; i++) pitchLevels[i] = false;
+  }
+
+  const svgH = 14; 
+  const highY = 3;
+  const lowY = 11;
+
+  const points = morae.map((_, i) => {
+    const x = ((i + 0.5) / N) * 100;
+    const y = pitchLevels[i] ? highY : lowY;
+    return { x, y };
+  });
+
+  let pathD = "";
+  if (points.length > 0) {
+    pathD = `M ${points[0].x} ${points[0].y}`;
+    for (let i = 1; i < N; i++) {
+      const prev = points[i-1];
+      const curr = points[i];
+      if (prev.y !== curr.y) {
+        const midX = (prev.x + curr.x) / 2;
+        pathD += ` L ${midX} ${prev.y} L ${midX} ${curr.y} L ${curr.x} ${curr.y}`;
+      } else {
+        pathD += ` L ${curr.x} ${curr.y}`;
+      }
+    }
+    if (A === N && N > 0) {
+      const endX = 100;
+      pathD += ` L ${endX} ${highY} L ${endX} ${lowY}`;
+    }
+    if (A === 0 && N > 0) {
+      const endX = 100;
+      pathD += ` L ${endX} ${highY}`;
+    }
+  }
+
+  return (
+    <div style={{ display:"inline-flex", flexDirection:"column", alignItems:"center", position:"relative", width:"fit-content", verticalAlign:"middle" }}>
+      <svg style={{ width:"100%", height:svgH, display:"block", overflow:"visible", marginBottom:1 }} viewBox="-8 0 108 14" preserveAspectRatio="none">
+        {/* 参考音轨与网格 */}
+        <text x="-4.5" y={highY + 1.2} fill="#B8B0A4" fontSize="3.5" fontWeight="600" textAnchor="middle" style={{ userSelect: "none" }}>高</text>
+        <text x="-4.5" y={lowY + 1.2} fill="#B8B0A4" fontSize="3.5" fontWeight="600" textAnchor="middle" style={{ userSelect: "none" }}>低</text>
+        
+        <line x1="0" y1={highY} x2="100" y2={highY} stroke="#E6DED3" strokeWidth="0.5" strokeDasharray="2 3" opacity="0.8" />
+        <line x1="0" y1={lowY} x2="100" y2={lowY} stroke="#E6DED3" strokeWidth="0.5" strokeDasharray="2 3" opacity="0.8" />
+        
+        <line x1="0" y1="0" x2="0" y2="14" stroke="#E6DED3" strokeWidth="0.5" opacity="0.4" />
+        {Array.from({ length: N - 1 }).map((_, i) => {
+          const x = ((i + 1) / N) * 100;
+          return <line key={i} x1={x} y1="0" x2={x} y2="14" stroke="#E6DED3" strokeWidth="0.5" strokeDasharray="1 3" opacity="0.5" />;
+        })}
+        <line x1="100" y1="0" x2="100" y2="14" stroke="#E6DED3" strokeWidth="0.5" opacity="0.4" />
+        
+        <path className="accent-path-animated" d={pathD} fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+        {points.map((p, idx) => {
+          const isNucleus = A > 0 && idx === A - 1;
+          return (
+            <circle
+              key={idx}
+              cx={p.x}
+              cy={p.y}
+              r={isNucleus ? "2.8" : "2"}
+              fill={isNucleus ? "#C9A96E" : color}
+              stroke={isNucleus ? color : "#fff"}
+              strokeWidth="0.8"
+            />
+          );
+        })}
+      </svg>
+      <div style={{ display:"flex", width:"100%", justifyContent:"space-around", fontFamily: "'Noto Serif JP', serif", fontSize, fontWeight:700, lineHeight:1.1 }}>
+        {morae.map((m, idx) => (
+          <div key={idx} style={{ flex:1, textAlign:"center", minWidth:"1.1em" }}>{m}</div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /* ===== TEACH MODE ===== */
 function TeachMode({ groups, gid: curGid }) {
   const group = groups.find(g => g.id === curGid);
@@ -569,6 +703,9 @@ function TeachMode({ groups, gid: curGid }) {
   const [cardCount, setCardCount] = useState(4);
   const [showMeaningMap, setShowMeaningMap] = useState({});
   const [showExamplesMap, setShowExamplesMap] = useState({});
+  const [flippedCardMap, setFlippedCardMap] = useState({});
+  const [exampleTranslationMap, setExampleTranslationMap] = useState({});
+  const [zoomedImage, setZoomedImage] = useState(null);
   const [quizPhase, setQuizPhase] = useState(null);
   const [countdownTotal, setCountdownTotal] = useState(60);
   const [countdownLeft, setCountdownLeft] = useState(0);
@@ -580,9 +717,9 @@ function TeachMode({ groups, gid: curGid }) {
   const [reverseResults, setReverseResults] = useState({});
   const [quizWords, setQuizWords] = useState([]);
   const CELL_CONFIG = {
-    1: { cols:1, rows:1, imgFlex:"0 0 50%", textPadding:"48px 56px", textLineWidth:848, showImg:true, showUsage:true, showExamples:true, kanjiSize:72, noImgKanjiSize:84, kanaSize:32, meaningSize:56, tagSize:18, tagPadding:"6px 18px", tagRadius:24, usageSize:20, exJaSize:24, exCnSize:20, maxExamples:99, exBarWidth:3, blurRadius:10 },
-    4: { cols:2, rows:2, imgFlex:"0 0 50%", textPadding:"20px 24px", textLineWidth:432, showImg:true, showUsage:true, showExamples:true, kanjiSize:40, kanaSize:20, meaningSize:32, tagSize:13, tagPadding:"4px 12px", tagRadius:20, usageSize:14, exJaSize:16, exCnSize:14, maxExamples:99, exBarWidth:2, blurRadius:7 },
-    6: { cols:3, rows:2, imgFlex:"0 0 50%", textPadding:"14px 18px", textLineWidth:284, showImg:true, showUsage:true, showExamples:true, kanjiSize:30, kanaSize:16, meaningSize:24, tagSize:12, tagPadding:"3px 10px", tagRadius:16, usageSize:13, exJaSize:14, exCnSize:12, maxExamples:99, exBarWidth:2, blurRadius:6 },
+    1: { cols:1, rows:1, imgFlex:"0 0 50%", textPadding:"48px 56px", backPadding:"42px 56px", textLineWidth:848, showImg:true, showUsage:true, showExamples:true, kanjiSize:72, noImgKanjiSize:84, kanaSize:32, meaningSize:56, tagSize:18, tagPadding:"6px 18px", tagRadius:24, usageSize:24, exJaSize:34, exCnSize:24, maxExamples:99, exBarWidth:4, blurRadius:10 },
+    4: { cols:2, rows:2, imgFlex:"0 0 50%", textPadding:"16px 22px", backPadding:"26px 30px", textLineWidth:432, showImg:true, showUsage:true, showExamples:true, kanjiSize:44, kanaSize:22, meaningSize:34, tagSize:14, tagPadding:"4px 13px", tagRadius:20, usageSize:17, exJaSize:27, exCnSize:20, maxExamples:99, exBarWidth:3, blurRadius:7 },
+    6: { cols:3, rows:2, imgFlex:"0 0 50%", textPadding:"12px 16px", backPadding:"20px 22px", textLineWidth:284, showImg:true, showUsage:true, showExamples:true, kanjiSize:32, kanaSize:18, meaningSize:26, tagSize:13, tagPadding:"3px 9px", tagRadius:16, usageSize:15, exJaSize:21, exCnSize:17, maxExamples:99, exBarWidth:3, blurRadius:6 },
   };
   const countOptions = [
     { label:"大", count:1, desc:"单词大图展示" },
@@ -615,7 +752,7 @@ function TeachMode({ groups, gid: curGid }) {
   const countdownColor = countdownRatio > 0.5 ? C.green : countdownRatio > 0.2 ? "#E8A040" : C.primary;
   const wrongWords = useMemo(() => currentWords.filter((_, i) => kanaResults[i] === "wrong" || reverseResults[i] === "wrong"), [kanaResults, reverseResults, currentWords]);
 
-  const resetReveal = () => { setShowMeaningMap({}); setShowExamplesMap({}); };
+  const resetReveal = () => { setShowMeaningMap({}); setShowExamplesMap({}); setFlippedCardMap({}); setExampleTranslationMap({}); };
   const resetQuizState = () => {
     setQuizPhase(null);
     setCountdownLeft(0);
@@ -701,6 +838,20 @@ function TeachMode({ groups, gid: curGid }) {
     setRevealedCard(null);
   };
   const handleCardClick = (i) => {
+    if (!quizPhase) {
+      const isMeaningShown = !!showMeaningMap[i];
+
+      if (!isMeaningShown) {
+        setShowMeaningMap(p => ({ ...p, [i]: true }));
+      } else {
+        setShowMeaningMap(p => { const next = { ...p }; delete next[i]; return next; });
+        setShowExamplesMap(p => { const next = { ...p }; delete next[i]; return next; });
+        setFlippedCardMap(p => { const next = { ...p }; delete next[i]; return next; });
+        setExampleTranslationMap(p => { const next = { ...p }; delete next[i]; return next; });
+      }
+      return;
+    }
+
     if (!["kana","reverse"].includes(quizPhase) || cardStatus[i] !== "pending") return;
     if (revealedCard !== null) return;
     if (selectedCard === i) setRevealedCard(i);
@@ -729,6 +880,8 @@ function TeachMode({ groups, gid: curGid }) {
     }
     if (cfg.showExamples && currentWords.some((w, i) => (w.examples || []).some(e => e.ja) && !showExamplesMap[i])) {
       setShowExamplesMap(Object.fromEntries(currentWords.map((w, i) => [i, (w.examples || []).some(e => e.ja)])));
+      setFlippedCardMap(Object.fromEntries(currentWords.map((w, i) => [i, (w.examples || []).some(e => e.ja)])));
+      setExampleTranslationMap(Object.fromEntries(currentWords.map((_, i) => [i, false])));
     }
   }, [currentWords, showMeaningMap, showExamplesMap, cfg.showExamples]);
 
@@ -790,7 +943,7 @@ function TeachMode({ groups, gid: curGid }) {
     const isBottomEdge = pos.row >= pos.rows;
     const showMeaning = !!showMeaningMap[localIdx];
     const showExamples = !!showExamplesMap[localIdx];
-    const examples = (w.examples || []).filter(e => e.ja).slice(0, cfg.maxExamples);
+    const examples = (w.examples || []).filter(e => e.ja || e.cn).slice(0, cfg.maxExamples);
     const hasImage = cfg.showImg && w.imageUrl;
     const noImageSingle = effectiveCount === 1 && !hasImage;
     const isQuizCard = ["kana","reverse"].includes(quizPhase);
@@ -802,18 +955,96 @@ function TeachMode({ groups, gid: curGid }) {
     const showTags = !isQuizCard || isRevealed;
     const showMeaningBlock = !isQuizCard || quizPhase === "reverse" || isRevealed;
     const showExamplesBlock = !isQuizCard || (quizPhase === "reverse" && isRevealed);
+
     const mainText = quizPhase === "kana" ? w.kana : quizPhase === "reverse" && !isRevealed ? "？？？" : (w.kanji || w.kana);
     const subText = quizPhase === "kana" ? (isRevealed ? (w.kanji || "") : "？？？") : quizPhase === "reverse" ? (isRevealed ? w.kana : "？？？") : (w.kanji ? w.kana : "");
+
+    const showMainCurve = (!isQuizCard || isRevealed) && !w.kanji && quizPhase !== "kana";
+    const showSubCurve = (!isQuizCard || isRevealed) && !!w.kanji && quizPhase !== "kana";
+
+    const meaningRevealed = !!(quizPhase || showMeaning);
+    const examplesRevealed = !!(quizPhase || showExamples);
+    const isBackShown = !isQuizCard && cfg.showExamples && examples.length > 0 && !!flippedCardMap[localIdx];
+    const translationRevealed = !!exampleTranslationMap[localIdx];
+
     return (
       <div className="fade-in" key={w.id} style={{ background:C.card, borderRadius:0, padding:0,
-        height:"100%", boxShadow:"none", border:"none", borderRight:isRightEdge?"none":`1px solid ${C.borderLight}`, borderBottom:isBottomEdge?"none":`1px solid ${C.borderLight}`, display:"flex",
-        flexDirection:"row", gap:0, alignItems:"stretch", minHeight:0, position:"relative", cursor:isQuizCard&&status==="pending"?"pointer":"default",
-        opacity:dimCard?0.45:1, outline:isSelected?`3px solid ${C.primary}`:"none", outlineOffset:-3, animation:isSelected?"breathe 1.5s ease-in-out infinite":undefined }}
+        height:"100%", border:"none", borderRight:isRightEdge?"none":`1px solid ${C.borderLight}`, borderBottom:isBottomEdge?"none":`1px solid ${C.borderLight}`, display:"flex",
+        flexDirection:"row", gap:0, alignItems:"stretch", minHeight:0, position:"relative", cursor:isQuizCard&&status==="pending"?"pointer":"pointer",
+        opacity:dimCard?0.45:1,
+        boxShadow:"none",
+        zIndex: isSelected ? 5 : 1,
+        outline:isSelected?`3px solid ${C.primary}`:"none", outlineOffset:-3, animation:isSelected?"breathe 1.5s ease-in-out infinite":undefined,
+        transition: "all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)" }}
         onClick={()=>handleCardClick(localIdx)}>
+
+        {isBackShown ? (
+          <div style={{ width:"100%", height:"100%", padding:cfg.backPadding, display:"flex", flexDirection:"column", justifyContent:"center", background:C.card, position:"relative", zIndex:4, transformOrigin:"center", animation:"flipInY 0.28s ease both" }}>
+            <button onClick={(e)=>{ e.stopPropagation(); setFlippedCardMap(p => ({ ...p, [localIdx]: false })); setExampleTranslationMap(p => ({ ...p, [localIdx]: false })); }}
+              style={{ position:"absolute", top:14, right:14, padding:"6px 14px", borderRadius:18, border:`1px solid ${C.border}`, background:C.bg, color:C.muted, fontSize:13, fontWeight:700, cursor:"pointer" }}>
+              返回正面
+            </button>
+            <div style={{ color:C.primary, fontSize:Math.max(16, cfg.tagSize + 2), fontWeight:800, marginBottom:Math.max(12, cfg.exJaSize * 0.45), textAlign:"center" }}>
+              {w.kanji || w.kana} · 例句
+            </div>
+            <div style={{ display:"flex", flexDirection:"column", gap:Math.max(10, cfg.exJaSize * 0.38), maxHeight:"82%", overflowY:"auto", paddingRight:4 }}>
+              {examples.map((ex,i) => (
+                <div key={i} style={{ paddingLeft:Math.max(10, cfg.exBarWidth * 4), borderLeft:`${cfg.exBarWidth}px solid ${C.primary}`, textAlign:"left" }}>
+                  <div style={{ fontSize:cfg.exJaSize, color:C.text, fontFamily:SF, fontWeight:700, lineHeight:1.38, overflowWrap:"anywhere" }}>
+                    {smartBreak(ex.ja, "ja", cfg.exJaSize)}
+                  </div>
+                  {ex.cn && (
+                    <div onClick={(e)=>{ e.stopPropagation(); setExampleTranslationMap(p => ({ ...p, [localIdx]: true })); }}
+                      style={{ position:"relative", marginTop:4, cursor:translationRevealed?"default":"pointer", borderRadius:8, overflow:"hidden" }}>
+                      <div style={{
+                        fontSize:cfg.exCnSize,
+                        color:C.muted,
+                        lineHeight:1.38,
+                        overflowWrap:"anywhere",
+                        filter:translationRevealed ? "none" : `blur(${Math.max(5, Math.round(cfg.blurRadius * 0.85))}px)`,
+                        opacity:translationRevealed ? 1 : 0.28,
+                        transform:translationRevealed ? "scale(1)" : "scale(0.98)",
+                        transition:"filter 0.35s ease, opacity 0.35s ease, transform 0.35s ease"
+                      }}>
+                        {smartBreak(ex.cn, "cn", cfg.exCnSize)}
+                      </div>
+                      {!translationRevealed && (
+                        <div style={{
+                          position:"absolute",
+                          inset:-2,
+                          display:"flex",
+                          alignItems:"center",
+                          justifyContent:"center",
+                          background:"rgba(255,255,255,0.66)",
+                          color:C.primary,
+                          fontSize:Math.max(12, Math.round(cfg.exCnSize * 0.62)),
+                          fontWeight:800,
+                          letterSpacing:0,
+                          userSelect:"none"
+                        }}>
+                          点击显示中文
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+        <>
         {hasImage && (
-          <div style={{ flex:cfg.imgFlex, background:"rgba(0,0,0,0.04)",
+          <div style={{ flex:cfg.imgFlex, background:"rgba(0,0,0,0.02)",
             borderRadius:0, display:"flex", alignItems:"center", justifyContent:"center", overflow:"hidden", minHeight:0, position:"relative", zIndex:1 }}>
-            <img src={w.imageUrl} alt="" style={{ width:"100%", height:"100%", objectFit:"contain" }} onError={e=>e.currentTarget.parentElement.style.display="none"}/>
+            <img src={w.imageUrl} alt=""
+              style={{ width:"100%", height:"100%", objectFit:"contain", cursor: !quizPhase ? "zoom-in" : "default", transition:"transform 0.3s" }}
+              onClick={(e) => {
+                if (!quizPhase) {
+                  e.stopPropagation();
+                  setZoomedImage(w.imageUrl);
+                }
+              }}
+              onError={e=>e.currentTarget.parentElement.style.display="none"}/>
             {quizPhase === "kana" && !isRevealed && (
               <div style={{ position:"absolute", inset:0, background:"#000000", display:"flex", alignItems:"center", justifyContent:"center", borderRadius:0, zIndex:2 }}>
                 <span style={{ fontSize:48, color:"rgba(255,255,255,0.3)", fontWeight:700 }}>？</span>
@@ -821,33 +1052,82 @@ function TeachMode({ groups, gid: curGid }) {
             )}
           </div>
         )}
-        <div style={{ flex:1, minWidth:0, padding:cfg.textPadding, display:"flex", flexDirection:"column", justifyContent:"space-between", textAlign:noImageSingle?"center":"left", position:"relative", zIndex:3 }}>
-          <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", width:"100%", textAlign:"center", position:"relative", zIndex:3 }}>
-            <div style={{ width:"100%", fontSize:noImageSingle ? cfg.noImgKanjiSize : cfg.kanjiSize, fontWeight:700, fontFamily:SF, color:isQuizCard&&!isRevealed&&quizPhase==="reverse"?C.border:C.text, lineHeight:1.12, overflowWrap:"anywhere", textAlign:"center", borderBottom:isQuizCard&&!isRevealed&&quizPhase==="reverse"?`2px dashed ${C.border}`:"none", display:"block" }}>{mainText}</div>
-            {subText && <div style={{ width:"100%", fontSize:(quizPhase==="kana" || (quizPhase==="reverse" && !isRevealed)) ? cfg.kanjiSize : cfg.kanaSize, color:isQuizCard&&!isRevealed?C.border:C.muted, marginTop:4, fontFamily:SF, overflowWrap:"anywhere", textAlign:"center", borderBottom:isQuizCard&&!isRevealed?`2px dashed ${C.border}`:"none", display:"block" }}>{subText}</div>}
-            {showTags && <div style={{ display:"flex", gap:8, marginTop:8, alignItems:"center", justifyContent:"center", flexWrap:"wrap" }}>
-              {w.accent && <span style={{ padding:cfg.tagPadding, borderRadius:cfg.tagRadius, background:C.primaryLight, color:C.primary, fontSize:cfg.tagSize, fontWeight:600 }}>声调 {w.accent}</span>}
+        <div style={{ flex:1, minWidth:0, padding:cfg.textPadding, display:"flex", flexDirection:"column", justifyContent:"center", gap:effectiveCount===1?20:8, textAlign:noImageSingle?"center":"left", position:"relative", zIndex:3 }}>
+          <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", width:"100%", textAlign:"center", position:"relative", zIndex:3, flexShrink:0 }}>
+            
+            {showMainCurve ? (
+              <div style={{ transform:"scale(1.08)", transformOrigin:"center", margin:"10px 0" }}>
+                <VisualAccentCurve kana={w.kana} accent={w.accent} fontSize={noImageSingle ? cfg.noImgKanjiSize : cfg.kanjiSize} />
+              </div>
+            ) : (
+              <div style={{ width:"100%", fontSize:noImageSingle ? cfg.noImgKanjiSize : cfg.kanjiSize, fontWeight:700, fontFamily:SF, color:isQuizCard&&!isRevealed&&quizPhase==="reverse"?C.border:C.text, lineHeight:1.12, overflowWrap:"anywhere", textAlign:"center", borderBottom:isQuizCard&&!isRevealed&&quizPhase==="reverse"?`2px dashed ${C.border}`:"none", display:"block" }}>{mainText}</div>
+            )}
+
+            {subText && (
+              showSubCurve ? (
+                <div style={{ marginTop:8, transform:"scale(1.02)", transformOrigin:"center" }}>
+                  <VisualAccentCurve kana={w.kana} accent={w.accent} fontSize={cfg.kanaSize} />
+                </div>
+              ) : (
+                <div style={{ width:"100%", fontSize:(quizPhase==="kana" || (quizPhase==="reverse" && !isRevealed)) ? cfg.kanjiSize : cfg.kanaSize, color:isQuizCard&&!isRevealed?C.border:C.muted, marginTop:4, fontFamily:SF, overflowWrap:"anywhere", textAlign:"center", borderBottom:isQuizCard&&!isRevealed?`2px dashed ${C.border}`:"none", display:"block" }}>{subText}</div>
+              )
+            )}
+
+            {showTags && <div style={{ display:"flex", gap:8, marginTop:12, alignItems:"center", justifyContent:"center", flexWrap:"wrap" }}>
+              {(!w.accent || showMainCurve || showSubCurve) ? null : (
+                <span style={{ padding:cfg.tagPadding, borderRadius:cfg.tagRadius, background:C.primaryLight, color:C.primary, fontSize:cfg.tagSize, fontWeight:600 }}>声调 {w.accent}</span>
+              )}
               <span style={{ padding:cfg.tagPadding, borderRadius:cfg.tagRadius, background:C.greenLight, color:C.green, fontSize:cfg.tagSize, fontWeight:600 }}>{w.pos}</span>
             </div>}
           </div>
-          {showMeaningBlock && <div onClick={()=>!quizPhase&&!showMeaning&&setShowMeaningMap(p=>({...p,[localIdx]:true}))}
-            style={{ flex:1, display:"flex", flexDirection:"column", justifyContent:"center", textAlign:"center", cursor:!quizPhase&&!showMeaning?"pointer":"default", filter:quizPhase||showMeaning?"none":`blur(${cfg.blurRadius}px)`, opacity:quizPhase||showMeaning?1:0.32, transition:"filter 0.2s, opacity 0.2s" }}>
-            <div style={{ fontSize:cfg.meaningSize, fontWeight:700, color:C.primary, lineHeight:1.22, overflowWrap:"anywhere", textAlign:"center" }}>{smartBreak(w.meaning, "cn", cfg.meaningSize)}</div>
-            {cfg.showUsage && w.usage && (quizPhase !== "kana" || isRevealed) && <div style={{ fontSize:cfg.usageSize, color:C.muted, marginTop:6, lineHeight:1.35, textAlign:"center" }}>💡 {smartBreak(w.usage, "cn", cfg.usageSize)}</div>}
-          </div>}
-          <div style={{ maxHeight:"35%", overflow:"auto", display:"flex", justifyContent:"center" }}>
-            {showExamplesBlock && cfg.showExamples && examples.length > 0 && (
-            <div onClick={()=>!quizPhase&&!showExamples&&setShowExamplesMap(p=>({...p,[localIdx]:true}))}
-              style={{ width:"fit-content", maxWidth:"100%", cursor:!quizPhase&&!showExamples?"pointer":"default", filter:quizPhase||showExamples?"none":`blur(${cfg.blurRadius}px)`, opacity:quizPhase||showExamples?1:0.32, transition:"filter 0.2s, opacity 0.2s" }}>
-              {examples.map((ex,i) => (
-                <div key={i} style={{ marginBottom:6, paddingLeft:8, borderLeft:`${cfg.exBarWidth}px solid ${C.primary}`, textAlign:"left" }}>
-                  <div style={{ fontSize:cfg.exJaSize, color:C.text, fontFamily:SF, lineHeight:1.35 }}>{smartBreak(ex.ja, "ja", cfg.exJaSize)}</div>
-                </div>
-              ))}
+
+          {showMeaningBlock && (
+            <div style={{
+              flex: 0,
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "center",
+              textAlign: "center",
+              filter: meaningRevealed ? "none" : `blur(${cfg.blurRadius}px)`,
+              opacity: meaningRevealed ? 1 : 0.15,
+              transform: meaningRevealed ? "scale(1)" : "scale(0.96)",
+              letterSpacing: meaningRevealed ? "normal" : "4px",
+              transition: "filter 0.55s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.55s cubic-bezier(0.25, 0.8, 0.25, 1), transform 0.55s cubic-bezier(0.25, 0.8, 0.25, 1), letter-spacing 0.55s cubic-bezier(0.25, 0.8, 0.25, 1)"
+            }}>
+              <div style={{ fontSize:cfg.meaningSize, fontWeight:700, color:C.primary, lineHeight:1.22, overflowWrap:"anywhere", textAlign:"center" }}>{smartBreak(w.meaning, "cn", cfg.meaningSize)}</div>
+              {cfg.showUsage && w.usage && (quizPhase !== "kana" || isRevealed) && <div style={{ fontSize:cfg.usageSize, color:C.muted, marginTop:6, lineHeight:1.35, textAlign:"center" }}>💡 {smartBreak(w.usage, "cn", cfg.usageSize)}</div>}
+              {!isQuizCard && examples.length > 0 && meaningRevealed && (
+                <button onClick={(e)=>{ e.stopPropagation(); setShowExamplesMap(p => ({ ...p, [localIdx]: true })); setFlippedCardMap(p => ({ ...p, [localIdx]: true })); setExampleTranslationMap(p => ({ ...p, [localIdx]: false })); }}
+                  style={{ alignSelf:"center", marginTop:8, padding:effectiveCount===1?"7px 18px":"5px 16px", borderRadius:20, border:"none", background:C.primary, color:"#fff", fontSize:Math.max(13, cfg.tagSize), fontWeight:800, cursor:"pointer", boxShadow:"0 3px 12px rgba(200,64,45,0.2)" }}>
+                  📖 例句
+                </button>
+              )}
             </div>
+          )}
+
+          <div style={{ maxHeight:"35%", overflow:"auto", display:"flex", justifyContent:"center" }}>
+            {isQuizCard && showExamplesBlock && cfg.showExamples && examples.length > 0 && (
+              <div style={{
+                width: "fit-content",
+                maxWidth: "100%",
+                filter: examplesRevealed ? "none" : `blur(${cfg.blurRadius}px)`,
+                opacity: examplesRevealed ? 1 : 0.15,
+                transform: examplesRevealed ? "scale(1)" : "scale(0.96)",
+                letterSpacing: examplesRevealed ? "normal" : "3px",
+                transition: "filter 0.55s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.55s cubic-bezier(0.25, 0.8, 0.25, 1), transform 0.55s cubic-bezier(0.25, 0.8, 0.25, 1), letter-spacing 0.55s cubic-bezier(0.25, 0.8, 0.25, 1)"
+              }}>
+                {examples.map((ex,i) => (
+                  <div key={i} style={{ marginBottom:6, paddingLeft:8, borderLeft:`${cfg.exBarWidth}px solid ${C.primary}`, textAlign:"left" }}>
+                    <div style={{ fontSize:cfg.exJaSize, color:C.text, fontFamily:SF, lineHeight:1.35 }}>{smartBreak(ex.ja, "ja", cfg.exJaSize)}</div>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         </div>
+        </>
+        )}
+
         {isQuizCard && status === "correct" && <div style={{ position:"absolute", right:12, bottom:12, width:28, height:28, borderRadius:"50%", background:C.greenLight, color:C.green, fontSize:16, fontWeight:800, display:"flex", alignItems:"center", justifyContent:"center", zIndex:8 }}>✓</div>}
         {isQuizCard && status === "wrong" && <div style={{ position:"absolute", right:12, bottom:12, width:28, height:28, borderRadius:"50%", background:"rgba(209,67,67,0.1)", color:C.wrong, fontSize:16, fontWeight:800, display:"flex", alignItems:"center", justifyContent:"center", zIndex:8 }}>✗</div>}
         {isQuizCard && revealedCard === localIdx && (
@@ -926,7 +1206,7 @@ function TeachMode({ groups, gid: curGid }) {
   );
 
   return (
-    <div style={{ height:VH, overflow:"hidden", background:C.bg, display:"flex", flexDirection:"column" }}>
+    <div style={{ height:VH, overflow:"hidden", background:C.bg, display:"flex", flexDirection:"column", position:"relative" }}>
       {/* Progress */}
       <div style={{ height:40, padding:"0 16px", flexShrink:0, display:"flex", alignItems:"center", gap:14, whiteSpace:"nowrap" }}>
         <span style={{ color:C.muted, fontSize:13, maxWidth:260, overflow:"hidden", textOverflow:"ellipsis" }}>{group.name}</span>
@@ -951,30 +1231,30 @@ function TeachMode({ groups, gid: curGid }) {
               })}
             </div>
           )}
-            {!quizPhase && (allMeaningShown ? (
-              <button onClick={startQuiz}
-                style={{ background:C.primary, color:"#fff", padding:"5px 14px", borderRadius:20, border:"none", fontWeight:700, fontSize:13, cursor:"pointer" }}>
-                🧠 开始背记
-              </button>
-            ) : (
-              <button onClick={revealAll}
-                style={{ padding:"5px 11px", background:C.bg, border:`1px solid ${C.border}`, borderRadius:20, cursor:"pointer", color:C.muted, fontSize:12, fontWeight:600 }}>
-                {revealLabel}
-              </button>
-            ))}
-            {["kana","reverse"].includes(quizPhase) && !allQuizDone && (
-              <button onClick={pickRandomCard} disabled={pendingIndexes.length===0}
-                style={{ padding:"5px 14px", background:pendingIndexes.length?C.primary:C.borderLight, color:pendingIndexes.length?"#fff":C.hint, border:"none", borderRadius:20, cursor:pendingIndexes.length?"pointer":"not-allowed", fontSize:13, fontWeight:700 }}>
-                🎲 随机抽词
-              </button>
-            )}
-            {quizPhase === "kana" && allQuizDone && (
-              <button onClick={enterReversePhase} style={{ padding:"5px 14px", background:C.primary, color:"#fff", border:"none", borderRadius:20, cursor:"pointer", fontSize:13, fontWeight:700 }}>下一阶段 →</button>
-            )}
-            {quizPhase === "reverse" && allQuizDone && (
-              <button onClick={enterResultPhase} style={{ padding:"5px 14px", background:C.primary, color:"#fff", border:"none", borderRadius:20, cursor:"pointer", fontSize:13, fontWeight:700 }}>查看结果 →</button>
-            )}
-            <span style={{ color:C.muted, fontSize:13 }}>第 {safePage+1} / {totalPages} 页</span>
+          {!quizPhase && (allMeaningShown ? (
+            <button onClick={startQuiz}
+              style={{ background:C.primary, color:"#fff", padding:"5px 14px", borderRadius:20, border:"none", fontWeight:700, fontSize:13, cursor:"pointer" }}>
+              🧠 开始背记
+            </button>
+          ) : (
+            <button onClick={revealAll}
+              style={{ padding:"5px 11px", background:C.bg, border:`1px solid ${C.border}`, borderRadius:20, cursor:"pointer", color:C.muted, fontSize:12, fontWeight:600 }}>
+              {revealLabel}
+            </button>
+          ))}
+          {["kana","reverse"].includes(quizPhase) && !allQuizDone && (
+            <button onClick={pickRandomCard} disabled={pendingIndexes.length===0}
+              style={{ padding:"5px 14px", background:pendingIndexes.length?C.primary:C.borderLight, color:pendingIndexes.length?"#fff":C.hint, border:"none", borderRadius:20, cursor:pendingIndexes.length?"pointer":"not-allowed", fontSize:13, fontWeight:700 }}>
+              🎲 随机抽词
+            </button>
+          )}
+          {quizPhase === "kana" && allQuizDone && (
+            <button onClick={enterReversePhase} style={{ padding:"5px 14px", background:C.primary, color:"#fff", border:"none", borderRadius:20, cursor:"pointer", fontSize:13, fontWeight:700 }}>下一阶段 →</button>
+          )}
+          {quizPhase === "reverse" && allQuizDone && (
+            <button onClick={enterResultPhase} style={{ padding:"5px 14px", background:C.primary, color:"#fff", border:"none", borderRadius:20, cursor:"pointer", fontSize:13, fontWeight:700 }}>查看结果 →</button>
+          )}
+          <span style={{ color:C.muted, fontSize:13 }}>第 {safePage+1} / {totalPages} 页</span>
         </div>
       </div>
       {quizPhase && renderStageBar()}
@@ -1031,6 +1311,22 @@ function TeachMode({ groups, gid: curGid }) {
           下一页 <IChevR size={18} color={safePage<totalPages-1?C.text:C.hint}/>
         </button>
       </div>
+
+
+
+      {/* Lightbox for Zoomed Images */}
+      {zoomedImage && (
+        <div onClick={() => setZoomedImage(null)}
+          style={{ position:"fixed", inset:0, zIndex:2000, display:"flex", alignItems:"center", justifyContent:"center", background:"rgba(0,0,0,0.65)", backdropFilter:"blur(10px)", animation:"fadeIn 0.25s ease" }}>
+          <div style={{ position:"relative", animation:"pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)" }} onClick={e=>e.stopPropagation()}>
+            <img src={zoomedImage} alt="" style={{ maxWidth:"90vw", maxHeight:"88vh", borderRadius:16, boxShadow:"0 20px 50px rgba(0,0,0,0.3)", objectFit:"contain" }} />
+            <button onClick={() => setZoomedImage(null)}
+              style={{ position:"absolute", top:-16, right:-16, background:C.primary, color:"#fff", border:"none", borderRadius:"50%", width:36, height:36, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:"0 4px 12px rgba(0,0,0,0.15)", fontSize:18, fontWeight:"bold" }}>
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
