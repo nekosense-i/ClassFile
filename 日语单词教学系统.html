@@ -5,8 +5,65 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>日本語 単語モジュール - 高中日语单词教学系统</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700;800&family=Noto+Serif+JP:wght@400;600;700&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+<script>
+(function () {
+  var doc = document.documentElement;
+  var supports = window.CSS && CSS.supports;
+  var forcedCompat = /(?:\?|&)compat=1(?:&|$)/.test(window.location.search || "");
+  var oldLayout = !supports ||
+    !CSS.supports("display", "grid") ||
+    !CSS.supports("transform-style", "preserve-3d") ||
+    !CSS.supports("--x", "0");
+  if (oldLayout || forcedCompat) doc.className += " compat-old-browser";
+  if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    doc.className += " reduced-motion";
+  }
+  if (!Object.assign) {
+    Object.assign = function (target) {
+      if (target == null) throw new TypeError("Cannot convert undefined or null to object");
+      var to = Object(target);
+      for (var i = 1; i < arguments.length; i++) {
+        var source = arguments[i];
+        if (source != null) {
+          for (var key in source) {
+            if (Object.prototype.hasOwnProperty.call(source, key)) to[key] = source[key];
+          }
+        }
+      }
+      return to;
+    };
+  }
+  if (!Object.fromEntries) {
+    Object.fromEntries = function (entries) {
+      var obj = {};
+      for (var i = 0; i < entries.length; i++) obj[entries[i][0]] = entries[i][1];
+      return obj;
+    };
+  }
+  if (!Array.prototype.includes) {
+    Array.prototype.includes = function (search, start) {
+      return this.indexOf(search, start || 0) !== -1;
+    };
+  }
+  if (!Array.from) {
+    Array.from = function (arrayLike) {
+      return Array.prototype.slice.call(arrayLike);
+    };
+  }
+  if (!String.prototype.startsWith) {
+    String.prototype.startsWith = function (search, pos) {
+      return this.substr(pos || 0, search.length) === search;
+    };
+  }
+  if (!String.prototype.trim) {
+    String.prototype.trim = function () {
+      return this.replace(/^\s+|\s+$/g, "");
+    };
+  }
+})();
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/17.0.2/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/17.0.2/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.24.7/babel.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
@@ -125,10 +182,89 @@
   .reveal-blur-transition {
     transition: filter 0.5s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.5s cubic-bezier(0.25, 0.8, 0.25, 1), transform 0.5s cubic-bezier(0.25, 0.8, 0.25, 1), letter-spacing 0.5s cubic-bezier(0.25, 0.8, 0.25, 1);
   }
+
+  /* ===== Compatibility fallbacks for old classroom browsers ===== */
+  html.compat-old-browser *,
+  html.reduced-motion * {
+    animation: none !important;
+    transition: none !important;
+  }
+  html.compat-old-browser,
+  html.compat-old-browser body {
+    height: 100%;
+  }
+  html.compat-old-browser .teach-grid-container {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-content: stretch !important;
+    align-items: stretch !important;
+  }
+  html.compat-old-browser .teach-grid-container > div {
+    min-height: 0 !important;
+    box-sizing: border-box !important;
+    padding: 5px !important;
+  }
+  html.compat-old-browser .teach-grid-count-1 > div { width: 100% !important; height: 100% !important; }
+  html.compat-old-browser .teach-grid-count-4 > div { width: 50% !important; height: 50% !important; }
+  html.compat-old-browser .teach-grid-count-6 > div { width: 33.3333% !important; height: 50% !important; }
+  html.compat-old-browser .perspective-container {
+    perspective: none !important;
+  }
+  html.compat-old-browser .flip-card-inner {
+    transform: none !important;
+    transform-style: flat !important;
+    box-shadow: 0 4px 18px rgba(0,0,0,0.08) !important;
+  }
+  html.compat-old-browser .flip-card-front,
+  html.compat-old-browser .flip-card-back {
+    background: #fff;
+    border: 1px solid #E6DED3;
+    backface-visibility: visible !important;
+    -webkit-backface-visibility: visible !important;
+  }
+  html.compat-old-browser .flip-card-inner.flipped .flip-card-front {
+    display: none !important;
+  }
+  html.compat-old-browser .flip-card-inner.flipped .flip-card-back {
+    transform: none !important;
+    position: relative !important;
+    display: flex !important;
+    pointer-events: auto !important;
+  }
+  html.compat-old-browser img {
+    max-width: 100%;
+    max-height: 100%;
+  }
+  html.compat-old-browser .center-overlay {
+    display: table !important;
+    width: 100% !important;
+    height: 100% !important;
+    text-align: center !important;
+  }
+  html.compat-old-browser .center-overlay-cell {
+    display: table-cell !important;
+    vertical-align: middle !important;
+    text-align: center !important;
+  }
+  html.compat-old-browser .center-dialog {
+    display: inline-block !important;
+    text-align: center !important;
+  }
+  html.compat-old-browser .kana-image-mask {
+    top: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-width: 100% !important;
+    min-height: 100% !important;
+  }
 </style>
 </head>
 <body>
 <div id="root"></div>
+
 
 <script type="text/babel">
 const { useState, useEffect, useRef, useCallback, useMemo } = React;
@@ -247,25 +383,50 @@ const syncUrlGroupId = (groupId) => {
   } catch (e) {}
 };
 const cloneGroups = (groups) => JSON.parse(JSON.stringify(Array.isArray(groups) ? groups : []));
+const DEFAULT_WORD_SET_CATEGORIES = ["必修系列", "选择性必修", "高考专项", "未分类"];
+const normalizeCategoryName = (name) => String(name || "").trim() || "未分类";
+const inferWordSetCategory = (group) => {
+  if (group && group.category) return normalizeCategoryName(group.category);
+  const name = String(group?.name || "");
+  if (/选择性必修|选必/.test(name)) return "选择性必修";
+  if (/高考|专项|速刷|听力|作文|语法|阅读/.test(name)) return "高考专项";
+  if (/必修|第\s*\d+\s*[課课]/.test(name)) return "必修系列";
+  return "未分类";
+};
+const buildCategoryList = (groups, savedCategories) => {
+  const list = [];
+  const add = (name) => {
+    const normalized = normalizeCategoryName(name);
+    if (!list.includes(normalized)) list.push(normalized);
+  };
+  if (Array.isArray(savedCategories) && savedCategories.length) savedCategories.forEach(add);
+  cloneGroups(groups).forEach(g => add(inferWordSetCategory(g)));
+  if (!list.length) DEFAULT_WORD_SET_CATEGORIES.forEach(add);
+  if (!list.includes("未分类")) list.push("未分类");
+  return list;
+};
 const normalizeSyncPayload = (payload, fallbackGroupId = DEFAULT_SYNC_GROUP_ID) => {
   if (Array.isArray(payload)) {
     const now = Date.now();
-    return { group_id: sanitizeGroupId(fallbackGroupId), last_updated: now, synced_at: now, groups: cloneGroups(payload) };
+    const groups = cloneGroups(payload);
+    return { group_id: sanitizeGroupId(fallbackGroupId), last_updated: now, synced_at: now, categories: buildCategoryList(groups, null), groups };
   }
   if (payload && typeof payload === "object") {
     const groups = Array.isArray(payload.groups) ? payload.groups : Array.isArray(payload.data) ? payload.data : [];
     const lastUpdated = Number(payload.last_updated || payload.updated_at || payload.timestamp || Date.now()) || Date.now();
     const syncedAt = Number(payload.synced_at || payload.last_synced_at || payload.syncedAt || lastUpdated) || lastUpdated;
+    const clonedGroups = cloneGroups(groups);
     return {
       ...payload,
       group_id: sanitizeGroupId(payload.group_id || payload.groupId || fallbackGroupId),
       last_updated: lastUpdated,
       synced_at: syncedAt,
-      groups: cloneGroups(groups),
+      categories: buildCategoryList(clonedGroups, payload.categories),
+      groups: clonedGroups,
     };
   }
   const now = Date.now();
-  return { group_id: sanitizeGroupId(fallbackGroupId), last_updated: now, synced_at: now, groups: [] };
+  return { group_id: sanitizeGroupId(fallbackGroupId), last_updated: now, synced_at: now, categories: buildCategoryList([], null), groups: [] };
 };
 const hasUnsyncedLocalChanges = (payload) => Number(payload?.last_updated || 0) > Number(payload?.synced_at || 0);
 const formatSyncTime = (value) => {
@@ -451,17 +612,18 @@ const sBtn = (bg, color, extra) => ({ padding:"9px 20px", background:bg, color, 
 const sBtnSm = (bg, color, extra) => ({ ...sBtn(bg, color, extra), padding:"6px 14px", fontSize:13, borderRadius:8 });
 
 /* ===== MODAL ===== */
-function Modal({ open, onClose, title, children, wide }) {
+function Modal({ open, onClose, title, children, wide, themeC = C }) {
+  const MC = themeC;
   if (!open) return null;
   return (
-    <div style={{ position:"fixed", inset:0, zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center", background:"rgba(0,0,0,0.5)", backdropFilter:"blur(5px)" }}
+    <div style={{ position:"fixed", top:0, right:0, bottom:0, left:0, zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center", background:"rgba(0,0,0,0.5)", backdropFilter:"blur(5px)" }}
       onClick={onClose}>
-      <div className="pop-in" style={{ background:C.card, borderRadius:18, padding:"28px 32px", width: wide?"min(780px,93vw)":"min(540px,93vw)",
+      <div className="pop-in" style={{ background:MC.card, borderRadius:18, padding:"28px 32px", width: wide?780:540, maxWidth:"93vw",
         maxHeight:"90vh", overflowY:"auto", boxShadow:"0 24px 80px rgba(0,0,0,0.25)" }}
         onClick={e => e.stopPropagation()}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:22 }}>
-          <h3 style={{ margin:0, fontSize:18, fontWeight:700, color:C.text }}>{title}</h3>
-          <button onClick={onClose} style={{ background:"none", border:"none", cursor:"pointer", padding:4, borderRadius:6 }}><IX size={18} color={C.muted}/></button>
+          <h3 style={{ margin:0, fontSize:18, fontWeight:700, color:MC.text }}>{title}</h3>
+          <button onClick={onClose} style={{ background:"none", border:"none", cursor:"pointer", padding:4, borderRadius:6 }}><IX size={18} color={MC.muted}/></button>
         </div>
         {children}
       </div>
@@ -470,7 +632,8 @@ function Modal({ open, onClose, title, children, wide }) {
 }
 
 /* ===== WORD FORM ===== */
-function WordForm({ word, onSave, onCancel }) {
+function WordForm({ word, onSave, onCancel, themeC = C }) {
+  const C = themeC;
   const [w, setW] = useState(word ? {...word, examples: word.examples.map(e=>({...e}))} : {...EMPTY_WORD, id:gid(), examples:[{ja:"",cn:""}]});
   const fileRef = useRef();
   const set = (k,v) => setW(p => ({...p, [k]:v}));
@@ -479,41 +642,43 @@ function WordForm({ word, onSave, onCancel }) {
   const rmEx = (i) => setW(p => ({...p, examples: p.examples.filter((_,j)=>j!==i)}));
   const handleImg = (e) => { const f=e.target.files[0]; if(!f) return; const r=new FileReader(); r.onload=()=>set("imageUrl",r.result); r.readAsDataURL(f); };
   const valid = w.kana.trim() && w.meaning.trim();
+  const inputStyle = { ...sInput, background:C.bg, color:C.text, border:`1px solid ${C.border}` };
+  const labelStyle = { ...sLabel, color:C.muted };
 
   return (
     <div>
       <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14, marginBottom:14 }}>
-        <div><label style={sLabel}>假名（必填）</label><input style={sInput} value={w.kana} onChange={e=>set("kana",e.target.value)} placeholder="例：たまご"/></div>
-        <div><label style={sLabel}>汉字</label><input style={sInput} value={w.kanji} onChange={e=>set("kanji",e.target.value)} placeholder="例：卵"/></div>
-        <div><label style={sLabel}>声调</label><input style={sInput} value={w.accent} onChange={e=>set("accent",e.target.value)} placeholder="例：0 / ②"/></div>
-        <div><label style={sLabel}>词性</label>
-          <input style={sInput} value={w.pos} onChange={e=>set("pos",e.target.value)} placeholder="例：名詞 / 動詞"/>
+        <div><label style={labelStyle}>假名（必填）</label><input style={inputStyle} value={w.kana} onChange={e=>set("kana",e.target.value)} placeholder="例：たまご"/></div>
+        <div><label style={labelStyle}>汉字</label><input style={inputStyle} value={w.kanji} onChange={e=>set("kanji",e.target.value)} placeholder="例：卵"/></div>
+        <div><label style={labelStyle}>声调</label><input style={inputStyle} value={w.accent} onChange={e=>set("accent",e.target.value)} placeholder="例：0 / ②"/></div>
+        <div><label style={labelStyle}>词性</label>
+          <input style={inputStyle} value={w.pos} onChange={e=>set("pos",e.target.value)} placeholder="例：名詞 / 動詞"/>
         </div>
       </div>
       <div style={{ marginBottom:14 }}>
-        <label style={sLabel}>中文释义（必填）</label>
-        <input style={sInput} value={w.meaning} onChange={e=>set("meaning",e.target.value)} placeholder="例：鸡蛋"/>
+        <label style={labelStyle}>中文释义（必填）</label>
+        <input style={inputStyle} value={w.meaning} onChange={e=>set("meaning",e.target.value)} placeholder="例：鸡蛋"/>
       </div>
       <div style={{ marginBottom:14 }}>
-        <label style={sLabel}>用法说明</label>
-        <textarea style={{...sInput, minHeight:48, resize:"vertical"}} value={w.usage} onChange={e=>set("usage",e.target.value)} placeholder="可选：补充该词的用法、搭配等"/>
+        <label style={labelStyle}>用法说明</label>
+        <textarea style={{...inputStyle, minHeight:48, resize:"vertical"}} value={w.usage} onChange={e=>set("usage",e.target.value)} placeholder="可选：补充该词的用法、搭配等"/>
       </div>
       <div style={{ marginBottom:14 }}>
-        <label style={sLabel}>配图</label>
+        <label style={labelStyle}>配图</label>
         <div style={{ display:"flex", gap:8 }}>
-          <input style={{...sInput, flex:1}} value={w.imageUrl?.startsWith("data:")?"（已上传本地图片）":w.imageUrl} onChange={e=>set("imageUrl",e.target.value)} placeholder="粘贴图片URL"/>
+          <input style={{...inputStyle, flex:1}} value={w.imageUrl?.startsWith("data:")?"（已上传本地图片）":w.imageUrl} onChange={e=>set("imageUrl",e.target.value)} placeholder="粘贴图片URL"/>
           <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={handleImg}/>
           <button onClick={()=>fileRef.current?.click()} style={sBtnSm(C.blueLight, C.blue, {whiteSpace:"nowrap"})}>上传图片</button>
         </div>
         {w.imageUrl && <img src={w.imageUrl} alt="" style={{ marginTop:8, maxHeight:110, borderRadius:8, objectFit:"cover" }} onError={e=>e.target.style.display="none"}/>}
       </div>
       <div style={{ marginBottom:14 }}>
-        <label style={sLabel}>例句</label>
+        <label style={labelStyle}>例句</label>
         {w.examples.map((ex,i) => (
           <div key={i} style={{ display:"flex", gap:8, marginBottom:8, alignItems:"start" }}>
             <div style={{ flex:1 }}>
-              <input style={{...sInput, marginBottom:4}} value={ex.ja} onChange={e=>setEx(i,"ja",e.target.value)} placeholder="日语例句"/>
-              <input style={sInput} value={ex.cn} onChange={e=>setEx(i,"cn",e.target.value)} placeholder="中文翻译"/>
+              <input style={{...inputStyle, marginBottom:4}} value={ex.ja} onChange={e=>setEx(i,"ja",e.target.value)} placeholder="日语例句"/>
+              <input style={inputStyle} value={ex.cn} onChange={e=>setEx(i,"cn",e.target.value)} placeholder="中文翻译"/>
             </div>
             {w.examples.length > 1 && <button onClick={()=>rmEx(i)} style={{ background:"none", border:"none", cursor:"pointer", marginTop:8 }}><IX size={15} color={C.wrong}/></button>}
           </div>
@@ -529,12 +694,20 @@ function WordForm({ word, onSave, onCancel }) {
 }
 
 /* ===== EDIT MODE ===== */
-function EditMode({ groups, setGroups, gid: curGid, setGid: setCurGid, triggerAddWord, syncMeta, groupId }) {
+function EditMode({ groups, setGroups, categories, setCategories, gid: curGid, setGid: setCurGid, triggerAddWord, themeC = C }) {
+  const C = themeC;
   const [showForm, setShowForm] = useState(false);
   const [editWord, setEditWord] = useState(null);
   const [renaming, setRenaming] = useState(null);
   const [renameVal, setRenameVal] = useState("");
+  const [renamingCat, setRenamingCat] = useState(null);
+  const [catRenameVal, setCatRenameVal] = useState("");
+  const [expandedCats, setExpandedCats] = useState(() => Object.fromEntries(DEFAULT_WORD_SET_CATEGORIES.map(cat => [cat, true])));
   const group = groups.find(g => g.id === curGid);
+  const activeCategory = inferWordSetCategory(group);
+  const isDark = C.bg === TEACH_CHALK.bg;
+  const categoryTextColor = isDark ? "rgba(255,255,255,0.72)" : C.muted;
+  const displayCategories = buildCategoryList(groups, categories);
 
   useEffect(() => {
     if (triggerAddWord > 0) {
@@ -543,8 +716,84 @@ function EditMode({ groups, setGroups, gid: curGid, setGid: setCurGid, triggerAd
     }
   }, [triggerAddWord]);
 
-  const addGroup = () => { const ng = { id:gid(), name:`单词组 ${groups.length+1}`, words:[] }; setGroups([...groups, ng]); setCurGid(ng.id); };
-  const delGroup = (id) => { if(!confirm("确定删除该单词组及其中所有单词？")) return; const ng=groups.filter(g=>g.id!==id); setGroups(ng); if(curGid===id) setCurGid(ng[0]?.id||null); };
+  useEffect(() => {
+    if (activeCategory) setExpandedCats(prev => ({ ...prev, [activeCategory]: true }));
+  }, [activeCategory]);
+
+  const groupedWordSets = displayCategories.map(category => ({
+    category,
+    groups: groups.filter(g => inferWordSetCategory(g) === category)
+  }));
+
+  const addCategory = () => {
+    let idx = displayCategories.length + 1;
+    let name = `新分类 ${idx}`;
+    while (displayCategories.includes(name)) {
+      idx += 1;
+      name = `新分类 ${idx}`;
+    }
+    setCategories([...displayCategories, name]);
+    setExpandedCats(prev => ({ ...prev, [name]: true }));
+    setRenamingCat(name);
+    setCatRenameVal(name);
+  };
+
+  const startRenameCategory = (category) => {
+    setRenamingCat(category);
+    setCatRenameVal(category);
+  };
+
+  const finishRenameCategory = () => {
+    const oldName = renamingCat;
+    const newName = normalizeCategoryName(catRenameVal);
+    if (!oldName) return;
+    if (newName !== oldName && displayCategories.includes(newName)) {
+      window.alert("已经有同名分类，请换一个名称。");
+      setRenamingCat(null);
+      return;
+    }
+    setCategories(displayCategories.map(cat => cat === oldName ? newName : cat));
+    setGroups(groups.map(g => inferWordSetCategory(g) === oldName ? { ...g, category:newName } : g));
+    setExpandedCats(prev => {
+      const next = { ...prev, [newName]: prev[oldName] !== false };
+      delete next[oldName];
+      return next;
+    });
+    setRenamingCat(null);
+  };
+
+  const deleteCategory = (category) => {
+    if (category === "未分类") {
+      window.alert("“未分类”用于承接暂未归档的单词组，不能删除。");
+      return;
+    }
+    const count = groups.filter(g => inferWordSetCategory(g) === category).length;
+    const message = count ? `确定删除“${category}”分类吗？其中 ${count} 个单词组会移动到“未分类”，单词不会被删除。` : `确定删除“${category}”分类吗？`;
+    if (!confirm(message)) return;
+    const nextCategories = displayCategories.filter(cat => cat !== category);
+    if (!nextCategories.includes("未分类")) nextCategories.push("未分类");
+    setCategories(nextCategories);
+    if (count) setGroups(groups.map(g => inferWordSetCategory(g) === category ? { ...g, category:"未分类" } : g));
+    setExpandedCats(prev => {
+      const next = { ...prev, "未分类": true };
+      delete next[category];
+      return next;
+    });
+  };
+
+  const addGroup = (category) => {
+    const sameCatCount = groups.filter(g => inferWordSetCategory(g) === category).length + 1;
+    const ng = { id:gid(), name:`新建单词组 ${sameCatCount}`, category, words:[] };
+    setGroups([...groups, ng]);
+    setCurGid(ng.id);
+    setExpandedCats(prev => ({ ...prev, [category]: true }));
+  };
+  const delGroup = (id) => {
+    if(!confirm("确定删除该单词组及其中所有单词？")) return;
+    const ng=groups.filter(g=>g.id!==id);
+    setGroups(ng);
+    if(curGid===id) setCurGid(ng[0]?.id||null);
+  };
   const startRename = (g) => { setRenaming(g.id); setRenameVal(g.name); };
   const finishRename = () => { if(renameVal.trim()) setGroups(groups.map(g=>g.id===renaming?{...g,name:renameVal.trim()}:g)); setRenaming(null); };
   const saveWord = (w) => {
@@ -564,88 +813,96 @@ function EditMode({ groups, setGroups, gid: curGid, setGid: setCurGid, triggerAd
     }));
   };
 
+  const renderGroupNode = (g) => {
+    const active = g.id === curGid;
+    return (
+      <div key={g.id} onClick={()=>setCurGid(g.id)}
+        style={{
+          margin:"3px 6px 3px 18px",
+          padding:"9px 10px",
+          borderRadius:9,
+          cursor:"pointer",
+          background: active ? (isDark ? "rgba(255,255,255,0.10)" : C.primaryLight) : "transparent",
+          border: active ? `1.5px solid ${isDark ? C.primary : "rgba(200,64,45,0.24)"}` : "1.5px solid transparent",
+          boxShadow: active && isDark ? `0 0 0 1px ${C.primary}55, inset 3px 0 0 ${C.primary}` : "none",
+          transition:"all 0.15s"
+        }}>
+        {renaming === g.id ? (
+          <input autoFocus value={renameVal} onChange={e=>setRenameVal(e.target.value)}
+            onBlur={finishRename} onKeyDown={e=>e.key==="Enter"&&finishRename()}
+            style={{ width:"100%", padding:"3px 6px", border:`1.5px solid ${C.primary}`, borderRadius:5, fontSize:13, outline:"none", background:C.bg, color:C.text }}
+            onClick={e=>e.stopPropagation()}/>
+        ) : (
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:8 }}>
+            <div style={{ minWidth:0 }}>
+               <div style={{ fontSize:13, fontWeight:active?800:600, color:active?(isDark?"#FFFFFF":C.text):C.text, lineHeight:1.3, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{g.name}</div>
+               <div style={{ fontSize:11, color:active&&isDark?"rgba(255,255,255,0.62)":C.muted, marginTop:2 }}>{g.words.length} 个单词</div>
+            </div>
+            <div style={{ display:"flex", gap:2, flexShrink:0 }} onClick={e=>e.stopPropagation()}>
+              <button onClick={()=>startRename(g)} style={{ background:"none", border:"none", cursor:"pointer", padding:3, borderRadius:4 }}><IEdit size={13} color={active&&isDark?"#fff":C.muted}/></button>
+              <button onClick={()=>delGroup(g.id)} style={{ background:"none", border:"none", cursor:"pointer", padding:3, borderRadius:4 }}><ITrash size={13} color={C.wrong}/></button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div style={{ display:"flex", height:"100%" }}>
       {/* Sidebar */}
-      <div style={{ width:250, borderRight:`1px solid ${C.border}`, background:C.card, display:"flex", flexDirection:"column", flexShrink:0 }}>
-        <div style={{ padding:"14px 16px", borderBottom:`1px solid ${C.borderLight}`, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-          <span style={{ fontSize:14, fontWeight:700, color:C.text }}>📁 单词组</span>
-          <button onClick={addGroup} style={{ background:C.primaryLight, border:"none", borderRadius:8, width:30, height:30, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>
-            <IPlus size={15} color={C.primary}/>
-          </button>
+      <div style={{ width:270, borderRight:`1px solid ${C.border}`, background:isDark?"#1E1E1E":C.card, display:"flex", flexDirection:"column", flexShrink:0 }}>
+        <div style={{ padding:"16px 16px 10px", borderBottom:`1px solid ${C.borderLight}` }}>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10 }}>
+            <div>
+              <div style={{ fontSize:14, fontWeight:900, color:C.text, lineHeight:1.25 }}>教研目录</div>
+              <div style={{ fontSize:11, color:C.muted, marginTop:4 }}>按教材与专题整理单词组</div>
+            </div>
+            <button onClick={addCategory} title="新增分类" aria-label="新增分类"
+              style={{ width:28, height:28, borderRadius:"50%", border:`1px solid ${C.border}`, background:isDark?"rgba(255,255,255,0.05)":C.bg, color:C.primary, cursor:"pointer", fontSize:16, fontWeight:900, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+              ＋
+            </button>
+          </div>
         </div>
-        <div style={{ flex:1, overflowY:"auto", padding:8 }}>
-          {groups.map(g => (
-            <div key={g.id} onClick={()=>setCurGid(g.id)}
-              style={{ padding:"10px 12px", borderRadius:10, marginBottom:3, cursor:"pointer",
-                background: g.id===curGid ? C.primaryLight : "transparent",
-                border: g.id===curGid ? `1.5px solid rgba(200,64,45,0.2)` : "1.5px solid transparent",
-                transition:"all 0.15s" }}>
-              {renaming === g.id ? (
-                <input autoFocus value={renameVal} onChange={e=>setRenameVal(e.target.value)}
-                  onBlur={finishRename} onKeyDown={e=>e.key==="Enter"&&finishRename()}
-                  style={{ width:"100%", padding:"3px 6px", border:`1.5px solid ${C.primary}`, borderRadius:5, fontSize:13, outline:"none" }}
-                  onClick={e=>e.stopPropagation()}/>
-              ) : (
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-                  <div>
-                     <div style={{ fontSize:13, fontWeight:600, color:C.text, lineHeight:1.3 }}>{g.name}</div>
-                     <div style={{ fontSize:11, color:C.muted, marginTop:2 }}>{g.words.length} 个单词</div>
+        <div style={{ flex:1, overflowY:"auto", padding:"8px 6px 12px" }}>
+          {groupedWordSets.map(({category, groups: catGroups}) => {
+            const open = !!expandedCats[category];
+            return (
+              <div key={category} style={{ marginBottom:6 }}>
+                <div onClick={() => setExpandedCats(prev => ({ ...prev, [category]: !prev[category] }))}
+                  style={{ height:34, display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, padding:"0 8px", borderRadius:8, cursor:"pointer", color:categoryTextColor }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:7, minWidth:0 }}>
+                    <span style={{ display:"inline-block", width:14, fontSize:12, color:categoryTextColor }}>{open ? "▼" : "▶"}</span>
+                    {renamingCat === category ? (
+                      <input autoFocus value={catRenameVal} onChange={e=>setCatRenameVal(e.target.value)}
+                        onBlur={finishRenameCategory} onKeyDown={e=>e.key==="Enter"&&finishRenameCategory()}
+                        onClick={e=>e.stopPropagation()}
+                        style={{ width:112, padding:"3px 6px", border:`1.5px solid ${C.primary}`, borderRadius:5, fontSize:12, outline:"none", background:C.bg, color:C.text, fontWeight:800 }}/>
+                    ) : (
+                      <span style={{ fontSize:12, fontWeight:900, letterSpacing:0, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{category}</span>
+                    )}
+                    <span style={{ fontSize:10, color:C.hint }}>({catGroups.length})</span>
                   </div>
-                  <div style={{ display:"flex", gap:2 }} onClick={e=>e.stopPropagation()}>
-                    <button onClick={()=>startRename(g)} style={{ background:"none", border:"none", cursor:"pointer", padding:3, borderRadius:4 }}><IEdit size={13}/></button>
-                    <button onClick={()=>delGroup(g.id)} style={{ background:"none", border:"none", cursor:"pointer", padding:3, borderRadius:4 }}><ITrash size={13} color={C.wrong}/></button>
+                  <div style={{ display:"flex", alignItems:"center", gap:2, flexShrink:0 }} onClick={e=>e.stopPropagation()}>
+                    <button onClick={()=>addGroup(category)} title={`在${category}中新建单词组`} aria-label={`在${category}中新建单词组`}
+                      style={{ width:22, height:22, borderRadius:"50%", border:`1px solid ${C.border}`, background:isDark?"rgba(255,255,255,0.04)":C.bg, color:C.primary, cursor:"pointer", fontSize:12, fontWeight:900, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                      ＋
+                    </button>
+                    <button onClick={()=>startRenameCategory(category)} title="重命名分类" style={{ background:"none", border:"none", cursor:"pointer", padding:3, borderRadius:4 }}><IEdit size={12} color={categoryTextColor}/></button>
+                    <button onClick={()=>deleteCategory(category)} title="删除分类" style={{ background:"none", border:"none", cursor:"pointer", padding:3, borderRadius:4 }}><ITrash size={12} color={category==="未分类"?C.hint:C.wrong}/></button>
                   </div>
                 </div>
-              )}
-            </div>
-          ))}
-          {groups.length === 0 && <div style={{ textAlign:"center", color:C.muted, fontSize:13, marginTop:50, lineHeight:1.8 }}>暂无单词组<br/>点击 ＋ 创建</div>}
-        </div>
-        {/* Sync Status Sidebar Widget */}
-        <div style={{
-          padding: "14px 16px",
-          borderTop: `1px solid ${C.borderLight}`,
-          background: "rgba(0,0,0,0.02)",
-          display: "flex",
-          flexDirection: "column",
-          gap: 10
-        }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ fontSize: 12, fontWeight: 700, color: C.text }}>🌐 同步状态</span>
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              <span style={{
-                width: 8,
-                height: 8,
-                borderRadius: "50%",
-                background: syncMeta?.loading ? C.blue : (syncMeta?.status === "error" ? C.wrong : (syncMeta?.status === "dirty" ? "#E8A040" : C.green)),
-                boxShadow: syncMeta?.loading ? `0 0 6px ${C.blue}` : (syncMeta?.status === "error" ? `0 0 6px ${C.wrong}` : (syncMeta?.status === "dirty" ? `0 0 6px #E8A040` : `0 0 6px ${C.green}`)),
-                animation: syncMeta?.loading ? "blink 1.2s infinite" : "none"
-              }} />
-              <span style={{ fontSize: 11, fontWeight: 600, color: C.muted }}>
-                {syncMeta?.loading ? "正在同步" : (syncMeta?.status === "error" ? "异常" : (syncMeta?.status === "dirty" ? "待同步" : "已同步"))}
-              </span>
-            </div>
-          </div>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 11, color: C.muted }}>
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <span>课件ID:</span>
-              <span style={{ fontWeight: 600, color: C.text, fontFamily: "monospace" }}>{groupId || "未设置"}</span>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <span>单词总量:</span>
-              <span style={{ fontWeight: 600, color: C.text }}>
-                {groups.reduce((acc, curr) => acc + (curr.words?.length || 0), 0)} 个
-              </span>
-            </div>
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <span>上次更新:</span>
-              <span style={{ fontWeight: 500, color: C.text, fontSize: 10 }}>
-                {syncMeta?.lastSyncedAt ? formatSyncTime(syncMeta.lastSyncedAt) : "无记录"}
-              </span>
-            </div>
-          </div>
+                {open && (
+                  <div style={{ paddingTop:2 }}>
+                    {catGroups.length ? catGroups.map(renderGroupNode) : (
+                      <div style={{ margin:"4px 8px 8px 36px", color:C.hint, fontSize:11, lineHeight:1.5 }}>暂无单词组</div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+          {groups.length === 0 && <div style={{ textAlign:"center", color:C.muted, fontSize:13, marginTop:42, lineHeight:1.8 }}>暂无单词组<br/>点击分类右侧 + 创建</div>}
         </div>
       </div>
 
@@ -654,12 +911,15 @@ function EditMode({ groups, setGroups, gid: curGid, setGid: setCurGid, triggerAd
         {group ? (
           <div className="fade-in">
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:22 }}>
-              <h2 style={{ margin:0, fontSize:21, fontWeight:700, color:C.text }}>{group.name}</h2>
+              <div>
+                <div style={{ fontSize:12, color:C.muted, fontWeight:800, marginBottom:4 }}>{inferWordSetCategory(group)}</div>
+                <h2 style={{ margin:0, fontSize:21, fontWeight:800, color:C.text }}>{group.name}</h2>
+              </div>
             </div>
             {group.words.length === 0 ? (
               <div style={{ textAlign:"center", padding:"70px 20px", color:C.muted }}>
                 <div style={{ fontSize:52, marginBottom:14 }}>📝</div>
-                <div style={{ fontSize:15 }}>该组还没有单词，点击上方按钮开始添加</div>
+                <div style={{ fontSize:15 }}>该组还没有单词，请从底部“新增单词”录入或导入表格</div>
               </div>
             ) : (
               <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(290px, 1fr))", gap:14 }}>
@@ -667,7 +927,7 @@ function EditMode({ groups, setGroups, gid: curGid, setGid: setCurGid, triggerAd
                   <div key={w.id} className="fade-in" style={{ background:C.card, borderRadius:14, padding:16, border:`1px solid ${C.borderLight}`, transition:"box-shadow 0.2s, transform 0.2s" }}
                     onMouseEnter={e=>{e.currentTarget.style.boxShadow="0 6px 20px rgba(0,0,0,0.08)";e.currentTarget.style.transform="translateY(-2px)";}}
                     onMouseLeave={e=>{e.currentTarget.style.boxShadow="none";e.currentTarget.style.transform="none";}}>
-                    {w.imageUrl && <img src={w.imageUrl} alt="" style={{ width:"100%", height:130, objectFit:"cover", borderRadius:10, marginBottom:12 }} onError={e=>e.target.style.display="none"}/>}
+                    {w.imageUrl && <img src={w.imageUrl} alt="" style={{ width:"100%", height:130, objectFit:"cover", borderRadius:10, marginBottom:12 }} onError={e=>e.target.style.display="none"}/>}                    
                     <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
                       <div>
                         <div style={{ fontSize:22, fontWeight:700, fontFamily:SF, color:C.text }}>
@@ -691,10 +951,10 @@ function EditMode({ groups, setGroups, gid: curGid, setGid: setCurGid, triggerAd
                       </div>
                     )}
                     <div style={{ display:"flex", gap:4, marginTop:10, justifyContent:"flex-end" }}>
-                      {idx > 0 && <button onClick={()=>moveWord(idx,-1)} style={{ background:C.bg, border:"none", borderRadius:6, width:28, height:28, cursor:"pointer", fontSize:13 }}>↑</button>}
-                      {idx < group.words.length-1 && <button onClick={()=>moveWord(idx,1)} style={{ background:C.bg, border:"none", borderRadius:6, width:28, height:28, cursor:"pointer", fontSize:13 }}>↓</button>}
+                      {idx > 0 && <button onClick={()=>moveWord(idx,-1)} style={{ background:C.bg, border:"none", borderRadius:6, width:28, height:28, cursor:"pointer", fontSize:13, color:C.text }}>↑</button>}
+                      {idx < group.words.length-1 && <button onClick={()=>moveWord(idx,1)} style={{ background:C.bg, border:"none", borderRadius:6, width:28, height:28, cursor:"pointer", fontSize:13, color:C.text }}>↓</button>}
                       <button onClick={()=>{setEditWord(w);setShowForm(true)}} style={{ background:C.blueLight, border:"none", borderRadius:6, width:28, height:28, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}><IEdit size={13} color={C.blue}/></button>
-                      <button onClick={()=>delWord(w.id)} style={{ background:"#FFF0F0", border:"none", borderRadius:6, width:28, height:28, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}><ITrash size={13} color={C.wrong}/></button>
+                      <button onClick={()=>delWord(w.id)} style={{ background:"rgba(209,67,67,0.1)", border:"none", borderRadius:6, width:28, height:28, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}><ITrash size={13} color={C.wrong}/></button>
                     </div>
                   </div>
                 ))}
@@ -704,13 +964,13 @@ function EditMode({ groups, setGroups, gid: curGid, setGid: setCurGid, triggerAd
         ) : (
           <div style={{ textAlign:"center", padding:"100px 20px", color:C.muted, fontSize:15 }}>
             <div style={{ fontSize:48, marginBottom:14 }}>👈</div>
-            请在左侧选择或创建一个单词组
+            请在左侧分类中选择或创建一个单词组
           </div>
         )}
       </div>
 
-      <Modal open={showForm} onClose={()=>{setShowForm(false);setEditWord(null)}} title={editWord?"编辑单词":"添加单词"} wide>
-        <WordForm word={editWord} onSave={saveWord} onCancel={()=>{setShowForm(false);setEditWord(null)}}/>
+      <Modal open={showForm} onClose={()=>{setShowForm(false);setEditWord(null)}} title={editWord?"编辑单词":"添加单词"} wide themeC={C}>
+        <WordForm word={editWord} onSave={saveWord} onCancel={()=>{setShowForm(false);setEditWord(null)}} themeC={C}/>
       </Modal>
     </div>
   );
@@ -820,6 +1080,7 @@ function TeachMode({
   const [page, setPage] = useState(0);
   const [cardCount, setCardCount] = useState(4);
   const [showMeaningMap, setShowMeaningMap] = useState({});
+  const [showUsageMap, setShowUsageMap] = useState({});
   const [showExamplesMap, setShowExamplesMap] = useState({});
   const [flippedCardMap, setFlippedCardMap] = useState({});
   const [exampleTranslationMap, setExampleTranslationMap] = useState({});
@@ -829,10 +1090,6 @@ function TeachMode({
   const [countdownLeft, setCountdownLeft] = useState(0);
   const [selectedCard, setSelectedCard] = useState(null);
   const [cardStatus, setCardStatus] = useState({});
-  const [revealedCard, setRevealedCard] = useState(null);
-  const [scores, setScores] = useState({ kana:{correct:0,total:0}, reverse:{correct:0,total:0} });
-  const [kanaResults, setKanaResults] = useState({});
-  const [reverseResults, setReverseResults] = useState({});
   const [quizWords, setQuizWords] = useState([]);
   const [isPaused, setIsPaused] = useState(false);
   const [showShortcutHelp, setShowShortcutHelp] = useState(false);
@@ -844,9 +1101,9 @@ function TeachMode({
   const countdownTimerRef = useRef(null);
 
   const CELL_CONFIG = {
-    1: { cols:1, rows:1, imgFlex:"0 0 50%", textPadding:"48px 56px", backPadding:"24px 36px", textLineWidth:848, showImg:true, showUsage:true, showExamples:true, kanjiSize:72, noImgKanjiSize:84, kanaSize:32, meaningSize:56, tagSize:18, tagPadding:"6px 18px", tagRadius:24, usageSize:24, exJaSize:50, exCnSize:36, maxExamples:3, exBarWidth:5, blurRadius:10 },
-    4: { cols:2, rows:2, imgFlex:"0 0 50%", textPadding:"12px 16px", backPadding:"14px 20px", textLineWidth:432, showImg:true, showUsage:true, showExamples:true, kanjiSize:44, kanaSize:22, meaningSize:34, tagSize:14, tagPadding:"4px 13px", tagRadius:20, usageSize:17, exJaSize:31, exCnSize:23, maxExamples:3, exBarWidth:3, blurRadius:7 },
-    6: { cols:3, rows:2, imgFlex:"0 0 50%", textPadding:"8px 10px", backPadding:"8px 10px", textLineWidth:284, showImg:true, showUsage:true, showExamples:true, kanjiSize:32, kanaSize:18, meaningSize:26, tagSize:13, tagPadding:"3px 9px", tagRadius:16, usageSize:15, exJaSize:28, exCnSize:22, maxExamples:3, exBarWidth:3, blurRadius:6 },
+    1: { cols:1, rows:1, imgFlex:"0 0 50%", textPadding:"48px 56px", backPadding:"24px 36px", textLineWidth:848, showImg:true, showUsage:true, showExamples:true, kanjiSize:72, noImgKanjiSize:84, kanaSize:52, meaningSize:56, tagSize:18, tagPadding:"6px 18px", tagRadius:24, usageSize:28, exJaSize:54, exCnSize:40, maxExamples:3, exBarWidth:5, blurRadius:10 },
+    4: { cols:2, rows:2, imgFlex:"0 0 50%", textPadding:"12px 16px", backPadding:"14px 20px", textLineWidth:432, showImg:true, showUsage:true, showExamples:true, kanjiSize:44, kanaSize:32, meaningSize:34, tagSize:14, tagPadding:"4px 13px", tagRadius:20, usageSize:20, exJaSize:34, exCnSize:26, maxExamples:3, exBarWidth:3, blurRadius:7 },
+    6: { cols:3, rows:2, imgFlex:"0 0 50%", textPadding:"8px 10px", backPadding:"8px 10px", textLineWidth:284, showImg:true, showUsage:true, showExamples:true, kanjiSize:32, kanaSize:24, meaningSize:26, tagSize:13, tagPadding:"3px 9px", tagRadius:16, usageSize:17, exJaSize:30, exCnSize:24, maxExamples:3, exBarWidth:3, blurRadius:6 },
   };
   const countOptions = [
     { label:"大", count:1, desc:"单词大图展示" },
@@ -870,11 +1127,9 @@ function TeachMode({
   };
   const pct = ((safePage + 1) / totalPages) * 100;
   const pageHasExamples = currentWords.some(w => (w.examples || []).some(e => e.ja));
-  const allMeaningShown = currentWords.length > 0 && currentWords.every((_, i) => showMeaningMap[i]);
+  const allMeaningShown = currentWords.length > 0 && currentWords.every((w, i) => !(w.meaning || (cfg.showUsage && w.usage)) || showMeaningMap[i]);
   const allExamplesShown = !cfg.showExamples || !pageHasExamples || currentWords.every((w, i) => !(w.examples || []).some(e => e.ja) || showExamplesMap[i]);
   const revealLabel = !allMeaningShown ? "👁 揭示释义" : (cfg.showExamples && !allExamplesShown ? "📖 揭示例句" : "✓ 已全部揭示");
-  const pendingIndexes = currentWords.map((_, i) => i).filter(i => cardStatus[i] === "pending");
-  const allQuizDone = currentWords.length > 0 && currentWords.every((_, i) => cardStatus[i] && cardStatus[i] !== "pending");
 
   useEffect(() => {
     if (onTeachStateChange) {
@@ -887,15 +1142,12 @@ function TeachMode({
         countdownLeft,
         countdownTotal,
         wordsCount: words.length,
-        allQuizDone,
         allMeaningShown,
         chalkboardMode,
         showShortcutHelp,
         isPaused,
-        scores,
         currentWords,
         selectedCard,
-        revealedCard,
         cardStatus,
         setChalkboardMode,
         goPage,
@@ -913,11 +1165,46 @@ function TeachMode({
         setShowShortcutHelp,
       });
     }
-  }, [safePage, totalPages, quizPhase, effectiveCount, pct, countdownLeft, countdownTotal, words.length, allQuizDone, allMeaningShown, chalkboardMode, showShortcutHelp, isPaused, scores, currentWords, selectedCard, revealedCard, cardStatus, enterKanaPhase]);
+  }, [safePage, totalPages, quizPhase, effectiveCount, pct, countdownLeft, countdownTotal, words.length, allMeaningShown, chalkboardMode, showShortcutHelp, isPaused, currentWords, selectedCard, cardStatus, enterKanaPhase]);
   const countdownRatio = countdownTotal ? countdownLeft / countdownTotal : 0;
   const countdownColor = countdownRatio > 0.5 ? C.green : countdownRatio > 0.2 ? "#E8A040" : C.primary;
-  const wrongWords = useMemo(() => currentWords.filter((_, i) => kanaResults[i] === "wrong" || reverseResults[i] === "wrong"), [kanaResults, reverseResults, currentWords]);
   const wordExamples = (word) => (word?.examples || []).filter(e => e.ja || e.cn).slice(0, cfg.maxExamples);
+  const hasMeaningContent = (word) => !!(word?.meaning && String(word.meaning).trim());
+  const hasUsageContent = (word) => !!(cfg.showUsage && word?.usage && String(word.usage).trim());
+  const hasFrontRevealContent = (word) => hasMeaningContent(word) || hasUsageContent(word);
+  const getTranslationKey = (cardIdx, exampleIdx) => `${cardIdx}-${exampleIdx}`;
+  const buildFullRevealState = (targetWords) => {
+    const meanings = {};
+    const usages = {};
+    const examplesMap = {};
+    const flipped = {};
+    const translations = {};
+
+    targetWords.forEach((word, cardIdx) => {
+      const examples = wordExamples(word);
+      if (hasFrontRevealContent(word)) {
+        meanings[cardIdx] = true;
+        usages[cardIdx] = true;
+      }
+      if (examples.length > 0) {
+        examplesMap[cardIdx] = true;
+        flipped[cardIdx] = true;
+      }
+      examples.forEach((example, exampleIdx) => {
+        if (example.cn) translations[getTranslationKey(cardIdx, exampleIdx)] = true;
+      });
+    });
+
+    return { meanings, usages, examplesMap, flipped, translations };
+  };
+  const revealWordsFully = (targetWords) => {
+    const state = buildFullRevealState(targetWords);
+    setShowMeaningMap(state.meanings);
+    setShowUsageMap(state.usages);
+    setShowExamplesMap(state.examplesMap);
+    setFlippedCardMap(state.flipped);
+    setExampleTranslationMap(state.translations);
+  };
   const pageHasExampleCards = currentWords.some(w => wordExamples(w).length > 0);
   const pageHasTranslations = currentWords.some(w => wordExamples(w).some(e => e.cn));
   const allExampleCardsFlipped = pageHasExampleCards && currentWords.every((w, i) => wordExamples(w).length === 0 || flippedCardMap[i]);
@@ -932,44 +1219,108 @@ function TeachMode({
     : 1;
 
   const revealMeaningsForCurrentPage = () => {
-    setShowMeaningMap(Object.fromEntries(currentWords.map((_, i) => [i, true])));
+    const frontState = Object.fromEntries(currentWords.map((w, i) => [i, hasFrontRevealContent(w)]));
+    setShowMeaningMap(frontState);
+    setShowUsageMap(frontState);
   };
-  const flipExamplesForCurrentPage = () => {
-    setShowExamplesMap(Object.fromEntries(currentWords.map((w, i) => [i, wordExamples(w).length > 0])));
-    setFlippedCardMap(Object.fromEntries(currentWords.map((w, i) => [i, wordExamples(w).length > 0])));
-    setExampleTranslationMap({});
-  };
-  const unflipExamplesForCurrentPage = () => {
-    setShowExamplesMap({});
-    setFlippedCardMap({});
-    setExampleTranslationMap({});
-  };
-  const revealTranslationsForCurrentPage = () => {
-    const next = {};
-    currentWords.forEach((w, i) => {
-      wordExamples(w).forEach((ex, exIdx) => {
-        if (ex.cn) next[`${i}-${exIdx}`] = true;
-      });
-    });
-    setExampleTranslationMap(next);
-  };
-  const hideTranslationsForCurrentPage = () => setExampleTranslationMap({});
   const progressiveForward = () => {
     if (!currentWords.length) return;
-    if (!allMeaningShown) { revealMeaningsForCurrentPage(); return; }
-    if (pageHasExampleCards && !allExampleCardsFlipped) { flipExamplesForCurrentPage(); return; }
-    if (pageHasTranslations && !allTranslationsShown) { revealTranslationsForCurrentPage(); return; }
+    for (let cardIdx = 0; cardIdx < currentWords.length; cardIdx += 1) {
+      const word = currentWords[cardIdx];
+      const examples = wordExamples(word);
+
+      if (hasFrontRevealContent(word) && !showMeaningMap[cardIdx]) {
+        setShowMeaningMap(prev => ({ ...prev, [cardIdx]: true }));
+        setShowUsageMap(prev => ({ ...prev, [cardIdx]: true }));
+        return;
+      }
+
+      if (examples.length > 0 && !flippedCardMap[cardIdx]) {
+        setShowExamplesMap(prev => ({ ...prev, [cardIdx]: true }));
+        setFlippedCardMap(prev => ({ ...prev, [cardIdx]: true }));
+        setExampleTranslationMap(prev => {
+          const next = { ...prev };
+          examples.forEach((_, exampleIdx) => delete next[getTranslationKey(cardIdx, exampleIdx)]);
+          return next;
+        });
+        return;
+      }
+
+      for (let exampleIdx = 0; exampleIdx < examples.length; exampleIdx += 1) {
+        const example = examples[exampleIdx];
+        const key = getTranslationKey(cardIdx, exampleIdx);
+        if (example.cn && !exampleTranslationMap[key]) {
+          setExampleTranslationMap(prev => ({ ...prev, [key]: true }));
+          return;
+        }
+      }
+    }
+
     if (safePage < totalPages - 1) goPage(safePage + 1);
   };
   const progressiveBackward = () => {
     if (!currentWords.length) return;
-    if (pageHasTranslations && allTranslationsShown) { hideTranslationsForCurrentPage(); return; }
-    if (pageHasExampleCards && allExampleCardsFlipped) { unflipExamplesForCurrentPage(); return; }
-    if (allMeaningShown) { resetReveal(); return; }
-    if (safePage > 0) goPage(safePage - 1);
+    for (let cardIdx = currentWords.length - 1; cardIdx >= 0; cardIdx -= 1) {
+      const word = currentWords[cardIdx];
+      const examples = wordExamples(word);
+
+      for (let exampleIdx = examples.length - 1; exampleIdx >= 0; exampleIdx -= 1) {
+        const example = examples[exampleIdx];
+        const key = getTranslationKey(cardIdx, exampleIdx);
+        if (example.cn && exampleTranslationMap[key]) {
+          setExampleTranslationMap(prev => {
+            const next = { ...prev };
+            delete next[key];
+            return next;
+          });
+          return;
+        }
+      }
+
+      if (examples.length > 0 && flippedCardMap[cardIdx]) {
+        setFlippedCardMap(prev => {
+          const next = { ...prev };
+          delete next[cardIdx];
+          return next;
+        });
+        setShowExamplesMap(prev => {
+          const next = { ...prev };
+          delete next[cardIdx];
+          return next;
+        });
+        setExampleTranslationMap(prev => {
+          const next = { ...prev };
+          examples.forEach((_, exampleIdx) => delete next[getTranslationKey(cardIdx, exampleIdx)]);
+          return next;
+        });
+        return;
+      }
+
+      if (hasFrontRevealContent(word) && showMeaningMap[cardIdx]) {
+        setShowMeaningMap(prev => {
+          const next = { ...prev };
+          delete next[cardIdx];
+          return next;
+        });
+        setShowUsageMap(prev => {
+          const next = { ...prev };
+          delete next[cardIdx];
+          return next;
+        });
+        return;
+      }
+    }
+
+    if (safePage > 0) {
+      const prevPage = safePage - 1;
+      const prevWords = words.slice(prevPage * effectiveCount, prevPage * effectiveCount + effectiveCount);
+      resetQuizState();
+      setPage(prevPage);
+      revealWordsFully(prevWords);
+    }
   };
 
-  const resetReveal = () => { setShowMeaningMap({}); setShowExamplesMap({}); setFlippedCardMap({}); setExampleTranslationMap({}); };
+  const resetReveal = () => { setShowMeaningMap({}); setShowUsageMap({}); setShowExamplesMap({}); setFlippedCardMap({}); setExampleTranslationMap({}); };
   const clearCountdownTimer = () => {
     if (countdownTimerRef.current) {
       clearInterval(countdownTimerRef.current);
@@ -982,10 +1333,6 @@ function TeachMode({
     setCountdownLeft(0);
     setSelectedCard(null);
     setCardStatus({});
-    setRevealedCard(null);
-    setScores({ kana:{correct:0,total:0}, reverse:{correct:0,total:0} });
-    setKanaResults({});
-    setReverseResults({});
     setQuizWords([]);
   };
   const goPage = (n) => {
@@ -1027,20 +1374,15 @@ function TeachMode({
     setQuizPhase("kana");
     setCardStatus(Object.fromEntries(nextQuizWords.map((_, i) => [i, "pending"])));
     setSelectedCard(null);
-    setRevealedCard(null);
   }, [pageWords]);
   const enterReversePhase = () => {
-    setKanaResults({...cardStatus});
     setQuizPhase("reverse");
     setCardStatus(Object.fromEntries((quizWords.length ? quizWords : currentWords).map((_, i) => [i, "pending"])));
     setSelectedCard(null);
-    setRevealedCard(null);
   };
   const enterResultPhase = () => {
-    setReverseResults({...cardStatus});
     setQuizPhase("result");
     setSelectedCard(null);
-    setRevealedCard(null);
   };
   const restartQuiz = () => startQuiz();
   const exitAndNextPage = () => {
@@ -1051,15 +1393,25 @@ function TeachMode({
     const pending = currentWords.map((_, i) => i).filter(i => cardStatus[i] === "pending");
     if (pending.length === 0) return;
     setSelectedCard(pending[Math.floor(Math.random() * pending.length)]);
-    setRevealedCard(null);
+  };
+  const revealQuizCard = (i) => {
+    if (!["kana","reverse"].includes(quizPhase) || cardStatus[i] !== "pending") return;
+    setCardStatus(prev => ({ ...prev, [i]: "revealed" }));
+    setSelectedCard(null);
+  };
+  const revealSelectedOrPick = () => {
+    if (!["kana","reverse"].includes(quizPhase)) return;
+    if (selectedCard !== null && cardStatus[selectedCard] === "pending") {
+      revealQuizCard(selectedCard);
+      return;
+    }
+    pickRandomCard();
   };
   const handleCardClick = (i) => {
     // 1. Practice/Quiz Mode logic
     if (quizPhase) {
       if (!["kana","reverse"].includes(quizPhase) || cardStatus[i] !== "pending") return;
-      if (revealedCard !== null) return;
-      if (selectedCard === i) setRevealedCard(i);
-      else setSelectedCard(i);
+      revealQuizCard(i);
       return;
     }
 
@@ -1090,30 +1442,19 @@ function TeachMode({
     const isMeaningShown = !!showMeaningMap[i];
     if (!isMeaningShown) {
       setShowMeaningMap(p => ({ ...p, [i]: true }));
+      setShowUsageMap(p => ({ ...p, [i]: true }));
     } else {
       setShowMeaningMap(p => { const next = { ...p }; delete next[i]; return next; });
+      setShowUsageMap(p => { const next = { ...p }; delete next[i]; return next; });
       setShowExamplesMap(p => { const next = { ...p }; delete next[i]; return next; });
     }
   };
-  const markCard = (i, result) => {
-    if (!["kana","reverse"].includes(quizPhase)) return;
-    const phaseKey = quizPhase === "kana" ? "kana" : "reverse";
-    const newStatus = { ...cardStatus, [i]: result };
-    setCardStatus(newStatus);
-    setScores(prev => ({
-      ...prev,
-      [phaseKey]: {
-        correct: prev[phaseKey].correct + (result === "correct" ? 1 : 0),
-        total: prev[phaseKey].total + 1
-      }
-    }));
-    setRevealedCard(null);
-    setSelectedCard(null);
-  };
   const revealAll = useCallback(() => {
     if (!currentWords.length) return;
-    if (!currentWords.every((_, i) => showMeaningMap[i])) {
-      setShowMeaningMap(Object.fromEntries(currentWords.map((_, i) => [i, true])));
+    if (!currentWords.every((w, i) => !hasFrontRevealContent(w) || showMeaningMap[i])) {
+      const frontState = Object.fromEntries(currentWords.map((w, i) => [i, hasFrontRevealContent(w)]));
+      setShowMeaningMap(frontState);
+      setShowUsageMap(frontState);
       return;
     }
     if (cfg.showExamples && currentWords.some((w, i) => (w.examples || []).some(e => e.ja) && !showExamplesMap[i])) {
@@ -1140,9 +1481,9 @@ function TeachMode({
       if (!words.length || shortcutsDisabled || isFormField(document.activeElement)) return;
       const key = e.key;
       const lower = key.toLowerCase();
-      const shortcutKeys = new Set([" ", "PageDown", "PageUp", "ArrowLeft", "ArrowRight", "Home", "End", "1", "2", "3", "b", "B", ".", "?", "/", "Escape", "F5", "q", "Q", "r", "R", "Enter", "j", "J", "k", "K", "n", "N"]);
+      const shortcutKeys = new Set([" ", "PageDown", "PageUp", "ArrowLeft", "ArrowRight", "Home", "End", "1", "2", "3", "b", "B", ".", "?", "/", "Escape", "F5", "q", "Q", "r", "R", "Enter", "n", "N"]);
       if (!shortcutKeys.has(key) && !shortcutKeys.has(lower)) return;
-      if (preventKeys.has(key) || ["b",".","?","/","q","r","j","k","n","1","2","3"].includes(lower) || key === "Escape" || key === "Enter") e.preventDefault();
+      if (preventKeys.has(key) || ["b",".","?","/","q","r","n","1","2","3"].includes(lower) || key === "Escape" || key === "Enter") e.preventDefault();
 
       const now = Date.now();
       if (now - lastShortcutAtRef.current < 120) return;
@@ -1162,26 +1503,19 @@ function TeachMode({
       if (isPaused) return;
 
       const inQuiz = !!quizPhase;
-      if (key === "ArrowRight") { if (safePage < totalPages - 1) goPage(safePage + 1); return; }
-      if (key === "ArrowLeft") { if (safePage > 0) goPage(safePage - 1); return; }
-
       if (inQuiz) {
+        if (key === "ArrowRight") { if (safePage < totalPages - 1) goPage(safePage + 1); return; }
+        if (key === "ArrowLeft") { if (safePage > 0) goPage(safePage - 1); return; }
         const quizActions = {
           F5: () => {},
           q: () => {},
           r: () => { if (["kana", "reverse"].includes(quizPhase)) pickRandomCard(); },
-          Enter: () => {
-            if (selectedCard !== null && revealedCard === null && cardStatus[selectedCard] === "pending") setRevealedCard(selectedCard);
-          },
-          " ": () => {},
+          Enter: () => revealSelectedOrPick(),
+          " ": () => revealSelectedOrPick(),
           pagedown: () => {},
-          j: () => { if (revealedCard !== null) markCard(revealedCard, "correct"); },
-          "1": () => { if (revealedCard !== null) markCard(revealedCard, "correct"); },
-          k: () => { if (revealedCard !== null) markCard(revealedCard, "wrong"); },
-          "2": () => { if (revealedCard !== null) markCard(revealedCard, "wrong"); },
           n: () => {
-            if (quizPhase === "kana" && allQuizDone) enterReversePhase();
-            else if (quizPhase === "reverse" && allQuizDone) enterResultPhase();
+            if (quizPhase === "kana") enterReversePhase();
+            else if (quizPhase === "reverse") enterResultPhase();
           },
         };
         const action = quizActions[key] || quizActions[lower];
@@ -1192,7 +1526,9 @@ function TeachMode({
       const teachActions = {
         " ": () => progressiveForward(),
         PageDown: () => progressiveForward(),
+        ArrowRight: () => progressiveForward(),
         PageUp: () => progressiveBackward(),
+        ArrowLeft: () => progressiveBackward(),
         Home: () => goPage(0),
         End: () => goPage(totalPages - 1),
         "1": () => chooseCount(1),
@@ -1206,7 +1542,7 @@ function TeachMode({
     };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
-  }, [words.length, shortcutsDisabled, showShortcutHelp, isPaused, quizPhase, zoomedImage, safePage, totalPages, selectedCard, revealedCard, cardStatus, allQuizDone, progressiveForward, progressiveBackward, enterKanaPhase, enterReversePhase, enterResultPhase]);
+  }, [words.length, shortcutsDisabled, showShortcutHelp, isPaused, quizPhase, zoomedImage, safePage, totalPages, selectedCard, cardStatus, progressiveForward, progressiveBackward, enterKanaPhase, enterReversePhase, enterResultPhase]);
 
   useEffect(() => () => clearCountdownTimer(), []);
 
@@ -1225,13 +1561,13 @@ function TeachMode({
     const noImageSingle = effectiveCount === 1 && !hasImage;
     const isQuizCard = ["kana","reverse"].includes(quizPhase);
     const status = cardStatus[localIdx];
-    const isRevealed = !isQuizCard || revealedCard === localIdx || status !== "pending";
+    const isRevealed = !isQuizCard || status === "revealed";
     const isSelected = isQuizCard && selectedCard === localIdx && status === "pending";
-    const dimCard = isQuizCard && selectedCard !== null && !isSelected && status === "pending" && revealedCard === null;
+    const dimCard = isQuizCard && selectedCard !== null && !isSelected && status === "pending";
     const showFullInfo = !isQuizCard || isRevealed;
     const showTags = !isQuizCard || isRevealed;
     const showMeaningBlock = !isQuizCard || quizPhase === "reverse" || isRevealed;
-    const showExamplesBlock = !isQuizCard || (quizPhase === "reverse" && isRevealed);
+    const showExamplesBlock = !isQuizCard;
 
     const mainText = quizPhase === "kana" ? w.kana : quizPhase === "reverse" && !isRevealed ? "？？？" : (w.kanji || w.kana);
     const subText = quizPhase === "kana" ? (isRevealed ? (w.kanji || "") : "？？？") : quizPhase === "reverse" ? (isRevealed ? w.kana : "？？？") : (w.kanji ? w.kana : "");
@@ -1240,6 +1576,8 @@ function TeachMode({
     const showSubCurve = (!isQuizCard || isRevealed) && !!w.kanji && quizPhase !== "kana";
 
     const meaningRevealed = !!(quizPhase || showMeaning);
+    const usageRevealed = meaningRevealed;
+    const exampleButtonReady = meaningRevealed;
     const examplesRevealed = !!(quizPhase || showExamples);
     const isBackShown = !isQuizCard && cfg.showExamples && examples.length > 0 && !!flippedCardMap[localIdx];
     const isTranslationRevealed = (exampleIdx) => !!exampleTranslationMap[`${localIdx}-${exampleIdx}`];
@@ -1250,13 +1588,14 @@ function TeachMode({
     const dynamicExJaSize = isSmallGrid && examples.length >= 3 ? (effectiveCount === 6 ? Math.max(24, cfg.exJaSize - 1) : Math.max(18, cfg.exJaSize - 1)) : cfg.exJaSize;
     const dynamicExCnSize = isSmallGrid && examples.length >= 3 ? (effectiveCount === 6 ? Math.max(18, cfg.exCnSize - 1) : Math.max(14, cfg.exCnSize - 1)) : cfg.exCnSize;
     const dynamicTranslationPadding = effectiveCount === 6 ? "5px 8px" : "8px 12px";
+    const kanaTextColor = chalkboardMode ? "rgba(235,235,235,0.72)" : "#5F5F5F";
     const accentCurveProps = {
       color: C.accent || C.primary,
-      textColor: C.text,
+      textColor: kanaTextColor,
     };
 
     return (
-      <div className={`perspective-container fade-in ${!isBackShown ? "tactile-card" : ""} ${isSelected ? "active-card" : ""}`} key={w.id} style={{
+      <div className={`perspective-container fade-in ${!isBackShown ? "tactile-card" : ""} ${isSelected ? "active-card" : ""}`} key={w.id} onClick={() => handleCardClick(localIdx)} style={{
         opacity: dimCard ? 0.45 : 1,
         zIndex: isSelected ? 5 : 1,
         transition: "opacity 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)"
@@ -1264,8 +1603,7 @@ function TeachMode({
         <div className={`flip-card-inner ${isBackShown ? "flipped" : ""}`}
           style={{
             cursor: isBackShown ? "default" : (isQuizCard && status === "pending" ? "pointer" : "pointer")
-          }}
-          onClick={() => handleCardClick(localIdx)}>
+          }}>
 
           {/* FRONT FACE */}
           <div className="flip-card-front" style={{ display: "flex", flexDirection: "row", gap: 0, alignItems: "stretch", height: "100%", width: "100%", pointerEvents: isBackShown ? "none" : "auto" }}>
@@ -1282,7 +1620,7 @@ function TeachMode({
                   }}
                   onError={e => e.currentTarget.parentElement.style.display = "none"} />
                 {quizPhase === "kana" && !isRevealed && (
-                  <div style={{ position: "absolute", inset: 0, background: "#000000", display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "20px 0 0 20px", zIndex: 2 }}>
+                  <div className="kana-image-mask" style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0, width: "100%", height: "100%", minWidth: "100%", minHeight: "100%", background: "#000000", display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "20px 0 0 20px", zIndex: 2, pointerEvents: "none" }}>
                     <span style={{ fontSize: 48, color: "rgba(255,255,255,0.3)", fontWeight: 700 }}>？</span>
                   </div>
                 )}
@@ -1292,7 +1630,7 @@ function TeachMode({
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", width: "100%", textAlign: "center", position: "relative", zIndex: 3, flexShrink: 0 }}>
                 
                 {showMainCurve ? (
-                  <div style={{ margin: "4px 0 2px", maxWidth:"100%", overflowX:"auto", overflowY:"visible", scrollbarWidth:"none" }}>
+                  <div style={{ margin: "4px 0 2px", maxWidth:"100%", overflow:"visible" }}>
                     <VisualAccentCurve kana={w.kana} accent={w.accent} fontSize={noImageSingle ? cfg.noImgKanjiSize : cfg.kanjiSize} {...accentCurveProps} />
                   </div>
                 ) : (
@@ -1301,11 +1639,11 @@ function TeachMode({
 
                 {subText && (
                   showSubCurve ? (
-                    <div style={{ marginTop: 2, maxWidth:"100%", overflowX:"auto", overflowY:"visible", scrollbarWidth:"none" }}>
+                    <div style={{ marginTop: 2, maxWidth:"100%", overflow:"visible" }}>
                       <VisualAccentCurve kana={w.kana} accent={w.accent} fontSize={cfg.kanaSize} {...accentCurveProps} />
                     </div>
                   ) : (
-                    <div className="card-sub-text" style={{ width: "100%", fontSize: (quizPhase === "kana" || (quizPhase === "reverse" && !isRevealed)) ? cfg.kanjiSize : cfg.kanaSize, color: isQuizCard && !isRevealed ? C.border : C.muted, marginTop: 4, fontFamily: SF, overflowWrap: "anywhere", textAlign: "center", borderBottom: isQuizCard && !isRevealed ? `2px dashed ${C.border}` : "none", display: "block" }}>{subText}</div>
+                    <div className="card-sub-text" style={{ width: "100%", fontSize: (quizPhase === "kana" || (quizPhase === "reverse" && !isRevealed)) ? cfg.kanjiSize : cfg.kanaSize, color: isQuizCard && !isRevealed ? C.border : kanaTextColor, marginTop: 4, fontFamily: SF, overflowWrap: "anywhere", textAlign: "center", borderBottom: "none", boxShadow: "none", outline: "none", display: "block" }}>{subText}</div>
                   )
                 )}
 
@@ -1324,18 +1662,38 @@ function TeachMode({
                   flexDirection: "column",
                   justifyContent: "center",
                   textAlign: "center",
-                  filter: meaningRevealed ? "none" : `blur(${cfg.blurRadius}px)`,
-                  opacity: meaningRevealed ? 1 : 0.15,
-                  transform: "scale(1)",
-                  letterSpacing: "normal",
-                  transition: "filter 0.55s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.55s cubic-bezier(0.25, 0.8, 0.25, 1), transform 0.55s cubic-bezier(0.25, 0.8, 0.25, 1)"
                 }}>
-                  <div className="card-meaning-text" style={{ fontSize: cfg.meaningSize, fontWeight: 700, color: C.primary, lineHeight: 1.22, overflowWrap: "anywhere", textAlign: "center" }}>{smartBreak(w.meaning, "cn", cfg.meaningSize)}</div>
-                  {cfg.showUsage && w.usage && (quizPhase !== "kana" || isRevealed) && <div className="card-usage-text" style={{ fontSize: cfg.usageSize, color: C.muted, marginTop: 6, lineHeight: 1.35, textAlign: "center" }}>💡 {smartBreak(w.usage, "cn", cfg.usageSize)}</div>}
+                  {w.meaning && (
+                    <div className="card-meaning-text" style={{
+                      fontSize: cfg.meaningSize,
+                      fontWeight: 700,
+                      color: C.primary,
+                      lineHeight: 1.22,
+                      overflowWrap: "anywhere",
+                      textAlign: "center",
+                      filter: meaningRevealed ? "none" : `blur(${cfg.blurRadius}px)`,
+                      opacity: meaningRevealed ? 1 : 0.15,
+                      transform: "scale(1)",
+                      transition: "filter 0.55s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.55s cubic-bezier(0.25, 0.8, 0.25, 1)"
+                    }}>{smartBreak(w.meaning, "cn", cfg.meaningSize)}</div>
+                  )}
+                  {cfg.showUsage && w.usage && (quizPhase !== "kana" || isRevealed) && (
+                    <div className="card-usage-text" style={{
+                      fontSize: cfg.usageSize,
+                      color: C.muted,
+                      marginTop: 6,
+                      lineHeight: 1.35,
+                      textAlign: "center",
+                      filter: usageRevealed ? "none" : `blur(${cfg.blurRadius}px)`,
+                      opacity: usageRevealed ? 1 : 0.15,
+                      transform: "scale(1)",
+                      transition: "filter 0.55s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.55s cubic-bezier(0.25, 0.8, 0.25, 1)"
+                    }}>💡 {smartBreak(w.usage, "cn", cfg.usageSize)}</div>
+                  )}
                   {!isQuizCard && examples.length > 0 && (
                     <button onClick={(e) => {
                       e.stopPropagation();
-                      if (!meaningRevealed) return;
+                      if (!exampleButtonReady) return;
                       if (isFlippingRef.current) return;
                       isFlippingRef.current = true;
                       lastClickedBtnRef.current = true;
@@ -1354,7 +1712,7 @@ function TeachMode({
                         lastClickedBtnRef.current = false;
                       }, 680);
                     }}
-                      style={{ alignSelf: "center", marginTop: 8, padding: effectiveCount === 1 ? "7px 18px" : "5px 16px", borderRadius: 20, border: "none", background: C.primary, color: "#fff", fontSize: Math.max(13, cfg.tagSize), fontWeight: 800, cursor: meaningRevealed ? "pointer" : "default", boxShadow: "0 3px 12px rgba(200,64,45,0.2)", visibility: meaningRevealed ? "visible" : "hidden", pointerEvents: meaningRevealed ? "auto" : "none", letterSpacing: 0 }}>
+                      style={{ alignSelf: "center", marginTop: 8, padding: effectiveCount === 1 ? "7px 18px" : "5px 16px", borderRadius: 20, border: "none", background: C.primary, color: "#fff", fontSize: Math.max(13, cfg.tagSize), fontWeight: 800, cursor: exampleButtonReady ? "pointer" : "default", boxShadow: "0 3px 12px rgba(200,64,45,0.2)", visibility: exampleButtonReady ? "visible" : "hidden", pointerEvents: exampleButtonReady ? "auto" : "none", letterSpacing: 0 }}>
                       📖 例句
                     </button>
                   )}
@@ -1382,16 +1740,6 @@ function TeachMode({
               </div>
             </div>
 
-            {isQuizCard && status === "correct" && <div style={{ position: "absolute", right: 12, bottom: 12, width: 28, height: 28, borderRadius: "50%", background: C.greenLight, color: C.green, fontSize: 16, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 8 }}>✓</div>}
-            {isQuizCard && status === "wrong" && <div style={{ position: "absolute", right: 12, bottom: 12, width: 28, height: 28, borderRadius: "50%", background: "rgba(209,67,67,0.1)", color: C.wrong, fontSize: 16, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 8 }}>✗</div>}
-            {isQuizCard && revealedCard === localIdx && (
-              <div style={{ position: "absolute", bottom: 12, left: "50%", transform: "translateX(-50%)", display: "flex", gap: 10, zIndex: 10 }}>
-                <button onClick={(e) => { e.stopPropagation(); markCard(localIdx, "correct"); }}
-                  style={{ padding: "6px 20px", borderRadius: 20, background: C.greenLight, border: `1.5px solid rgba(58,125,92,0.3)`, color: C.green, fontSize: 14, fontWeight: 700, cursor: "pointer" }}>✓ 正确</button>
-                <button onClick={(e) => { e.stopPropagation(); markCard(localIdx, "wrong"); }}
-                  style={{ padding: "6px 20px", borderRadius: 20, background: "rgba(209,67,67,0.08)", border: `1.5px solid rgba(209,67,67,0.2)`, color: C.wrong, fontSize: 14, fontWeight: 700, cursor: "pointer" }}>✗ 错误</button>
-              </div>
-            )}
           </div>
 
           {/* BACK FACE */}
@@ -1472,14 +1820,12 @@ function TeachMode({
   };
   const startQuiz = () => {
     clearCountdownTimer();
-    setShowMeaningMap(Object.fromEntries(pageWords.map((_, i) => [i, true])));
+    const frontState = Object.fromEntries(pageWords.map((w, i) => [i, hasFrontRevealContent(w)]));
+    setShowMeaningMap(frontState);
+    setShowUsageMap(frontState);
     setShowExamplesMap(Object.fromEntries(pageWords.map((w, i) => [i, (w.examples || []).some(e => e.ja)])));
     setCountdownLeft(0);
     setSelectedCard(null);
-    setRevealedCard(null);
-    setScores({ kana:{correct:0,total:0}, reverse:{correct:0,total:0} });
-    setKanaResults({});
-    setReverseResults({});
     setQuizWords([]);
     setCardStatus({});
     setQuizPhase("countdown");
@@ -1511,33 +1857,11 @@ function TeachMode({
     );
   };
   const renderResult = () => (
-    <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:24, padding:40 }}>
-      <div style={{ fontSize:28, fontWeight:700, color:C.text }}>📊 背记结果</div>
-      <div style={{ display:"flex", gap:40, alignItems:"center" }}>
-        <div style={{ textAlign:"center" }}>
-          <div style={{ fontSize:15, color:C.muted, marginBottom:8 }}>听写测试</div>
-          <div style={{ display:"flex", gap:4, justifyContent:"center", marginBottom:6 }}>
-            {currentWords.map((_, i) => <div key={i} style={{ width:14, height:14, borderRadius:"50%", background:i < scores.kana.correct ? C.green : C.borderLight }} />)}
-          </div>
-          <div style={{ fontSize:24, fontWeight:700, color:C.text }}>{scores.kana.correct} / {scores.kana.total}</div>
-        </div>
-        <div style={{ width:1, height:60, background:C.borderLight }} />
-        <div style={{ textAlign:"center" }}>
-          <div style={{ fontSize:15, color:C.muted, marginBottom:8 }}>认读测试</div>
-          <div style={{ display:"flex", gap:4, justifyContent:"center", marginBottom:6 }}>
-            {currentWords.map((_, i) => <div key={i} style={{ width:14, height:14, borderRadius:"50%", background:i < scores.reverse.correct ? C.green : C.borderLight }} />)}
-          </div>
-          <div style={{ fontSize:24, fontWeight:700, color:C.text }}>{scores.reverse.correct} / {scores.reverse.total}</div>
-        </div>
-      </div>
-      {wrongWords.length > 0 && (
-        <div style={{ marginTop:8, textAlign:"center" }}>
-          <div style={{ fontSize:14, color:C.muted, marginBottom:6 }}>需要加强的单词：</div>
-          <div style={{ fontSize:18, fontWeight:600, color:C.primary }}>{wrongWords.map(w => w.kanji || w.kana).join("、")}</div>
-        </div>
-      )}
+    <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:22, padding:40, textAlign:"center" }}>
+      <div style={{ fontSize:34, fontWeight:900, color:C.text }}>测试完成</div>
+      <div style={{ fontSize:16, color:C.muted, lineHeight:1.6 }}>本页听写与认读互动已结束</div>
       <div style={{ display:"flex", gap:14, marginTop:16 }}>
-        <button onClick={restartQuiz} style={{ padding:"10px 28px", borderRadius:12, background:C.primary, color:"#fff", fontSize:15, fontWeight:700, border:"none", cursor:"pointer" }}>🔄 再来一次</button>
+        <button onClick={restartQuiz} style={{ padding:"10px 28px", borderRadius:12, background:C.primary, color:"#fff", fontSize:15, fontWeight:700, border:"none", cursor:"pointer" }}>🔄 重新测试</button>
         <button onClick={exitAndNextPage} style={{ padding:"10px 28px", borderRadius:12, background:C.bg, border:`1px solid ${C.border}`, color:C.text, fontSize:15, fontWeight:700, cursor:"pointer" }}>→ 下一页继续授课</button>
       </div>
     </div>
@@ -1585,7 +1909,7 @@ function TeachMode({
       {/* Card */}
       <div style={{ flex:1, display:"flex", alignItems:"stretch", justifyContent:"stretch", padding:0, minHeight:0, overflow:"hidden", position:"relative" }}>
         {quizPhase === "result" ? renderResult() : (
-        <div className="teach-grid-container" style={{ width:"100%", height:"100%", display:"grid", gap:"10px", padding:"10px",
+        <div className={`teach-grid-container teach-grid-count-${effectiveCount}`} style={{ width:"100%", height:"100%", display:"grid", gap:"10px", padding:"10px",
           gridTemplateColumns:`repeat(${gridColumns}, minmax(0, 1fr))`,
           gridTemplateRows:`repeat(${gridRows}, minmax(0, 1fr))`,
           justifyContent:"center", alignItems:"stretch" }}>
@@ -1597,26 +1921,28 @@ function TeachMode({
         </div>
         )}
         {quizPhase === "countdown" && countdownLeft === 0 && (
-          <div style={{ position:"absolute", inset:0, background:"rgba(247,243,237,0.72)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:30 }}>
-            <div className="pop-in" style={{ background:C.card, borderRadius:16, padding:"32px 40px", boxShadow:"0 8px 30px rgba(0,0,0,0.1)", textAlign:"center", border:`1px solid ${C.borderLight}` }}>
-              <div style={{ fontSize:22, fontWeight:700, color:C.text, marginBottom:22 }}>选择记忆时间</div>
-              <div style={{ display:"flex", gap:12, justifyContent:"center" }}>
-                {[30,60,90].map(sec => (
-                  <button key={sec} onClick={()=>startCountdown(sec)}
-                    style={{ padding:"8px 22px", borderRadius:20, border:"none", cursor:"pointer", background:sec===countdownTotal?C.primary:C.bg, color:sec===countdownTotal?"#fff":C.muted, fontSize:14, fontWeight:700 }}>
-                    {`${sec}秒`}
-                  </button>
-                ))}
+          <div className="center-overlay" style={{ position:"absolute", top:0, right:0, bottom:0, left:0, width:"100%", height:"100%", background:"rgba(247,243,237,0.72)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:30, textAlign:"center" }}>
+            <div className="center-overlay-cell" style={{ width:"100%", textAlign:"center" }}>
+              <div className="pop-in center-dialog" style={{ display:"inline-block", background:C.card, borderRadius:16, padding:"32px 40px", boxShadow:"0 8px 30px rgba(0,0,0,0.1)", textAlign:"center", border:`1px solid ${C.borderLight}` }}>
+                <div style={{ fontSize:22, fontWeight:700, color:C.text, marginBottom:22 }}>选择记忆时间</div>
+                <div style={{ display:"flex", gap:12, justifyContent:"center" }}>
+                  {[30,60,90].map(sec => (
+                    <button key={sec} onClick={()=>startCountdown(sec)}
+                      style={{ padding:"8px 22px", borderRadius:20, border:"none", cursor:"pointer", background:sec===countdownTotal?C.primary:C.bg, color:sec===countdownTotal?"#fff":C.muted, fontSize:14, fontWeight:700 }}>
+                      {`${sec}秒`}
+                    </button>
+                  ))}
+                </div>
+                <button onClick={enterKanaPhase}
+                  style={{ marginTop:16, height:32, padding:"0 18px", borderRadius:16, border:`1.5px solid ${C.border}`, background:C.bg, color:C.text, fontSize:13, fontWeight:800, cursor:"pointer" }}>
+                  跳过记忆，直接听写
+                </button>
               </div>
-              <button onClick={enterKanaPhase}
-                style={{ marginTop:16, height:32, padding:"0 18px", borderRadius:16, border:`1.5px solid ${C.border}`, background:C.bg, color:C.text, fontSize:13, fontWeight:800, cursor:"pointer" }}>
-                跳过记忆，直接听写
-              </button>
             </div>
           </div>
         )}
         {isPaused && (
-          <div style={{ position:"absolute", inset:0, background:C.bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", zIndex:55, color:C.text }}>
+          <div style={{ position:"absolute", top:0, right:0, bottom:0, left:0, background:C.bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", zIndex:55, color:C.text }}>
             <div style={{ fontSize:15, color:C.muted, fontWeight:700, marginBottom:8, maxWidth:"80%", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{group.name}</div>
             <div style={{ fontSize:34, fontWeight:900, color:C.primary, letterSpacing:0 }}>暂停中</div>
             <div style={{ marginTop:10, fontSize:42, color:C.primary, lineHeight:1 }}>◷</div>
@@ -1625,8 +1951,8 @@ function TeachMode({
       </div>
 
       {showShortcutHelp && (
-        <div onClick={() => setShowShortcutHelp(false)} style={{ position:"absolute", inset:0, zIndex:80, background:"rgba(30,30,30,0.38)", display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
-          <div onClick={e=>e.stopPropagation()} className="pop-in" style={{ width:"min(880px, 94vw)", maxHeight:"86vh", overflowY:"auto", background:C.card, border:`1px solid ${C.border}`, borderRadius:18, boxShadow:"0 24px 80px rgba(0,0,0,0.22)", padding:"24px 28px", color:C.text }}>
+        <div onClick={() => setShowShortcutHelp(false)} style={{ position:"absolute", top:0, right:0, bottom:0, left:0, zIndex:80, background:"rgba(30,30,30,0.38)", display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
+          <div onClick={e=>e.stopPropagation()} className="pop-in" style={{ width:880, maxWidth:"94vw", maxHeight:"86vh", overflowY:"auto", background:C.card, border:`1px solid ${C.border}`, borderRadius:18, boxShadow:"0 24px 80px rgba(0,0,0,0.22)", padding:"24px 28px", color:C.text }}>
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:18 }}>
               <div style={{ fontSize:24, fontWeight:900, color:C.text }}>快捷键速查</div>
               <button onClick={() => setShowShortcutHelp(false)} style={{ width:32, height:32, borderRadius:"50%", border:`1px solid ${C.border}`, background:C.bg, cursor:"pointer", color:C.muted, fontWeight:900 }}>×</button>
@@ -1646,7 +1972,7 @@ function TeachMode({
               {[
                 ["渐进授课", [["PgDn / Space","推进一层"],["PgUp","撤回一层"]]],
                 ["直接翻页与布局", [["← / →","直接翻页"],["Home / End","首页 / 尾页"],["1 / 2 / 3","大图 / 4宫格 / 6宫格"]]],
-                ["训练模式", [["F5 / Q","开始训练"],["R","随机抽词"],["Enter","揭示选中卡片"],["J / 1","判正确"],["K / 2","判错误"],["N","下一阶段"]]],
+                ["训练模式", [["F5 / Q","开始训练"],["R","随机抽词"],["Enter / Space","抽取或揭示"],["N","下一阶段"]]],
                 ["全局", [["B / .","遮屏暂停"],["? / /","打开或关闭速查"],["Esc","关闭浮层 / 退出暂停 / 退出训练"]]],
               ].map(([title, rows]) => (
                 <div key={title} style={{ border:`1px solid ${C.borderLight}`, borderRadius:12, padding:14, background:C.bg }}>
@@ -1668,7 +1994,7 @@ function TeachMode({
       {/* Lightbox for Zoomed Images */}
       {zoomedImage && (
         <div onClick={() => setZoomedImage(null)}
-          style={{ position:"fixed", inset:0, zIndex:2000, display:"flex", alignItems:"center", justifyContent:"center", background:"rgba(0,0,0,0.65)", backdropFilter:"blur(10px)", animation:"fadeIn 0.25s ease" }}>
+          style={{ position:"fixed", top:0, right:0, bottom:0, left:0, zIndex:2000, display:"flex", alignItems:"center", justifyContent:"center", background:"rgba(0,0,0,0.65)", backdropFilter:"blur(10px)", animation:"fadeIn 0.25s ease" }}>
           <div style={{ position:"relative", animation:"pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)" }} onClick={e=>e.stopPropagation()}>
             <img src={zoomedImage} alt="" style={{ maxWidth:"90vw", maxHeight:"88vh", borderRadius:16, boxShadow:"0 20px 50px rgba(0,0,0,0.3)", objectFit:"contain" }} />
             <button onClick={() => setZoomedImage(null)}
@@ -1726,7 +2052,7 @@ function FlashcardPractice({ words, onBack, C, onStateChange }) {
     <div style={{ flex:1, minHeight:0, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"20px 36px" }}>
       <div style={{ color:C.muted, fontSize:14, marginBottom:22 }}>闪卡记忆　{idx+1} / {deck.length}</div>
       <div onClick={()=>setFlipped(!flipped)} className={flipped?"fade-in":""}
-        style={{ width:"min(500px,88vw)", maxHeight:"min(420px, 55vh)", background:C.card, borderRadius:22, padding:28, cursor:"pointer",
+        style={{ width:500, maxWidth:"88vw", maxHeight:420, background:C.card, borderRadius:22, padding:28, cursor:"pointer",
           display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", textAlign:"center",
           border:`1.5px solid ${flipped?"rgba(200,64,45,0.2)":C.borderLight}`, boxShadow:"0 6px 24px rgba(0,0,0,0.06)", transition:"border-color 0.3s", position:"relative" }}>
         {!flipped ? (
@@ -1738,11 +2064,11 @@ function FlashcardPractice({ words, onBack, C, onStateChange }) {
         ) : (
           <>
             {w.imageUrl && (
-              <div style={{ width:130, maxHeight:"min(80px, 10vh)", background:"rgba(255,255,255,0.03)", borderRadius:12, marginBottom:14, display:"flex", alignItems:"center", justifyContent:"center", overflow:"hidden" }}>
-                <img src={w.imageUrl} alt="" style={{ width:"100%", maxHeight:"min(80px, 10vh)", objectFit:"contain", borderRadius:12 }} onError={e=>e.currentTarget.parentElement.style.display="none"}/>
+              <div style={{ width:130, maxHeight:80, background:"rgba(255,255,255,0.03)", borderRadius:12, marginBottom:14, display:"flex", alignItems:"center", justifyContent:"center", overflow:"hidden" }}>
+                <img src={w.imageUrl} alt="" style={{ width:"100%", maxHeight:80, objectFit:"contain", borderRadius:12 }} onError={e=>e.currentTarget.parentElement.style.display="none"}/>
               </div>
             )}
-            <div style={{ fontSize:"clamp(22px, 3.5vh, 30px)", fontWeight:700, color:C.primary, marginBottom:6 }}>{w.meaning}</div>
+            <div style={{ fontSize:28, fontWeight:700, color:C.primary, marginBottom:6 }}>{w.meaning}</div>
             <div style={{ fontSize:14, color:C.muted }}>{w.pos}{w.accent?` · 声调 ${w.accent}`:""}</div>
             {w.examples.filter(e=>e.ja).length > 0 && (
               <div style={{ marginTop:16, fontSize:16, color:C.muted, fontFamily:SF, lineHeight:1.6 }}>{w.examples[0].ja}</div>
@@ -1831,13 +2157,13 @@ function ChoicePractice({ words, onBack, C, onStateChange }) {
         ))}
       </div>
       <div style={{ color:C.muted, fontSize:14, marginBottom:18 }}>选择题　{qi+1} / {questions.length}</div>
-      <div className="fade-in" key={qi} style={{ background:C.card, borderRadius:22, padding:"22px 30px", width:"min(520px,88vw)", textAlign:"center", border:`1px solid ${C.borderLight}` }}>
+      <div className="fade-in" key={qi} style={{ background:C.card, borderRadius:22, padding:"22px 30px", width:520, maxWidth:"88vw", textAlign:"center", border:`1px solid ${C.borderLight}` }}>
         {mode==="ja2cn" && q.word.imageUrl && (
-          <div style={{ width:170, maxHeight:"min(100px, 13vh)", background:"rgba(255,255,255,0.03)", borderRadius:14, margin:"0 auto 18px", display:"flex", alignItems:"center", justifyContent:"center", overflow:"hidden" }}>
-            <img src={q.word.imageUrl} alt="" style={{ width:"100%", maxHeight:"min(100px, 13vh)", objectFit:"contain", borderRadius:14 }} onError={e=>e.currentTarget.parentElement.style.display="none"}/>
+          <div style={{ width:170, maxHeight:100, background:"rgba(255,255,255,0.03)", borderRadius:14, margin:"0 auto 18px", display:"flex", alignItems:"center", justifyContent:"center", overflow:"hidden" }}>
+            <img src={q.word.imageUrl} alt="" style={{ width:"100%", maxHeight:100, objectFit:"contain", borderRadius:14 }} onError={e=>e.currentTarget.parentElement.style.display="none"}/>
           </div>
         )}
-        <div style={{ fontSize:"clamp(24px, 4vh, 36px)", fontWeight:700, fontFamily:SF, color:C.text, marginBottom:14 }}>{mode==="cn2ja"?q.word.meaning:(q.word.kanji||q.word.kana)}</div>
+        <div style={{ fontSize:34, fontWeight:700, fontFamily:SF, color:C.text, marginBottom:14 }}>{mode==="cn2ja"?q.word.meaning:(q.word.kanji||q.word.kana)}</div>
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
           {q.options.map((opt,i) => {
             let bg=C.bg, bdr=C.border, clr=C.text;
@@ -1912,7 +2238,7 @@ function MatchPractice({ words, onBack, C, onStateChange }) {
   return (
     <div style={{ flex:1, minHeight:0, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"16px 36px" }}>
       <div style={{ color:C.muted, fontSize:14, marginBottom:22 }}>配对连线　已完成 {matched.size} / {items.length}</div>
-      <div style={{ display:"flex", gap:44, width:"min(640px,92vw)", justifyContent:"center" }}>
+      <div style={{ display:"flex", gap:44, width:640, maxWidth:"92vw", justifyContent:"center" }}>
         <div style={{ flex:1, display:"flex", flexDirection:"column", gap:7 }}>
           <div style={{ fontSize:12, color:C.hint, fontWeight:600, textAlign:"center", marginBottom:4 }}>日本語</div>
           {leftOrd.map(i => {
@@ -2040,6 +2366,7 @@ function PracticeMode({ groups, gid: curGid, chalkboardMode, onPracticeStateChan
 /* ===== MAIN APP ===== */
 function App() {
   const [groups, setGroups] = useState([]);
+  const [categories, setCategories] = useState(DEFAULT_WORD_SET_CATEGORIES);
   const [curGid, setCurGid] = useState(null);
   const [groupId, setGroupId] = useState(() => parseGroupIdFromUrl());
   const [mode, setMode] = useState("edit");
@@ -2048,7 +2375,7 @@ function App() {
   const [syncMeta, setSyncMeta] = useState({ loading:false, status:"idle", message:"", lastSyncedAt:null, error:"" });
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
-  const [importMode, setImportMode] = useState("replace");
+  const [importMode, setImportMode] = useState("newGroup");
   const [importDraft, setImportDraft] = useState(null);
   const [importStatus, setImportStatus] = useState("");
   const [importResult, setImportResult] = useState(null);
@@ -2058,9 +2385,11 @@ function App() {
   const [practiceState, setPracticeState] = useState(null);
   const [triggerAddWord, setTriggerAddWord] = useState(0);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [showAddMenu, setShowAddMenu] = useState(false);
   const fileRef = useRef();
   const syncTimerRef = useRef(null);
   const groupsRef = useRef(groups);
+  const categoriesRef = useRef(categories);
   const groupIdRef = useRef(groupId);
   const curGidRef = useRef(curGid);
   const lastSyncRef = useRef(null);
@@ -2069,6 +2398,7 @@ function App() {
   const pendingAutoSyncRef = useRef(false);
 
   useEffect(() => { groupsRef.current = groups; }, [groups]);
+  useEffect(() => { categoriesRef.current = categories; }, [categories]);
   useEffect(() => { groupIdRef.current = groupId; }, [groupId]);
   useEffect(() => { curGidRef.current = curGid; }, [curGid]);
 
@@ -2083,6 +2413,7 @@ function App() {
     const normalized = normalizeSyncPayload(payload, groupIdValue);
     suppressAutoSyncRef.current = true;
     setGroups(normalized.groups);
+    setCategories(normalized.categories);
     setCurGid(prev => normalized.groups.some(g => g.id === prev) ? prev : (normalized.groups[0]?.id || null));
     persistSyncPayload(groupIdValue, normalized);
     setSyncMeta({
@@ -2117,7 +2448,7 @@ function App() {
     setSyncMeta(prev => ({ ...prev, loading:true, status:"syncing", message:"后台静默同步中...", error:"" }));
     try {
       const remotePayload = await pullFromCloud(groupIdValue);
-      const localPayload = normalizeSyncPayload(storage.load(groupIdValue) || { group_id: groupIdValue, last_updated: Date.now(), synced_at: Date.now(), groups: groupsRef.current }, groupIdValue);
+      const localPayload = normalizeSyncPayload(storage.load(groupIdValue) || { group_id: groupIdValue, last_updated: Date.now(), synced_at: Date.now(), categories: categoriesRef.current, groups: groupsRef.current }, groupIdValue);
       const remoteStamp = Number(remotePayload.last_updated || 0);
       const syncedStamp = Number(localPayload.synced_at || 0);
       const localDirty = hasUnsyncedLocalChanges(localPayload);
@@ -2169,7 +2500,7 @@ function App() {
     setSyncMeta(prev => ({ ...prev, loading:true, status:"syncing", message: source === "manual" ? "正在手动同步..." : "正在同步...", error:"" }));
     try {
       const remotePayload = await pullFromCloud(activeGroupId);
-      const localPayload = normalizeSyncPayload(storage.load(activeGroupId) || { group_id: activeGroupId, last_updated: Date.now(), synced_at: Date.now(), groups: groupsRef.current }, activeGroupId);
+      const localPayload = normalizeSyncPayload(storage.load(activeGroupId) || { group_id: activeGroupId, last_updated: Date.now(), synced_at: Date.now(), categories: categoriesRef.current, groups: groupsRef.current }, activeGroupId);
       const remoteStamp = Number(remotePayload.last_updated || 0);
       const syncedStamp = Number(localPayload.synced_at || 0);
       const localDirty = hasUnsyncedLocalChanges(localPayload);
@@ -2200,10 +2531,11 @@ function App() {
       const payloadToPush = normalizeSyncPayload({ ...localPayload, synced_at: Number(localPayload.last_updated || Date.now()) }, activeGroupId);
       const pushed = await pushToCloud(activeGroupId, payloadToPush);
       const syncedAt = Number(pushed.last_updated || payloadToPush.last_updated || Date.now());
-      const finalPayload = normalizeSyncPayload({ group_id: activeGroupId, last_updated: payloadToPush.last_updated || syncedAt, synced_at: syncedAt, groups: cloneGroups(payloadToPush.groups) }, activeGroupId);
+      const finalPayload = normalizeSyncPayload({ group_id: activeGroupId, last_updated: payloadToPush.last_updated || syncedAt, synced_at: syncedAt, categories: payloadToPush.categories, groups: cloneGroups(payloadToPush.groups) }, activeGroupId);
       persistSyncPayload(activeGroupId, finalPayload);
       suppressAutoSyncRef.current = true;
       setGroups(finalPayload.groups);
+      setCategories(finalPayload.categories);
       setCurGid(prev => finalPayload.groups.some(g => g.id === prev) ? prev : (finalPayload.groups[0]?.id || null));
       setSyncMeta({ loading:false, status:"synced", message:`同步成功 · ${formatSyncTime(syncedAt)}`, lastSyncedAt:syncedAt, error:"" });
       return pushed;
@@ -2230,7 +2562,7 @@ function App() {
     try {
       if (choice === "local") {
         const now = Date.now();
-        const payloadToPush = normalizeSyncPayload({ group_id: conflictGroupId, last_updated: now, synced_at: now, groups: local.groups }, conflictGroupId);
+        const payloadToPush = normalizeSyncPayload({ group_id: conflictGroupId, last_updated: now, synced_at: now, categories: local.categories, groups: local.groups }, conflictGroupId);
         await pushToCloud(conflictGroupId, payloadToPush);
         applyPayloadToState(conflictGroupId, payloadToPush, { status:"synced", message:"已保留本地并同步到云端", loading:false, error:"" });
         return;
@@ -2242,7 +2574,7 @@ function App() {
       }
       const mergedGroups = mergeGroups(local.groups, remote.groups);
       const now = Date.now();
-      const mergedPayload = normalizeSyncPayload({ group_id: conflictGroupId, last_updated: now, synced_at: now, groups: mergedGroups }, conflictGroupId);
+      const mergedPayload = normalizeSyncPayload({ group_id: conflictGroupId, last_updated: now, synced_at: now, categories: buildCategoryList(mergedGroups, [...(local.categories || []), ...(remote.categories || [])]), groups: mergedGroups }, conflictGroupId);
       await pushToCloud(conflictGroupId, mergedPayload);
       applyPayloadToState(conflictGroupId, mergedPayload, { status:"synced", message:"已智能合并并同步最新数据", loading:false, error:"" });
     } catch (error) {
@@ -2270,12 +2602,13 @@ function App() {
       let localPayload = null;
       try {
         localPayload = storage.load(resolvedGroupId);
-        if (localPayload?.groups?.length) {
+        if (localPayload?.groups?.length || localPayload?.categories?.length) {
           const hydrated = normalizeSyncPayload(localPayload, resolvedGroupId);
           if (cancelled) return;
           suppressAutoSyncRef.current = true;
           lastSyncRef.current = hydrated.synced_at || hydrated.last_updated || Date.now();
           setGroups(hydrated.groups);
+          setCategories(hydrated.categories);
           setCurGid(hydrated.groups[0]?.id || null);
           setReady(true);
           setSyncMeta({
@@ -2291,11 +2624,12 @@ function App() {
         setSyncMeta(prev => ({ ...prev, message:"本地无缓存，正在从云端拉取..." }));
         const remotePayload = await pullFromCloud(resolvedGroupId);
         const remoteGroups = remotePayload?.groups?.length ? remotePayload.groups : cloneGroups(DEMO);
-        const normalized = normalizeSyncPayload({ group_id: resolvedGroupId, last_updated: remotePayload?.last_updated || Date.now(), synced_at: remotePayload?.last_updated || Date.now(), groups: remoteGroups }, resolvedGroupId);
+        const normalized = normalizeSyncPayload({ group_id: resolvedGroupId, last_updated: remotePayload?.last_updated || Date.now(), synced_at: remotePayload?.last_updated || Date.now(), categories: remotePayload?.categories, groups: remoteGroups }, resolvedGroupId);
         if (cancelled) return;
         suppressAutoSyncRef.current = true;
         lastSyncRef.current = normalized.synced_at || normalized.last_updated;
         setGroups(normalized.groups);
+        setCategories(normalized.categories);
         setCurGid(normalized.groups[0]?.id || null);
         setReady(true);
         storage.save(resolvedGroupId, normalized);
@@ -2313,7 +2647,8 @@ function App() {
         storage.save(resolvedGroupId, normalized);
         suppressAutoSyncRef.current = true;
         lastSyncRef.current = normalized.synced_at || normalized.last_updated;
-        setGroups(fallbackGroups);
+        setGroups(normalized.groups);
+        setCategories(normalized.categories);
         setCurGid(fallbackGroups[0]?.id || null);
         setReady(true);
         setSyncMeta({
@@ -2335,12 +2670,14 @@ function App() {
   useEffect(() => {
     if (!ready) return;
     groupsRef.current = groups;
+    categoriesRef.current = categories;
     const activeGroupId = sanitizeGroupId(groupIdRef.current);
     const isHydratedWrite = suppressAutoSyncRef.current;
     const payload = normalizeSyncPayload({
       group_id: activeGroupId,
       last_updated: isHydratedWrite ? (lastSyncRef.current || Date.now()) : Date.now(),
       synced_at: isHydratedWrite ? (lastSyncRef.current || Date.now()) : Number(lastSyncRef.current || Date.now()),
+      categories,
       groups,
     }, activeGroupId);
     persistSyncPayload(activeGroupId, payload);
@@ -2353,7 +2690,7 @@ function App() {
     syncTimerRef.current = setTimeout(() => {
       syncNow({ source:"auto" }).catch(() => {});
     }, 1200);
-  }, [groups, ready, persistSyncPayload, syncNow]);
+  }, [groups, categories, ready, persistSyncPayload, syncNow]);
 
   const handleExportJson = () => {
     const blob = new Blob([JSON.stringify(groups, null, 2)], {type:"application/json"});
@@ -2375,6 +2712,7 @@ function App() {
     setImportOpen(true);
     setImportDraft(null);
     setImportResult(null);
+    setImportMode("newGroup");
     setImportStatus("正在解析 Excel 文件...");
     r.onload = () => {
       try {
@@ -2400,8 +2738,15 @@ function App() {
     let added = 0;
     let updated = 0;
     let nextGroups = groups;
-    if (importMode === "replace") {
-      nextGroups = sheets.map(s => ({ id:gid(), name:s.name || "单词组", words:s.words }));
+    if (importMode === "newGroup") {
+      const groupName = String(importDraft.fileName || "导入单词组").replace(/\.[^.]+$/, "").trim() || "导入单词组";
+      const words = sheets.flatMap(sheet => sheet.words || []);
+      const ng = { id:gid(), name:groupName, category:"未分类", words };
+      nextGroups = [...groups, ng];
+      added = words.length;
+      setCurGid(ng.id);
+    } else if (importMode === "replace") {
+      nextGroups = sheets.map(s => ({ id:gid(), name:s.name || "单词组", category:inferWordSetCategory({name:s.name}), words:s.words }));
       added = sheets.reduce((sum, s) => sum + s.words.length, 0);
     } else if (importMode === "append") {
       const first = sheets[0];
@@ -2410,33 +2755,14 @@ function App() {
         if (curGid && groups.some(g => g.id === curGid)) {
           nextGroups = groups.map(g => g.id === curGid ? {...g, words:[...(g.words || []), ...first.words]} : g);
         } else {
-          const ng = { id:gid(), name:first.name || "单词组", words:first.words };
+          const ng = { id:gid(), name:first.name || "单词组", category:inferWordSetCategory({name:first.name}), words:first.words };
           nextGroups = [...groups, ng];
           setCurGid(ng.id);
         }
       }
-    } else {
-      nextGroups = groups.map(g => ({...g, words:[...(g.words || [])]}));
-      sheets.forEach(sheet => {
-        let group = nextGroups.find(g => g.name === sheet.name);
-        if (!group) {
-          group = { id:gid(), name:sheet.name || "单词组", words:[] };
-          nextGroups.push(group);
-        }
-        sheet.words.forEach(word => {
-          const idx = group.words.findIndex(w => w.kana === word.kana);
-          if (idx >= 0) {
-            group.words[idx] = {...group.words[idx], ...word, id:group.words[idx].id};
-            updated++;
-          } else {
-            group.words.push(word);
-            added++;
-          }
-        });
-      });
     }
     setGroups(nextGroups);
-    if (nextGroups.length && (importMode === "replace" || !curGid)) setCurGid(nextGroups[0].id);
+    if (nextGroups.length && importMode === "replace") setCurGid(nextGroups[0].id);
     setImportResult({ added, updated, skipped, warnings:activeSheets.flatMap(s => s.warnings.map(w => ({...w, sheet:s.name}))) });
     setImportStatus("导入完成。");
   };
@@ -2446,23 +2772,33 @@ function App() {
     { key:"teach", label:"📖 授课", color:C.primary },
     { key:"practice", label:"🎯 练习", color:C.primary },
   ];
-  const appC = (mode === "teach" || mode === "practice") && teachChalkboardMode ? TEACH_CHALK : C;
+  const appC = teachChalkboardMode ? TEACH_CHALK : C;
 
   const renderMiddleControls = () => {
     if (mode === "edit") {
-      const isDirty = syncMeta.status === "dirty";
-      const isSyncing = syncMeta.status === "syncing";
-      const isError = syncMeta.status === "error";
+      const addMenuItemStyle = {
+        width: "100%",
+        textAlign: "left",
+        padding: "9px 12px",
+        border: "none",
+        background: "transparent",
+        borderRadius: 8,
+        cursor: "pointer",
+        color: appC.text,
+        fontSize: 13,
+        fontWeight: 700,
+        transition: "background 0.2s"
+      };
 
       return (
-        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+        <div style={{ position: "relative", display: "flex", gap: 12, alignItems: "center" }}>
           <button
-            onClick={() => setTriggerAddWord(v => v + 1)}
+            onClick={() => setShowAddMenu(v => !v)}
             style={sBtnSm(appC.primary, "#fff", {
               display: "flex",
               alignItems: "center",
               gap: 6,
-              fontWeight: 700,
+              fontWeight: 800,
               boxShadow: `0 4px 12px ${appC.primary}33`,
               height: 32,
               padding: "0 14px",
@@ -2471,39 +2807,44 @@ function App() {
           >
             <span>➕ 新增单词</span>
           </button>
-          
-          <button
-            onClick={handleManualSync}
-            disabled={isSyncing}
-            style={sBtnSm(
-              isError ? "rgba(209,67,67,0.1)" : isDirty ? appC.primaryLight : "rgba(58,125,92,0.1)",
-              isError ? appC.wrong : isDirty ? appC.primary : appC.green,
-              {
+          {showAddMenu && (
+            <>
+              <div style={{ position:"fixed", top:0, right:0, bottom:0, left:0, zIndex:1010 }} onClick={() => setShowAddMenu(false)} />
+              <div style={{
+                position: "absolute",
+                left: "50%",
+                bottom: 38,
+                transform: "translateX(-50%)",
+                width: 180,
+                background: appC.card,
+                border: `1.5px solid ${appC.border}`,
+                borderRadius: 12,
+                boxShadow: "0 -10px 26px rgba(0,0,0,0.18)",
+                padding: 6,
+                zIndex: 1020,
                 display: "flex",
-                alignItems: "center",
-                gap: 6,
-                border: `1px solid ${isError ? "rgba(209,67,67,0.2)" : isDirty ? "rgba(200,64,45,0.2)" : "rgba(58,125,92,0.2)"}`,
-                fontWeight: 600,
-                height: 32,
-                padding: "0 14px",
-                borderRadius: 8,
-                cursor: isSyncing ? "not-allowed" : "pointer"
-              }
-            )}
-          >
-            {isSyncing ? (
-              <>
-                <span style={{ display:"inline-block", width:10, height:10, borderRadius:"50%", border:`1.5px solid ${appC.primaryLight}`, borderTopColor:appC.primary, animation:"spin 0.9s linear infinite" }} />
-                <span>正在同步...</span>
-              </>
-            ) : isError ? (
-              <span>⚠️ 同步异常，重试</span>
-            ) : isDirty ? (
-              <span style={{ animation: "breathe 1.5s infinite" }}>💾 立即同步</span>
-            ) : (
-              <span>✓ 数据已同步</span>
-            )}
-          </button>
+                flexDirection: "column",
+                gap: 4
+              }}>
+                <button
+                  onClick={() => { setShowAddMenu(false); setTriggerAddWord(v => v + 1); }}
+                  style={addMenuItemStyle}
+                  onMouseEnter={e => e.currentTarget.style.background = appC.borderLight}
+                  onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                >
+                  ➕ 新增单个单词
+                </button>
+                <button
+                  onClick={() => { setShowAddMenu(false); fileRef.current?.click(); }}
+                  style={addMenuItemStyle}
+                  onMouseEnter={e => e.currentTarget.style.background = appC.borderLight}
+                  onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                >
+                  📂 导入表格文件
+                </button>
+              </div>
+            </>
+          )}
         </div>
       );
     }
@@ -2515,7 +2856,6 @@ function App() {
         quizPhase,
         effectiveCount,
         pct,
-        allQuizDone,
         allMeaningShown,
         goPage,
         chooseCount,
@@ -2773,7 +3113,7 @@ function App() {
                 🔄 重新测试
               </button>
               <button
-                onClick={resetQuizState}
+                onClick={exitAndNextPage}
                 style={sBtnSm(appC.bg, appC.muted, {
                   border: `1.5px solid ${appC.border}`,
                   borderRadius: 8,
@@ -2781,7 +3121,7 @@ function App() {
                   padding: "0 14px"
                 })}
               >
-                ✕ 退出
+                下一页继续授课
               </button>
             </div>
           );
@@ -2817,17 +3157,16 @@ function App() {
             </button>
             <button
               onClick={() => quizPhase === "kana" ? enterReversePhase() : enterResultPhase()}
-              disabled={!allQuizDone}
-              style={sBtnSm(allQuizDone ? appC.green : appC.bg, allQuizDone ? "#fff" : appC.muted, {
-                border: allQuizDone ? "none" : `1.5px solid ${appC.border}`,
+              style={sBtnSm(appC.green, "#fff", {
+                border: "none",
                 borderRadius: 8,
                 fontWeight: 700,
                 height: 32,
                 padding: "0 14px",
-                cursor: allQuizDone ? "pointer" : "not-allowed"
+                cursor: "pointer"
               })}
             >
-              {quizPhase === "kana" ? "✓ 进入认读测试" : "✓ 查看结果"}
+              {quizPhase === "kana" ? "进入认读测试" : "完成测试"}
             </button>
             <button
               onClick={resetQuizState}
@@ -2980,20 +3319,20 @@ function App() {
           left: 0,
           right: 0,
           height: 48,
-          background: (mode === "teach" || mode === "practice") && teachChalkboardMode ? "#262626" : "#FFFFFF",
-          color: (mode === "teach" || mode === "practice") && teachChalkboardMode ? "#FFFFFF" : "#1E1E1E",
-          borderTop: `1.5px solid ${(mode === "teach" || mode === "practice") && teachChalkboardMode ? "#4A4A4A" : "#E6DED3"}`,
+          background: teachChalkboardMode ? "#262626" : "#FFFFFF",
+          color: teachChalkboardMode ? "#FFFFFF" : "#1E1E1E",
+          borderTop: `1.5px solid ${teachChalkboardMode ? "#4A4A4A" : "#E6DED3"}`,
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
           padding: "0 16px",
           zIndex: 1000,
-          boxShadow: (mode === "teach" || mode === "practice") && teachChalkboardMode ? "0 -8px 24px rgba(0,0,0,0.22)" : "0 -4px 16px rgba(0,0,0,0.04)",
+          boxShadow: teachChalkboardMode ? "0 -8px 24px rgba(0,0,0,0.22)" : "0 -4px 16px rgba(0,0,0,0.04)",
           transition: "all 0.3s ease",
           userSelect: "none"
         }}
       >
-        <div style={{ display: "flex", background: (mode === "teach" || mode === "practice") && teachChalkboardMode ? "#1E1E1E" : "#F7F3ED", borderRadius: 8, padding: 3, gap: 2, height: 32, alignItems: "center" }}>
+        <div style={{ display: "flex", background: teachChalkboardMode ? "#1E1E1E" : "#F7F3ED", borderRadius: 8, padding: 3, gap: 2, height: 32, alignItems: "center" }}>
           {modes.map(m => {
             const isActive = mode === m.key;
             return (
@@ -3024,7 +3363,7 @@ function App() {
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 8, height: 32 }}>
-          {(mode === "teach" || mode === "practice") && (
+          {true && (
             <button
               onClick={() => setTeachChalkboardMode(!teachChalkboardMode)}
               style={sBtnSm(appC.bg, appC.text, {
@@ -3063,7 +3402,7 @@ function App() {
             
             {showMoreMenu && (
               <>
-                <div style={{ position: "fixed", inset: 0, zIndex: 1010 }} onClick={() => setShowMoreMenu(false)} />
+                <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, left: 0, zIndex: 1010 }} onClick={() => setShowMoreMenu(false)} />
                 <div
                   style={{
                     position: "absolute",
@@ -3141,26 +3480,6 @@ function App() {
                   >
                     💾 备份为 JSON
                   </button>
-                  <button
-                    onClick={() => { fileRef.current?.click(); setShowMoreMenu(false); }}
-                    style={{
-                      width: "100%",
-                      textAlign: "left",
-                      padding: "7px 10px",
-                      border: "none",
-                      background: "transparent",
-                      borderRadius: 6,
-                      cursor: "pointer",
-                      color: appC.text,
-                      fontSize: 12,
-                      fontWeight: 500,
-                      transition: "background 0.2s"
-                    }}
-                    onMouseEnter={e => e.currentTarget.style.background = appC.borderLight}
-                    onMouseLeave={e => e.currentTarget.style.background = "transparent"}
-                  >
-                    📂 导入 Excel 单词表
-                  </button>
                 </div>
               </>
             )}
@@ -3196,7 +3515,10 @@ function App() {
               {syncMeta.loading && (
                 <span style={{
                   position: "absolute",
-                  inset: -3,
+                  top: -3,
+                  right: -3,
+                  bottom: -3,
+                  left: -3,
                   borderRadius: "50%",
                   border: `1.5px solid ${appC.blueLight}`,
                   borderTopColor: appC.blue,
@@ -3270,7 +3592,7 @@ function App() {
           transition: "background 0.3s ease"
         }}
       >
-        {mode === "edit" && <EditMode groups={groups} setGroups={setGroups} gid={curGid} setGid={setCurGid} triggerAddWord={triggerAddWord} syncMeta={syncMeta} groupId={groupId}/>}
+        {mode === "edit" && <EditMode groups={groups} setGroups={setGroups} categories={categories} setCategories={setCategories} gid={curGid} setGid={setCurGid} triggerAddWord={triggerAddWord} themeC={appC}/>}
         {mode === "teach" && <TeachMode
           groups={groups}
           gid={curGid}
@@ -3294,8 +3616,8 @@ function App() {
       {renderBottombar()}
 
       {syncConflict?.open && (
-        <div style={{ position:"fixed", inset:0, zIndex:1400, background:"rgba(0,0,0,0.45)", backdropFilter: "blur(4px)", display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
-          <div style={{ width:"min(520px, 94vw)", background:C.card, borderRadius:16, border:`1px solid ${C.border}`, boxShadow:"0 24px 80px rgba(0,0,0,0.22)", padding:24 }}>
+        <div style={{ position:"fixed", top:0, right:0, bottom:0, left:0, zIndex:1400, background:"rgba(0,0,0,0.45)", backdropFilter: "blur(4px)", display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
+          <div style={{ width:520, maxWidth:"94vw", background:C.card, borderRadius:16, border:`1px solid ${C.border}`, boxShadow:"0 24px 80px rgba(0,0,0,0.22)", padding:24 }}>
             <div style={{ fontSize:18, fontWeight:800, color:C.text, marginBottom:10 }}>检测到同步冲突</div>
             <div style={{ fontSize:13, color:C.muted, lineHeight:1.75, marginBottom:18 }}>
               <div>云端更新时间：{formatSyncTime(syncConflict.remotePayload?.last_updated)}</div>
@@ -3313,7 +3635,7 @@ function App() {
         </div>
       )}
 
-      <Modal open={importOpen} onClose={()=>setImportOpen(false)} title="导入 Excel 单词表" wide>
+      <Modal open={importOpen} onClose={()=>setImportOpen(false)} title="导入 Excel 单词表" wide themeC={appC}>
         <div>
           <div style={{ padding:"12px 14px", borderRadius:10, background:C.bg, color:C.muted, fontSize:13, marginBottom:16 }}>
             {importStatus}
@@ -3338,9 +3660,9 @@ function App() {
                 <label style={sLabel}>导入模式</label>
                 <div style={{ display:"grid", gridTemplateColumns:"repeat(3, 1fr)", gap:10 }}>
                   {[
-                    { key:"replace", title:"全量替换", desc:"清空现有数据，用 Excel 全部工作表替换" },
+                    { key:"newGroup", title:"新建单词组", desc:"按 Excel 文件名创建新组，导入全部工作表" },
                     { key:"append", title:"追加到当前组", desc:"只取第一个工作表，追加到当前单词组" },
-                    { key:"merge", title:"智能合并", desc:"按组名和假名匹配，新增或更新" },
+                    { key:"replace", title:"全量替换", desc:"清空现有数据，用 Excel 全部工作表替换" },
                   ].map(item => (
                     <button key={item.key} onClick={()=>setImportMode(item.key)}
                       style={{ textAlign:"left", padding:"12px 13px", borderRadius:10, cursor:"pointer", background:importMode===item.key?C.primaryLight:"#fff", border:`1.5px solid ${importMode===item.key?C.primary:C.border}`, color:C.text }}>
@@ -3402,7 +3724,12 @@ function App() {
   );
 }
 
-ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+const rootElement = document.getElementById("root");
+if (ReactDOM.createRoot) {
+  ReactDOM.createRoot(rootElement).render(<App/>);
+} else {
+  ReactDOM.render(<App/>, rootElement);
+}
 </script>
 </body>
 </html>
