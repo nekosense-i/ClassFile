@@ -383,7 +383,12 @@ const syncUrlGroupId = (groupId) => {
   } catch (e) {}
 };
 const cloneGroups = (groups) => JSON.parse(JSON.stringify(Array.isArray(groups) ? groups : []));
+const makeDataSnapshot = (groups, categories) => JSON.stringify({
+  categories: Array.isArray(categories) ? categories : [],
+  groups: Array.isArray(groups) ? groups : [],
+});
 const DEFAULT_WORD_SET_CATEGORIES = ["必修系列", "选择性必修", "高考专项", "未分类"];
+const LAST_IMPORT_CATEGORY_KEY = "classtango_last_import_category";
 const normalizeCategoryName = (name) => String(name || "").trim() || "未分类";
 const inferWordSetCategory = (group) => {
   if (group && group.category) return normalizeCategoryName(group.category);
@@ -429,6 +434,9 @@ const normalizeSyncPayload = (payload, fallbackGroupId = DEFAULT_SYNC_GROUP_ID) 
   return { group_id: sanitizeGroupId(fallbackGroupId), last_updated: now, synced_at: now, categories: buildCategoryList([], null), groups: [] };
 };
 const hasUnsyncedLocalChanges = (payload) => Number(payload?.last_updated || 0) > Number(payload?.synced_at || 0);
+const payloadStamp = (payload) => Number(payload?.last_updated || 0);
+const AUTO_SYNC_DELAY_MS = 8000;
+const CONTINUE_SYNC_DELAY_MS = 1200;
 const formatSyncTime = (value) => {
   const ts = Number(value || 0);
   if (!ts) return "未同步";
@@ -493,6 +501,31 @@ const pushToCloud = async (groupId, data) => {
     body: JSON.stringify({ group_id:sanitizeGroupId(groupId), ...payload }),
   });
   return normalizeSyncPayload(res.data ?? res.payload ?? payload, groupId);
+};
+const sendFinalSyncToCloud = (groupId, data) => {
+  const safeGroupId = sanitizeGroupId(groupId);
+  const payload = normalizeSyncPayload(data, safeGroupId);
+  if (!hasUnsyncedLocalChanges(payload)) return false;
+  const url = new URL(CLOUD_SYNC_BASE);
+  url.searchParams.set("group", safeGroupId);
+  const body = JSON.stringify({ group_id:safeGroupId, ...payload, synced_at:Number(payload.last_updated || Date.now()) });
+  try {
+    if (navigator.sendBeacon) {
+      const blob = new Blob([body], { type:"application/json" });
+      if (navigator.sendBeacon(url.toString(), blob)) return true;
+    }
+  } catch(e) {}
+  try {
+    fetch(url.toString(), {
+      method:"POST",
+      headers:{ "Content-Type":"application/json", Accept:"application/json" },
+      body,
+      keepalive:true,
+    }).catch(() => {});
+    return true;
+  } catch(e) {
+    return false;
+  }
 };
 const downloadBlob = (blob, filename) => {
   const url = URL.createObjectURL(blob);
@@ -703,6 +736,8 @@ function EditMode({ groups, setGroups, categories, setCategories, gid: curGid, s
   const [renamingCat, setRenamingCat] = useState(null);
   const [catRenameVal, setCatRenameVal] = useState("");
   const [expandedCats, setExpandedCats] = useState(() => Object.fromEntries(DEFAULT_WORD_SET_CATEGORIES.map(cat => [cat, true])));
+  const [draggingGroupId, setDraggingGroupId] = useState(null);
+  const [dragOverCategory, setDragOverCategory] = useState(null);
   const group = groups.find(g => g.id === curGid);
   const activeCategory = inferWordSetCategory(group);
   const isDark = C.bg === TEACH_CHALK.bg;
@@ -796,6 +831,22 @@ function EditMode({ groups, setGroups, categories, setCategories, gid: curGid, s
   };
   const startRename = (g) => { setRenaming(g.id); setRenameVal(g.name); };
   const finishRename = () => { if(renameVal.trim()) setGroups(groups.map(g=>g.id===renaming?{...g,name:renameVal.trim()}:g)); setRenaming(null); };
+  const moveGroupToCategory = (groupId, category) => {
+    const target = normalizeCategoryName(category);
+    const moved = groups.find(g => g.id === groupId);
+    if (!moved || inferWordSetCategory(moved) === target) return;
+    setGroups(groups.map(g => g.id === groupId ? { ...g, category:target } : g));
+    setCurGid(groupId);
+    setExpandedCats(prev => ({ ...prev, [target]: true }));
+  };
+  const handleCategoryDrop = (e, category) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const groupId = e.dataTransfer.getData("text/plain") || draggingGroupId;
+    if (groupId) moveGroupToCategory(groupId, category);
+    setDraggingGroupId(null);
+    setDragOverCategory(null);
+  };
   const saveWord = (w) => {
     setGroups(groups.map(g => {
       if (g.id !== curGid) return g;
@@ -815,13 +866,22 @@ function EditMode({ groups, setGroups, categories, setCategories, gid: curGid, s
 
   const renderGroupNode = (g) => {
     const active = g.id === curGid;
+    const dragging = draggingGroupId === g.id;
     return (
       <div key={g.id} onClick={()=>setCurGid(g.id)}
+        draggable={renaming !== g.id}
+        onDragStart={e=>{
+          setDraggingGroupId(g.id);
+          e.dataTransfer.effectAllowed = "move";
+          e.dataTransfer.setData("text/plain", g.id);
+        }}
+        onDragEnd={()=>{ setDraggingGroupId(null); setDragOverCategory(null); }}
         style={{
           margin:"3px 6px 3px 18px",
           padding:"9px 10px",
           borderRadius:9,
-          cursor:"pointer",
+          cursor:renaming === g.id ? "text" : "grab",
+          opacity:dragging ? 0.55 : 1,
           background: active ? (isDark ? "rgba(255,255,255,0.10)" : C.primaryLight) : "transparent",
           border: active ? `1.5px solid ${isDark ? C.primary : "rgba(200,64,45,0.24)"}` : "1.5px solid transparent",
           boxShadow: active && isDark ? `0 0 0 1px ${C.primary}55, inset 3px 0 0 ${C.primary}` : "none",
@@ -867,8 +927,20 @@ function EditMode({ groups, setGroups, categories, setCategories, gid: curGid, s
         <div style={{ flex:1, overflowY:"auto", padding:"8px 6px 12px" }}>
           {groupedWordSets.map(({category, groups: catGroups}) => {
             const open = !!expandedCats[category];
+            const isDropTarget = dragOverCategory === category && !!draggingGroupId;
             return (
-              <div key={category} style={{ marginBottom:6 }}>
+              <div key={category}
+                onDragOver={e=>{
+                  if (!draggingGroupId) return;
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = "move";
+                  setDragOverCategory(category);
+                }}
+                onDragLeave={e=>{
+                  if (!e.currentTarget.contains(e.relatedTarget)) setDragOverCategory(null);
+                }}
+                onDrop={e=>handleCategoryDrop(e, category)}
+                style={{ marginBottom:6, borderRadius:10, background:isDropTarget ? (isDark ? "rgba(255,255,255,0.08)" : C.primaryLight) : "transparent", boxShadow:isDropTarget ? `inset 0 0 0 1.5px ${C.primary}` : "none", transition:"background 0.15s, box-shadow 0.15s" }}>
                 <div onClick={() => setExpandedCats(prev => ({ ...prev, [category]: !prev[category] }))}
                   style={{ height:34, display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, padding:"0 8px", borderRadius:8, cursor:"pointer", color:categoryTextColor }}>
                   <div style={{ display:"flex", alignItems:"center", gap:7, minWidth:0 }}>
@@ -903,6 +975,7 @@ function EditMode({ groups, setGroups, categories, setCategories, gid: curGid, s
             );
           })}
           {groups.length === 0 && <div style={{ textAlign:"center", color:C.muted, fontSize:13, marginTop:42, lineHeight:1.8 }}>暂无单词组<br/>点击分类右侧 + 创建</div>}
+          {groups.length > 0 && <div style={{ color:C.hint, fontSize:11, lineHeight:1.5, padding:"8px 14px 0 18px" }}>可拖动单词组到其他分类</div>}
         </div>
       </div>
 
@@ -2376,9 +2449,13 @@ function App() {
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [importMode, setImportMode] = useState("newGroup");
+  const [importCategory, setImportCategory] = useState(() => {
+    try { return localStorage.getItem(LAST_IMPORT_CATEGORY_KEY) || ""; } catch(e) { return ""; }
+  });
   const [importDraft, setImportDraft] = useState(null);
   const [importStatus, setImportStatus] = useState("");
   const [importResult, setImportResult] = useState(null);
+  const [importApplying, setImportApplying] = useState(false);
   const [showSyncPopover, setShowSyncPopover] = useState(false);
   const [syncConflict, setSyncConflict] = useState(null);
   const [teachState, setTeachState] = useState(null);
@@ -2396,6 +2473,8 @@ function App() {
   const syncLoadingRef = useRef(false);
   const suppressAutoSyncRef = useRef(true);
   const pendingAutoSyncRef = useRef(false);
+  const isDataReallyChangedRef = useRef(false);
+  const lastDataSnapshotRef = useRef(makeDataSnapshot([], DEFAULT_WORD_SET_CATEGORIES));
 
   useEffect(() => { groupsRef.current = groups; }, [groups]);
   useEffect(() => { categoriesRef.current = categories; }, [categories]);
@@ -2403,9 +2482,29 @@ function App() {
   useEffect(() => { curGidRef.current = curGid; }, [curGid]);
 
   const currentWordGroup = useMemo(() => groups.find(g => g.id === curGid) || groups[0] || null, [groups, curGid]);
+  const importCategories = useMemo(() => buildCategoryList(groups, categories), [groups, categories]);
+  const currentImportCategory = currentWordGroup ? inferWordSetCategory(currentWordGroup) : "未分类";
+  const effectiveImportCategory = importCategories.includes(importCategory) ? importCategory : (importCategories.includes(currentImportCategory) ? currentImportCategory : "未分类");
+  const updateImportCategory = (category) => {
+    const nextCategory = normalizeCategoryName(category);
+    setImportCategory(nextCategory);
+    try { localStorage.setItem(LAST_IMPORT_CATEGORY_KEY, nextCategory); } catch(e) {}
+  };
+  const markDataReallyChanged = useCallback(() => {
+    isDataReallyChangedRef.current = true;
+  }, []);
+  const setGroupsFromUserAction = useCallback((next) => {
+    markDataReallyChanged();
+    setGroups(prev => typeof next === "function" ? next(prev) : next);
+  }, [markDataReallyChanged]);
+  const setCategoriesFromUserAction = useCallback((next) => {
+    markDataReallyChanged();
+    setCategories(prev => typeof next === "function" ? next(prev) : next);
+  }, [markDataReallyChanged]);
   const persistSyncPayload = useCallback((groupIdValue, payload) => {
     const normalized = normalizeSyncPayload(payload, groupIdValue);
     storage.save(groupIdValue, normalized);
+    lastDataSnapshotRef.current = makeDataSnapshot(normalized.groups, normalized.categories);
     lastSyncRef.current = Number(normalized.synced_at || normalized.last_updated || Date.now());
     return normalized;
   }, []);
@@ -2482,7 +2581,7 @@ function App() {
       syncLoadingRef.current = false;
       if (pendingAutoSyncRef.current) {
         pendingAutoSyncRef.current = false;
-        syncTimerRef.current = setTimeout(() => { backgroundRevalidate(groupIdValue).catch(() => {}); }, 500);
+        syncTimerRef.current = setTimeout(() => { syncNow({ source:"auto" }).catch(() => {}); }, CONTINUE_SYNC_DELAY_MS);
       }
     }
   }, [applyPayloadToState, openConflictModal]);
@@ -2530,6 +2629,12 @@ function App() {
       }
       const payloadToPush = normalizeSyncPayload({ ...localPayload, synced_at: Number(localPayload.last_updated || Date.now()) }, activeGroupId);
       const pushed = await pushToCloud(activeGroupId, payloadToPush);
+      const latestLocalPayload = storage.load(activeGroupId);
+      if (payloadStamp(latestLocalPayload) > payloadStamp(localPayload)) {
+        pendingAutoSyncRef.current = true;
+        setSyncMeta(prev => ({ ...prev, loading:false, status:"dirty", message:"检测到新的本地导入，正在继续同步最新数据...", error:"" }));
+        return pushed;
+      }
       const syncedAt = Number(pushed.last_updated || payloadToPush.last_updated || Date.now());
       const finalPayload = normalizeSyncPayload({ group_id: activeGroupId, last_updated: payloadToPush.last_updated || syncedAt, synced_at: syncedAt, categories: payloadToPush.categories, groups: cloneGroups(payloadToPush.groups) }, activeGroupId);
       persistSyncPayload(activeGroupId, finalPayload);
@@ -2548,7 +2653,7 @@ function App() {
       syncLoadingRef.current = false;
       if (pendingAutoSyncRef.current) {
         pendingAutoSyncRef.current = false;
-        syncTimerRef.current = setTimeout(() => { backgroundRevalidate(activeGroupId).catch(() => {}); }, 500);
+        syncTimerRef.current = setTimeout(() => { syncNow({ source:"auto" }).catch(() => {}); }, CONTINUE_SYNC_DELAY_MS);
       }
     }
   }, [backgroundRevalidate, openConflictModal, persistSyncPayload]);
@@ -2590,6 +2695,19 @@ function App() {
     }
     syncNow({ source:"manual" }).catch(() => {});
   }, [syncNow]);
+  const scheduleAutoSync = useCallback((message = "本地已更新，稍后自动同步...", delay = AUTO_SYNC_DELAY_MS) => {
+    if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+    setSyncMeta(prev => ({ ...prev, status:"dirty", message, error:"" }));
+    syncTimerRef.current = setTimeout(() => {
+      syncNow({ source:"auto" }).catch(() => {});
+    }, delay);
+  }, [syncNow]);
+  const syncBeforeLeaving = useCallback(() => {
+    const activeGroupId = sanitizeGroupId(groupIdRef.current);
+    const localPayload = storage.load(activeGroupId);
+    if (!hasUnsyncedLocalChanges(localPayload)) return;
+    sendFinalSyncToCloud(activeGroupId, localPayload);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -2673,6 +2791,14 @@ function App() {
     categoriesRef.current = categories;
     const activeGroupId = sanitizeGroupId(groupIdRef.current);
     const isHydratedWrite = suppressAutoSyncRef.current;
+    const currentDataSnapshot = makeDataSnapshot(groups, categories);
+    if (!isHydratedWrite && currentDataSnapshot === lastDataSnapshotRef.current) {
+      isDataReallyChangedRef.current = false;
+      return;
+    }
+    if (!isHydratedWrite && !isDataReallyChangedRef.current) {
+      return;
+    }
     const payload = normalizeSyncPayload({
       group_id: activeGroupId,
       last_updated: isHydratedWrite ? (lastSyncRef.current || Date.now()) : Date.now(),
@@ -2683,14 +2809,33 @@ function App() {
     persistSyncPayload(activeGroupId, payload);
     if (suppressAutoSyncRef.current) {
       suppressAutoSyncRef.current = false;
+      isDataReallyChangedRef.current = false;
       return;
     }
-    setSyncMeta(prev => ({ ...prev, status:"dirty", message:"本地已更新，等待同步...", error:"" }));
     if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
-    syncTimerRef.current = setTimeout(() => {
-      syncNow({ source:"auto" }).catch(() => {});
-    }, 1200);
-  }, [groups, categories, ready, persistSyncPayload, syncNow]);
+    if (importOpen) {
+      setSyncMeta(prev => ({ ...prev, status:"dirty", message:"已保存到本地，导入窗口关闭后再同步云端。", error:"" }));
+      isDataReallyChangedRef.current = false;
+      return;
+    }
+    scheduleAutoSync();
+    isDataReallyChangedRef.current = false;
+  }, [groups, categories, ready, persistSyncPayload, scheduleAutoSync]);
+
+  useEffect(() => {
+    const handlePageHide = () => syncBeforeLeaving();
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") syncBeforeLeaving();
+    };
+    window.addEventListener("pagehide", handlePageHide);
+    window.addEventListener("beforeunload", handlePageHide);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      window.removeEventListener("pagehide", handlePageHide);
+      window.removeEventListener("beforeunload", handlePageHide);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [syncBeforeLeaving]);
 
   const handleExportJson = () => {
     const blob = new Blob([JSON.stringify(groups, null, 2)], {type:"application/json"});
@@ -2712,7 +2857,9 @@ function App() {
     setImportOpen(true);
     setImportDraft(null);
     setImportResult(null);
+    setImportApplying(false);
     setImportMode("newGroup");
+    if (!importCategories.includes(importCategory)) updateImportCategory(currentImportCategory);
     setImportStatus("正在解析 Excel 文件...");
     r.onload = () => {
       try {
@@ -2730,41 +2877,58 @@ function App() {
     e.target.value="";
   };
   const applyImport = () => {
-    if (!importDraft) return;
+    if (!importDraft || importApplying) return;
+    setImportApplying(true);
     setImportStatus("正在导入数据...");
-    const sheets = importDraft.sheets;
-    const activeSheets = importMode === "append" ? sheets.slice(0, 1) : sheets;
-    const skipped = activeSheets.reduce((sum, s) => sum + s.warnings.length, 0);
-    let added = 0;
-    let updated = 0;
-    let nextGroups = groups;
-    if (importMode === "newGroup") {
-      const groupName = String(importDraft.fileName || "导入单词组").replace(/\.[^.]+$/, "").trim() || "导入单词组";
-      const words = sheets.flatMap(sheet => sheet.words || []);
-      const ng = { id:gid(), name:groupName, category:"未分类", words };
-      nextGroups = [...groups, ng];
-      added = words.length;
-      setCurGid(ng.id);
-    } else if (importMode === "replace") {
-      nextGroups = sheets.map(s => ({ id:gid(), name:s.name || "单词组", category:inferWordSetCategory({name:s.name}), words:s.words }));
-      added = sheets.reduce((sum, s) => sum + s.words.length, 0);
-    } else if (importMode === "append") {
-      const first = sheets[0];
-      if (first) {
-        added = first.words.length;
-        if (curGid && groups.some(g => g.id === curGid)) {
-          nextGroups = groups.map(g => g.id === curGid ? {...g, words:[...(g.words || []), ...first.words]} : g);
-        } else {
-          const ng = { id:gid(), name:first.name || "单词组", category:inferWordSetCategory({name:first.name}), words:first.words };
-          nextGroups = [...groups, ng];
-          setCurGid(ng.id);
+    try {
+      const sheets = importDraft.sheets;
+      const activeSheets = sheets;
+      const importableSheets = sheets.filter(s => (s.words || []).length > 0);
+      const skipped = activeSheets.reduce((sum, s) => sum + s.warnings.length, 0);
+      let added = 0;
+      let updated = 0;
+      let nextGroups = groups;
+      if (importMode === "newGroup") {
+        const targetCategory = effectiveImportCategory;
+        const importedGroups = importableSheets.map(s => ({ id:gid(), name:s.name || "单词组", category:targetCategory, words:s.words || [] }));
+        nextGroups = [...groups, ...importedGroups];
+        added = importedGroups.reduce((sum, g) => sum + g.words.length, 0);
+        if (importedGroups[0]) setCurGid(importedGroups[0].id);
+      } else if (importMode === "replace") {
+        nextGroups = importableSheets.map(s => ({ id:gid(), name:s.name || "单词组", category:inferWordSetCategory({name:s.name}), words:s.words }));
+        added = importableSheets.reduce((sum, s) => sum + s.words.length, 0);
+      } else if (importMode === "append") {
+        const words = sheets.flatMap(sheet => sheet.words || []);
+        if (words.length) {
+          added = words.length;
+          if (curGid && groups.some(g => g.id === curGid)) {
+            nextGroups = groups.map(g => g.id === curGid ? {...g, words:[...(g.words || []), ...words]} : g);
+          } else {
+            const groupName = String(importDraft.fileName || "导入单词组").replace(/\.[^.]+$/, "").trim() || "导入单词组";
+            const ng = { id:gid(), name:groupName, category:"未分类", words };
+            nextGroups = [...groups, ng];
+            setCurGid(ng.id);
+          }
         }
       }
+      markDataReallyChanged();
+      setGroups(nextGroups);
+      setCategories(buildCategoryList(nextGroups, categories));
+      if (nextGroups.length && importMode === "replace") setCurGid(nextGroups[0].id);
+      setImportResult({ added, updated, skipped, warnings:activeSheets.flatMap(s => s.warnings.map(w => ({...w, sheet:s.name}))) });
+      setImportStatus("导入完成，已保存到本地。关闭窗口后会整包同步到云端。");
+    } catch (error) {
+      setImportStatus(`导入失败：${error?.message || "请检查表格内容后重试。"}`);
+      setImportApplying(false);
     }
-    setGroups(nextGroups);
-    if (nextGroups.length && importMode === "replace") setCurGid(nextGroups[0].id);
-    setImportResult({ added, updated, skipped, warnings:activeSheets.flatMap(s => s.warnings.map(w => ({...w, sheet:s.name}))) });
-    setImportStatus("导入完成。");
+  };
+  const closeImportModal = () => {
+    setImportOpen(false);
+    const activeGroupId = sanitizeGroupId(groupIdRef.current);
+    const localPayload = storage.load(activeGroupId);
+    if (hasUnsyncedLocalChanges(localPayload)) {
+      scheduleAutoSync("导入内容已保存，稍后自动同步云端。");
+    }
   };
 
   const modes = [
@@ -3593,7 +3757,7 @@ function App() {
           transition: "background 0.3s ease"
         }}
       >
-        {mode === "edit" && <EditMode groups={groups} setGroups={setGroups} categories={categories} setCategories={setCategories} gid={curGid} setGid={setCurGid} triggerAddWord={triggerAddWord} themeC={appC}/>}
+        {mode === "edit" && <EditMode groups={groups} setGroups={setGroupsFromUserAction} categories={categories} setCategories={setCategoriesFromUserAction} gid={curGid} setGid={setCurGid} triggerAddWord={triggerAddWord} themeC={appC}/>}
         {mode === "teach" && <TeachMode
           groups={groups}
           gid={curGid}
@@ -3636,7 +3800,7 @@ function App() {
         </div>
       )}
 
-      <Modal open={importOpen} onClose={()=>setImportOpen(false)} title="导入 Excel 单词表" wide themeC={appC}>
+      <Modal open={importOpen} onClose={closeImportModal} title="导入 Excel 单词表" wide themeC={appC}>
         <div>
           <div style={{ padding:"12px 14px", borderRadius:10, background:C.bg, color:C.muted, fontSize:13, marginBottom:16 }}>
             {importStatus}
@@ -3661,20 +3825,35 @@ function App() {
                 <label style={sLabel}>导入模式</label>
                 <div style={{ display:"grid", gridTemplateColumns:"repeat(3, 1fr)", gap:10 }}>
                   {[
-                    { key:"newGroup", title:"新建单词组", desc:"按 Excel 文件名创建新组，导入全部工作表" },
-                    { key:"append", title:"追加到当前组", desc:"只取第一个工作表，追加到当前单词组" },
-                    { key:"replace", title:"全量替换", desc:"清空现有数据，用 Excel 全部工作表替换" },
+                    { key:"newGroup", title:"按工作表新建", desc:`每个有数据的工作表生成一个单词组，放入“${effectiveImportCategory}”` },
+                    { key:"append", title:"追加到当前组", desc:`全部工作表的单词合并追加到“${currentWordGroup?.name || "当前单词组"}”` },
+                    { key:"replace", title:"替换全部数据", desc:"清空现有单词组，再按工作表重新创建" },
                   ].map(item => (
-                    <button key={item.key} onClick={()=>setImportMode(item.key)}
-                      style={{ textAlign:"left", padding:"12px 13px", borderRadius:10, cursor:"pointer", background:importMode===item.key?C.primaryLight:"#fff", border:`1.5px solid ${importMode===item.key?C.primary:C.border}`, color:C.text }}>
+                    <button key={item.key} onClick={()=>!importApplying&&setImportMode(item.key)} disabled={importApplying}
+                      style={{ textAlign:"left", padding:"12px 13px", borderRadius:10, cursor:importApplying?"not-allowed":"pointer", opacity:importApplying?0.68:1, background:importMode===item.key?C.primaryLight:"#fff", border:`1.5px solid ${importMode===item.key?C.primary:C.border}`, color:C.text }}>
                       <div style={{ fontSize:14, fontWeight:700, marginBottom:4 }}>{item.title}</div>
                       <div style={{ fontSize:12, lineHeight:1.45, color:C.muted }}>{item.desc}</div>
                     </button>
                   ))}
                 </div>
               </div>
+              {importMode === "newGroup" && (
+                <div style={{ marginBottom:16 }}>
+                  <label style={sLabel}>新建单词组放入分类</label>
+                  <select value={effectiveImportCategory} onChange={e=>updateImportCategory(e.target.value)} disabled={importApplying}
+                    style={{ width:"100%", padding:"10px 12px", borderRadius:10, border:`1.5px solid ${C.border}`, background:C.card, color:C.text, fontSize:14, outline:"none", opacity:importApplying?0.68:1 }}>
+                    {importCategories.map(category => <option key={category} value={category}>{category}</option>)}
+                  </select>
+                  <div style={{ fontSize:12, color:C.muted, marginTop:6, lineHeight:1.5 }}>
+                    这里会记住上一次选择，后续导入会优先使用这个分类。
+                  </div>
+                </div>
+              )}
               <div style={{ marginBottom:16 }}>
                 <label style={sLabel}>导入预览</label>
+                <div style={{ fontSize:12, color:C.muted, marginBottom:8, lineHeight:1.5 }}>
+                  当前选择：{importMode === "newGroup" ? `每个工作表会成为一个新的单词组，并放入“${effectiveImportCategory}”` : importMode === "append" ? "全部可导入单词会进入当前单词组" : "现有单词组会被导入内容替换"}。
+                </div>
                 <div style={{ maxHeight:260, overflowY:"auto", border:`1px solid ${C.borderLight}`, borderRadius:10 }}>
                   {importDraft.sheets.map(sheet => (
                     <div key={sheet.name} style={{ padding:12, borderBottom:`1px solid ${C.borderLight}` }}>
@@ -3714,8 +3893,8 @@ function App() {
                 </div>
               )}
               <div style={{ display:"flex", justifyContent:"flex-end", gap:10, borderTop:`1px solid ${C.borderLight}`, paddingTop:16 }}>
-                <button onClick={()=>setImportOpen(false)} style={sBtn(C.bg, C.muted)}>{importResult ? "关闭" : "取消"}</button>
-                {!importResult && <button onClick={applyImport} disabled={importDraft.totalWords===0} style={sBtn(importDraft.totalWords?C.primary:"#ccc", "#fff", {cursor:importDraft.totalWords?"pointer":"not-allowed"})}>确认导入</button>}
+                <button onClick={closeImportModal} style={sBtn(C.bg, C.muted)}>{importResult ? "关闭" : "取消"}</button>
+                {!importResult && <button onClick={applyImport} disabled={importDraft.totalWords===0 || importApplying} style={sBtn(importDraft.totalWords&&!importApplying?C.primary:"#ccc", "#fff", {cursor:importDraft.totalWords&&!importApplying?"pointer":"not-allowed"})}>{importApplying ? "正在导入..." : "确认导入"}</button>}
               </div>
             </>
           )}
