@@ -11,7 +11,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
-  body { font-family: 'Noto Sans JP', 'Hiragino Sans', 'Microsoft YaHei', sans-serif; overflow-x:hidden; }
+  html, body { height: 100vh; overflow: hidden; margin: 0; padding: 0; }
+  body { font-family: 'Noto Sans JP', 'Hiragino Sans', 'Microsoft YaHei', sans-serif; transition: background 0.35s ease, color 0.35s ease; }
   ::-webkit-scrollbar { width:6px; }
   ::-webkit-scrollbar-thumb { background:#ccc; border-radius:3px; }
   button { font-family: inherit; }
@@ -35,6 +36,94 @@
     stroke-dasharray: 120;
     stroke-dashoffset: 120;
     animation: drawAccentPath 0.55s cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
+  }
+
+  /* ===== 3D FLIP CARD SYSTEM ===== */
+  .perspective-container {
+    perspective: 1400px;
+    width: 100%;
+    height: 100%;
+    position: relative;
+  }
+  
+  .flip-card-inner {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    transform-style: preserve-3d;
+    transition: transform 0.68s cubic-bezier(0.25, 0.8, 0.25, 1.16), box-shadow 0.68s ease;
+    border-radius: 20px;
+    box-shadow: var(--teach-shadow, 0 4px 18px rgba(0,0,0,0.02));
+  }
+  
+  .flip-card-inner.flipped {
+    transform: rotateY(180deg);
+  }
+  
+  .flip-card-front, .flip-card-back {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+    border-radius: 20px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    border: 1px solid var(--border-color, #E6DED3);
+    background: var(--card-bg, #FFFFFF);
+    transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+  }
+  
+  .flip-card-back {
+    transform: rotateY(180deg);
+    z-index: 2;
+  }
+  
+  /* ===== Tactile Card Interaction ===== */
+  .tactile-card {
+    cursor: pointer;
+    position: relative;
+    border-radius: 20px;
+    will-change: transform;
+    transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1), box-shadow 0.4s cubic-bezier(0.25, 1, 0.5, 1);
+  }
+  .tactile-card:hover {
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+  }
+  .tactile-card:active {
+    transform: scale(0.99);
+    transition: transform 0.1s ease;
+  }
+
+  /* Hover glow effect for visible card faces using a gorgeous, tight, multi-layered red/orange shadow */
+  .perspective-container:hover .flip-card-front,
+  .perspective-container:hover .flip-card-back {
+    box-shadow: 0 0 8px 0px rgba(200, 64, 45, 0.3), 0 0 3px 0px rgba(200, 64, 45, 0.2);
+  }
+
+  /* Active card breathe animation for quiz mode selected card */
+  @keyframes activeGlowBreathe {
+    0%, 100% {
+      box-shadow: 0 0 6px 0px rgba(200, 64, 45, 0.35), 0 0 2px 0px rgba(200, 64, 45, 0.2);
+    }
+    50% {
+      box-shadow: 0 0 10px 1px rgba(200, 64, 45, 0.5), 0 0 4px 0px rgba(200, 64, 45, 0.3);
+    }
+  }
+
+  /* Active card glow effect when being operated in quiz mode */
+  .active-card .flip-card-front,
+  .active-card .flip-card-back {
+    animation: activeGlowBreathe 2s ease-in-out infinite;
+  }
+
+  /* Smooth blur/reveal transitions */
+  .reveal-blur-transition {
+    transition: filter 0.5s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.5s cubic-bezier(0.25, 0.8, 0.25, 1), transform 0.5s cubic-bezier(0.25, 0.8, 0.25, 1), letter-spacing 0.5s cubic-bezier(0.25, 0.8, 0.25, 1);
   }
 </style>
 </head>
@@ -70,8 +159,7 @@ const cleanAccent = (v) => {
 };
 const cleanPos = (v) => {
   const s = String(v ?? "").trim();
-  if (!s) return "名詞";
-  return POS_OPTIONS.includes(s) ? s : "その他";
+  return s || "名詞";
 };
 const cleanImageUrl = (v) => {
   const s = String(v ?? "").trim();
@@ -299,9 +387,20 @@ const C = {
   bg:"#F7F3ED", card:"#FFFFFF", primary:"#C8402D", primaryLight:"#FFF0ED", primaryHover:"#B5351F",
   green:"#3A7D5C", greenLight:"#EDFAF2", blue:"#3B6BA5", blueLight:"#EDF4FF",
   text:"#1E1E1E", muted:"#7A7670", hint:"#B8B0A4", border:"#E6DED3", borderLight:"#F0EBE3",
-  dark:"#13131f", darkCard:"#1e1e30", darkCardHover:"#262640",
   gold:"#C9A96E", goldDim:"rgba(201,169,110,0.4)",
   correct:"#2D8E5A", wrong:"#D14343",
+  w100:"rgba(255,255,255,1)", w70:"rgba(255,255,255,0.7)", w50:"rgba(255,255,255,0.5)",
+  w40:"rgba(255,255,255,0.4)", w30:"rgba(255,255,255,0.3)", w20:"rgba(255,255,255,0.2)",
+  w15:"rgba(255,255,255,0.15)", w10:"rgba(255,255,255,0.1)", w06:"rgba(255,255,255,0.06)", w04:"rgba(255,255,255,0.04)",
+};
+const TEACH_LIGHT = C;
+const TEACH_CHALK = {
+  bg:"#1A1A1A", card:"#262626", primary:"#FF5252", primaryLight:"rgba(255,82,82,0.16)", primaryHover:"#FF6B6B",
+  accent:"#FFD700",
+  green:"#FFD700", greenLight:"#303030", blue:"#73B7FF", blueLight:"rgba(115,183,255,0.13)",
+  text:"#FFFFFF", muted:"#E6E6E6", hint:"#A8A8A8", border:"#4A4A4A", borderLight:"rgba(255,255,255,0.13)",
+  gold:"#EED202", goldDim:"rgba(238,210,2,0.42)",
+  correct:"#50C878", wrong:"#FF6B6B",
   w100:"rgba(255,255,255,1)", w70:"rgba(255,255,255,0.7)", w50:"rgba(255,255,255,0.5)",
   w40:"rgba(255,255,255,0.4)", w30:"rgba(255,255,255,0.3)", w20:"rgba(255,255,255,0.2)",
   w15:"rgba(255,255,255,0.15)", w10:"rgba(255,255,255,0.1)", w06:"rgba(255,255,255,0.06)", w04:"rgba(255,255,255,0.04)",
@@ -388,9 +487,7 @@ function WordForm({ word, onSave, onCancel }) {
         <div><label style={sLabel}>汉字</label><input style={sInput} value={w.kanji} onChange={e=>set("kanji",e.target.value)} placeholder="例：卵"/></div>
         <div><label style={sLabel}>声调</label><input style={sInput} value={w.accent} onChange={e=>set("accent",e.target.value)} placeholder="例：0 / ②"/></div>
         <div><label style={sLabel}>词性</label>
-          <select style={{...sInput, background:"#fff"}} value={w.pos} onChange={e=>set("pos",e.target.value)}>
-            {POS_OPTIONS.map(p=><option key={p}>{p}</option>)}
-          </select>
+          <input style={sInput} value={w.pos} onChange={e=>set("pos",e.target.value)} placeholder="例：名詞 / 動詞"/>
         </div>
       </div>
       <div style={{ marginBottom:14 }}>
@@ -432,12 +529,19 @@ function WordForm({ word, onSave, onCancel }) {
 }
 
 /* ===== EDIT MODE ===== */
-function EditMode({ groups, setGroups, gid: curGid, setGid: setCurGid }) {
+function EditMode({ groups, setGroups, gid: curGid, setGid: setCurGid, triggerAddWord, syncMeta, groupId }) {
   const [showForm, setShowForm] = useState(false);
   const [editWord, setEditWord] = useState(null);
   const [renaming, setRenaming] = useState(null);
   const [renameVal, setRenameVal] = useState("");
   const group = groups.find(g => g.id === curGid);
+
+  useEffect(() => {
+    if (triggerAddWord > 0) {
+      setEditWord(null);
+      setShowForm(true);
+    }
+  }, [triggerAddWord]);
 
   const addGroup = () => { const ng = { id:gid(), name:`单词组 ${groups.length+1}`, words:[] }; setGroups([...groups, ng]); setCurGid(ng.id); };
   const delGroup = (id) => { if(!confirm("确定删除该单词组及其中所有单词？")) return; const ng=groups.filter(g=>g.id!==id); setGroups(ng); if(curGid===id) setCurGid(ng[0]?.id||null); };
@@ -461,7 +565,7 @@ function EditMode({ groups, setGroups, gid: curGid, setGid: setCurGid }) {
   };
 
   return (
-    <div style={{ display:"flex", height:"calc(100vh - 64px)" }}>
+    <div style={{ display:"flex", height:"100%" }}>
       {/* Sidebar */}
       <div style={{ width:250, borderRight:`1px solid ${C.border}`, background:C.card, display:"flex", flexDirection:"column", flexShrink:0 }}>
         <div style={{ padding:"14px 16px", borderBottom:`1px solid ${C.borderLight}`, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
@@ -485,8 +589,8 @@ function EditMode({ groups, setGroups, gid: curGid, setGid: setCurGid }) {
               ) : (
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                   <div>
-                    <div style={{ fontSize:13, fontWeight:600, color:C.text, lineHeight:1.3 }}>{g.name}</div>
-                    <div style={{ fontSize:11, color:C.muted, marginTop:2 }}>{g.words.length} 个单词</div>
+                     <div style={{ fontSize:13, fontWeight:600, color:C.text, lineHeight:1.3 }}>{g.name}</div>
+                     <div style={{ fontSize:11, color:C.muted, marginTop:2 }}>{g.words.length} 个单词</div>
                   </div>
                   <div style={{ display:"flex", gap:2 }} onClick={e=>e.stopPropagation()}>
                     <button onClick={()=>startRename(g)} style={{ background:"none", border:"none", cursor:"pointer", padding:3, borderRadius:4 }}><IEdit size={13}/></button>
@@ -498,6 +602,51 @@ function EditMode({ groups, setGroups, gid: curGid, setGid: setCurGid }) {
           ))}
           {groups.length === 0 && <div style={{ textAlign:"center", color:C.muted, fontSize:13, marginTop:50, lineHeight:1.8 }}>暂无单词组<br/>点击 ＋ 创建</div>}
         </div>
+        {/* Sync Status Sidebar Widget */}
+        <div style={{
+          padding: "14px 16px",
+          borderTop: `1px solid ${C.borderLight}`,
+          background: "rgba(0,0,0,0.02)",
+          display: "flex",
+          flexDirection: "column",
+          gap: 10
+        }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: C.text }}>🌐 同步状态</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <span style={{
+                width: 8,
+                height: 8,
+                borderRadius: "50%",
+                background: syncMeta?.loading ? C.blue : (syncMeta?.status === "error" ? C.wrong : (syncMeta?.status === "dirty" ? "#E8A040" : C.green)),
+                boxShadow: syncMeta?.loading ? `0 0 6px ${C.blue}` : (syncMeta?.status === "error" ? `0 0 6px ${C.wrong}` : (syncMeta?.status === "dirty" ? `0 0 6px #E8A040` : `0 0 6px ${C.green}`)),
+                animation: syncMeta?.loading ? "blink 1.2s infinite" : "none"
+              }} />
+              <span style={{ fontSize: 11, fontWeight: 600, color: C.muted }}>
+                {syncMeta?.loading ? "正在同步" : (syncMeta?.status === "error" ? "异常" : (syncMeta?.status === "dirty" ? "待同步" : "已同步"))}
+              </span>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, fontSize: 11, color: C.muted }}>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span>课件ID:</span>
+              <span style={{ fontWeight: 600, color: C.text, fontFamily: "monospace" }}>{groupId || "未设置"}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span>单词总量:</span>
+              <span style={{ fontWeight: 600, color: C.text }}>
+                {groups.reduce((acc, curr) => acc + (curr.words?.length || 0), 0)} 个
+              </span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span>上次更新:</span>
+              <span style={{ fontWeight: 500, color: C.text, fontSize: 10 }}>
+                {syncMeta?.lastSyncedAt ? formatSyncTime(syncMeta.lastSyncedAt) : "无记录"}
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Main content */}
@@ -506,10 +655,6 @@ function EditMode({ groups, setGroups, gid: curGid, setGid: setCurGid }) {
           <div className="fade-in">
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:22 }}>
               <h2 style={{ margin:0, fontSize:21, fontWeight:700, color:C.text }}>{group.name}</h2>
-              <button onClick={()=>{setEditWord(null);setShowForm(true)}}
-                style={sBtn(C.primary,"#fff",{ display:"flex", alignItems:"center", gap:6, boxShadow:"0 3px 12px rgba(200,64,45,0.25)" })}>
-                <IPlus size={15} color="#fff"/> 添加单词
-              </button>
             </div>
             {group.words.length === 0 ? (
               <div style={{ textAlign:"center", padding:"70px 20px", color:C.muted }}>
@@ -571,8 +716,14 @@ function EditMode({ groups, setGroups, gid: curGid, setGid: setCurGid }) {
   );
 }
 
-/* ===== VISUAL ACCENT CURVE ENGINE ===== */
-function VisualAccentCurve({ kana, accent, color = "#C8402D", fontSize = 20 }) {
+/* ===== INLINE OVER-LINE ACCENT ===== */
+function VisualAccentCurve({
+  kana,
+  accent,
+  color = "#C8402D",
+  fontSize = 20,
+  textColor = "currentColor",
+}) {
   const morae = useMemo(() => {
     if (!kana) return [];
     const res = [];
@@ -600,105 +751,72 @@ function VisualAccentCurve({ kana, accent, color = "#C8402D", fontSize = 20 }) {
   }, [accent]);
 
   if (accentNum === null || morae.length === 0) {
-    return <span style={{ fontFamily: "'Noto Serif JP', serif" }}>{kana}</span>;
+    return <span style={{ fontFamily: "'Noto Serif JP', serif", color:textColor }}>{kana}</span>;
   }
 
   const N = morae.length;
   const A = accentNum;
-
-  // true for High, false for Low
-  const pitchLevels = Array(N).fill(false);
-  if (A === 0) {
-    pitchLevels[0] = N === 1;
-    for (let i = 1; i < N; i++) pitchLevels[i] = true;
-  } else if (A === 1) {
-    pitchLevels[0] = true;
-    for (let i = 1; i < N; i++) pitchLevels[i] = false;
-  } else {
-    pitchLevels[0] = false;
-    for (let i = 1; i < Math.min(A, N); i++) pitchLevels[i] = true;
-    for (let i = A; i < N; i++) pitchLevels[i] = false;
-  }
-
-  const svgH = 14; 
-  const highY = 3;
-  const lowY = 11;
-
-  const points = morae.map((_, i) => {
-    const x = ((i + 0.5) / N) * 100;
-    const y = pitchLevels[i] ? highY : lowY;
-    return { x, y };
+  const charCount = Math.max(1, kana.length);
+  const moraStarts = [];
+  let charCursor = 0;
+  morae.forEach(m => {
+    moraStarts.push(charCursor);
+    charCursor += m.length;
   });
-
-  let pathD = "";
-  if (points.length > 0) {
-    pathD = `M ${points[0].x} ${points[0].y}`;
-    for (let i = 1; i < N; i++) {
-      const prev = points[i-1];
-      const curr = points[i];
-      if (prev.y !== curr.y) {
-        const midX = (prev.x + curr.x) / 2;
-        pathD += ` L ${midX} ${prev.y} L ${midX} ${curr.y} L ${curr.x} ${curr.y}`;
-      } else {
-        pathD += ` L ${curr.x} ${curr.y}`;
-      }
-    }
-    if (A === N && N > 0) {
-      const endX = 100;
-      pathD += ` L ${endX} ${highY} L ${endX} ${lowY}`;
-    }
-    if (A === 0 && N > 0) {
-      const endX = 100;
-      pathD += ` L ${endX} ${highY}`;
-    }
+  const moraCenter = (idx) => ((moraStarts[idx] + morae[idx].length / 2) / charCount) * 100;
+  let highStart = 0;
+  let highEnd = 0;
+  let dropX = null;
+  if (A === 0) {
+    highStart = N === 1 ? 0 : moraCenter(0);
+    highEnd = 100;
+  } else if (A === 1) {
+    highStart = 0;
+    highEnd = Math.min(100, (moraStarts[1] ?? charCount) / charCount * 100);
+    dropX = highEnd;
+  } else {
+    highStart = Math.max(0, moraCenter(0));
+    highEnd = Math.min(100, (moraStarts[Math.min(A, N)] ?? charCount) / charCount * 100);
+    dropX = highEnd;
   }
+  const hasLine = highEnd > highStart + 1;
+  const lineTop = Math.max(1, Math.min(4, fontSize * 0.08));
+  const sidePad = Math.max(2, fontSize * 0.08);
 
   return (
-    <div style={{ display:"inline-flex", flexDirection:"column", alignItems:"center", position:"relative", width:"fit-content", verticalAlign:"middle" }}>
-      <svg style={{ width:"100%", height:svgH, display:"block", overflow:"visible", marginBottom:1 }} viewBox="-8 0 108 14" preserveAspectRatio="none">
-        {/* 参考音轨与网格 */}
-        <text x="-4.5" y={highY + 1.2} fill="#B8B0A4" fontSize="3.5" fontWeight="600" textAnchor="middle" style={{ userSelect: "none" }}>高</text>
-        <text x="-4.5" y={lowY + 1.2} fill="#B8B0A4" fontSize="3.5" fontWeight="600" textAnchor="middle" style={{ userSelect: "none" }}>低</text>
-        
-        <line x1="0" y1={highY} x2="100" y2={highY} stroke="#E6DED3" strokeWidth="0.5" strokeDasharray="2 3" opacity="0.8" />
-        <line x1="0" y1={lowY} x2="100" y2={lowY} stroke="#E6DED3" strokeWidth="0.5" strokeDasharray="2 3" opacity="0.8" />
-        
-        <line x1="0" y1="0" x2="0" y2="14" stroke="#E6DED3" strokeWidth="0.5" opacity="0.4" />
-        {Array.from({ length: N - 1 }).map((_, i) => {
-          const x = ((i + 1) / N) * 100;
-          return <line key={i} x1={x} y1="0" x2={x} y2="14" stroke="#E6DED3" strokeWidth="0.5" strokeDasharray="1 3" opacity="0.5" />;
-        })}
-        <line x1="100" y1="0" x2="100" y2="14" stroke="#E6DED3" strokeWidth="0.5" opacity="0.4" />
-        
-        <path className="accent-path-animated" d={pathD} fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-        {points.map((p, idx) => {
-          const isNucleus = A > 0 && idx === A - 1;
-          return (
-            <circle
-              key={idx}
-              cx={p.x}
-              cy={p.y}
-              r={isNucleus ? "2.8" : "2"}
-              fill={isNucleus ? "#C9A96E" : color}
-              stroke={isNucleus ? color : "#fff"}
-              strokeWidth="0.8"
-            />
-          );
-        })}
-      </svg>
-      <div style={{ display:"flex", width:"100%", justifyContent:"space-around", fontFamily: "'Noto Serif JP', serif", fontSize, fontWeight:700, lineHeight:1.1 }}>
-        {morae.map((m, idx) => (
-          <div key={idx} style={{ flex:1, textAlign:"center", minWidth:"1.1em" }}>{m}</div>
-        ))}
-      </div>
-    </div>
+    <span style={{ position:"relative", display:"inline-block", padding:`${Math.max(8, fontSize * 0.28)}px ${sidePad}px 0`, fontFamily:"'Noto Serif JP', serif", fontSize, fontWeight:800, lineHeight:1.08, color:textColor, whiteSpace:"nowrap", verticalAlign:"baseline" }}>
+      {hasLine && (
+        <span style={{ position:"absolute", left:`calc(${highStart}% + ${sidePad}px)`, right:`calc(${100 - highEnd}% + ${sidePad}px)`, top:lineTop, height:2, borderRadius:2, background:color, boxShadow:`0 0 ${Math.max(2, fontSize * 0.08)}px ${color}66`, pointerEvents:"none" }} />
+      )}
+      {dropX !== null && (
+        <span style={{ position:"absolute", left:`calc(${dropX}% + ${sidePad}px)`, top:lineTop + 1, transform:"translateX(-50%)", width:Math.max(5, fontSize * 0.18), height:Math.max(5, fontSize * 0.18), borderRadius:"50%", background:color, boxShadow:`0 0 ${Math.max(2, fontSize * 0.08)}px ${color}88`, pointerEvents:"none" }} />
+      )}
+      {kana}
+    </span>
   );
 }
 
-/* ===== TEACH MODE ===== */
-function TeachMode({ groups, gid: curGid }) {
+function TeachMode({
+  groups,
+  gid: curGid,
+  setGid = () => {},
+  mode = "teach",
+  setMode = () => {},
+  shortcutsDisabled = false,
+  chalkboardMode = true,
+  setChalkboardMode = () => {},
+  syncMeta = {},
+  groupId = "",
+  onDownloadTemplate = () => {},
+  onImportClick = () => {},
+  onExportExcel = () => {},
+  onExportJson = () => {},
+  onTeachStateChange,
+}) {
   const group = groups.find(g => g.id === curGid);
   const words = group?.words || [];
+  const C = chalkboardMode ? TEACH_CHALK : TEACH_LIGHT;
+  const [showTeachToolsMenu, setShowTeachToolsMenu] = useState(false);
   const [page, setPage] = useState(0);
   const [cardCount, setCardCount] = useState(4);
   const [showMeaningMap, setShowMeaningMap] = useState({});
@@ -716,10 +834,19 @@ function TeachMode({ groups, gid: curGid }) {
   const [kanaResults, setKanaResults] = useState({});
   const [reverseResults, setReverseResults] = useState({});
   const [quizWords, setQuizWords] = useState([]);
+  const [isPaused, setIsPaused] = useState(false);
+  const [showShortcutHelp, setShowShortcutHelp] = useState(false);
+
+  // Guard refs to prevent race conditions during 3D flip card animations
+  const isFlippingRef = useRef(false);
+  const lastClickedBtnRef = useRef(false);
+  const lastShortcutAtRef = useRef(0);
+  const countdownTimerRef = useRef(null);
+
   const CELL_CONFIG = {
-    1: { cols:1, rows:1, imgFlex:"0 0 50%", textPadding:"48px 56px", backPadding:"42px 56px", textLineWidth:848, showImg:true, showUsage:true, showExamples:true, kanjiSize:72, noImgKanjiSize:84, kanaSize:32, meaningSize:56, tagSize:18, tagPadding:"6px 18px", tagRadius:24, usageSize:24, exJaSize:34, exCnSize:24, maxExamples:99, exBarWidth:4, blurRadius:10 },
-    4: { cols:2, rows:2, imgFlex:"0 0 50%", textPadding:"16px 22px", backPadding:"26px 30px", textLineWidth:432, showImg:true, showUsage:true, showExamples:true, kanjiSize:44, kanaSize:22, meaningSize:34, tagSize:14, tagPadding:"4px 13px", tagRadius:20, usageSize:17, exJaSize:27, exCnSize:20, maxExamples:99, exBarWidth:3, blurRadius:7 },
-    6: { cols:3, rows:2, imgFlex:"0 0 50%", textPadding:"12px 16px", backPadding:"20px 22px", textLineWidth:284, showImg:true, showUsage:true, showExamples:true, kanjiSize:32, kanaSize:18, meaningSize:26, tagSize:13, tagPadding:"3px 9px", tagRadius:16, usageSize:15, exJaSize:21, exCnSize:17, maxExamples:99, exBarWidth:3, blurRadius:6 },
+    1: { cols:1, rows:1, imgFlex:"0 0 50%", textPadding:"48px 56px", backPadding:"24px 36px", textLineWidth:848, showImg:true, showUsage:true, showExamples:true, kanjiSize:72, noImgKanjiSize:84, kanaSize:32, meaningSize:56, tagSize:18, tagPadding:"6px 18px", tagRadius:24, usageSize:24, exJaSize:50, exCnSize:36, maxExamples:3, exBarWidth:5, blurRadius:10 },
+    4: { cols:2, rows:2, imgFlex:"0 0 50%", textPadding:"12px 16px", backPadding:"14px 20px", textLineWidth:432, showImg:true, showUsage:true, showExamples:true, kanjiSize:44, kanaSize:22, meaningSize:34, tagSize:14, tagPadding:"4px 13px", tagRadius:20, usageSize:17, exJaSize:31, exCnSize:23, maxExamples:3, exBarWidth:3, blurRadius:7 },
+    6: { cols:3, rows:2, imgFlex:"0 0 50%", textPadding:"8px 10px", backPadding:"8px 10px", textLineWidth:284, showImg:true, showUsage:true, showExamples:true, kanjiSize:32, kanaSize:18, meaningSize:26, tagSize:13, tagPadding:"3px 9px", tagRadius:16, usageSize:15, exJaSize:28, exCnSize:22, maxExamples:3, exBarWidth:3, blurRadius:6 },
   };
   const countOptions = [
     { label:"大", count:1, desc:"单词大图展示" },
@@ -748,12 +875,109 @@ function TeachMode({ groups, gid: curGid }) {
   const revealLabel = !allMeaningShown ? "👁 揭示释义" : (cfg.showExamples && !allExamplesShown ? "📖 揭示例句" : "✓ 已全部揭示");
   const pendingIndexes = currentWords.map((_, i) => i).filter(i => cardStatus[i] === "pending");
   const allQuizDone = currentWords.length > 0 && currentWords.every((_, i) => cardStatus[i] && cardStatus[i] !== "pending");
+
+  useEffect(() => {
+    if (onTeachStateChange) {
+      onTeachStateChange({
+        page: safePage,
+        totalPages,
+        quizPhase,
+        effectiveCount,
+        pct,
+        countdownLeft,
+        countdownTotal,
+        wordsCount: words.length,
+        allQuizDone,
+        allMeaningShown,
+        chalkboardMode,
+        showShortcutHelp,
+        isPaused,
+        scores,
+        currentWords,
+        selectedCard,
+        revealedCard,
+        cardStatus,
+        setChalkboardMode,
+        goPage,
+        chooseCount,
+        revealMeaningsForCurrentPage,
+        startQuiz,
+        resetQuizState,
+        restartQuiz,
+        enterKanaPhase,
+        enterReversePhase,
+        enterResultPhase,
+        pickRandomCard,
+        exitAndNextPage,
+        setIsPaused,
+        setShowShortcutHelp,
+      });
+    }
+  }, [safePage, totalPages, quizPhase, effectiveCount, pct, countdownLeft, countdownTotal, words.length, allQuizDone, allMeaningShown, chalkboardMode, showShortcutHelp, isPaused, scores, currentWords, selectedCard, revealedCard, cardStatus, enterKanaPhase]);
   const countdownRatio = countdownTotal ? countdownLeft / countdownTotal : 0;
   const countdownColor = countdownRatio > 0.5 ? C.green : countdownRatio > 0.2 ? "#E8A040" : C.primary;
   const wrongWords = useMemo(() => currentWords.filter((_, i) => kanaResults[i] === "wrong" || reverseResults[i] === "wrong"), [kanaResults, reverseResults, currentWords]);
+  const wordExamples = (word) => (word?.examples || []).filter(e => e.ja || e.cn).slice(0, cfg.maxExamples);
+  const pageHasExampleCards = currentWords.some(w => wordExamples(w).length > 0);
+  const pageHasTranslations = currentWords.some(w => wordExamples(w).some(e => e.cn));
+  const allExampleCardsFlipped = pageHasExampleCards && currentWords.every((w, i) => wordExamples(w).length === 0 || flippedCardMap[i]);
+  const allTranslationsShown = pageHasTranslations && currentWords.every((w, i) =>
+    wordExamples(w).every((ex, exIdx) => !ex.cn || exampleTranslationMap[`${i}-${exIdx}`])
+  );
+  const revealLayer = !allMeaningShown ? 0
+    : pageHasExampleCards && !allExampleCardsFlipped ? 1
+    : pageHasTranslations && !allTranslationsShown ? 2
+    : pageHasTranslations ? 3
+    : pageHasExampleCards ? 2
+    : 1;
+
+  const revealMeaningsForCurrentPage = () => {
+    setShowMeaningMap(Object.fromEntries(currentWords.map((_, i) => [i, true])));
+  };
+  const flipExamplesForCurrentPage = () => {
+    setShowExamplesMap(Object.fromEntries(currentWords.map((w, i) => [i, wordExamples(w).length > 0])));
+    setFlippedCardMap(Object.fromEntries(currentWords.map((w, i) => [i, wordExamples(w).length > 0])));
+    setExampleTranslationMap({});
+  };
+  const unflipExamplesForCurrentPage = () => {
+    setShowExamplesMap({});
+    setFlippedCardMap({});
+    setExampleTranslationMap({});
+  };
+  const revealTranslationsForCurrentPage = () => {
+    const next = {};
+    currentWords.forEach((w, i) => {
+      wordExamples(w).forEach((ex, exIdx) => {
+        if (ex.cn) next[`${i}-${exIdx}`] = true;
+      });
+    });
+    setExampleTranslationMap(next);
+  };
+  const hideTranslationsForCurrentPage = () => setExampleTranslationMap({});
+  const progressiveForward = () => {
+    if (!currentWords.length) return;
+    if (!allMeaningShown) { revealMeaningsForCurrentPage(); return; }
+    if (pageHasExampleCards && !allExampleCardsFlipped) { flipExamplesForCurrentPage(); return; }
+    if (pageHasTranslations && !allTranslationsShown) { revealTranslationsForCurrentPage(); return; }
+    if (safePage < totalPages - 1) goPage(safePage + 1);
+  };
+  const progressiveBackward = () => {
+    if (!currentWords.length) return;
+    if (pageHasTranslations && allTranslationsShown) { hideTranslationsForCurrentPage(); return; }
+    if (pageHasExampleCards && allExampleCardsFlipped) { unflipExamplesForCurrentPage(); return; }
+    if (allMeaningShown) { resetReveal(); return; }
+    if (safePage > 0) goPage(safePage - 1);
+  };
 
   const resetReveal = () => { setShowMeaningMap({}); setShowExamplesMap({}); setFlippedCardMap({}); setExampleTranslationMap({}); };
+  const clearCountdownTimer = () => {
+    if (countdownTimerRef.current) {
+      clearInterval(countdownTimerRef.current);
+      countdownTimerRef.current = null;
+    }
+  };
   const resetQuizState = () => {
+    clearCountdownTimer();
     setQuizPhase(null);
     setCountdownLeft(0);
     setSelectedCard(null);
@@ -771,17 +995,7 @@ function TeachMode({ groups, gid: curGid }) {
   };
   const smartBreak = (text, lang, fontSize) => {
     if (!text) return text;
-    const raw = String(text);
-    const maxChars = Math.max(6, Math.floor((cfg.textLineWidth / fontSize) * (lang === "ja" ? 1.08 : 0.96)));
-    if (raw.length <= maxChars) return raw;
-    const marks = ["、","，",",","。","．",".","；",";","：",":","！","!","？","?"];
-    let idx = -1;
-    marks.forEach(mark => {
-      const found = raw.lastIndexOf(mark, raw.length - 2);
-      if (found > idx) idx = found;
-    });
-    if (idx < 1 || idx >= raw.length - 1) return raw;
-    return <>{raw.slice(0, idx + 1)}<br/>{raw.slice(idx + 1).trimStart()}</>;
+    return String(text);
   };
   const chooseCount = (n) => {
     if (![1,4,6].includes(n)) return;
@@ -792,10 +1006,22 @@ function TeachMode({ groups, gid: curGid }) {
     resetReveal();
   };
   const startCountdown = (seconds) => {
+    clearCountdownTimer();
     setCountdownTotal(seconds);
     setCountdownLeft(seconds);
+    countdownTimerRef.current = setInterval(() => {
+      setCountdownLeft(prev => {
+        if (prev <= 1) {
+          clearCountdownTimer();
+          enterKanaPhase();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
   };
   const enterKanaPhase = useCallback(() => {
+    clearCountdownTimer();
     const nextQuizWords = shuffle(pageWords);
     setQuizWords(nextQuizWords);
     setQuizPhase("kana");
@@ -816,17 +1042,7 @@ function TeachMode({ groups, gid: curGid }) {
     setSelectedCard(null);
     setRevealedCard(null);
   };
-  const restartQuiz = () => {
-    setQuizPhase("countdown");
-    setCountdownLeft(0);
-    setScores({ kana:{correct:0,total:0}, reverse:{correct:0,total:0} });
-    setCardStatus({});
-    setSelectedCard(null);
-    setRevealedCard(null);
-    setKanaResults({});
-    setReverseResults({});
-    setQuizWords([]);
-  };
+  const restartQuiz = () => startQuiz();
   const exitAndNextPage = () => {
     resetQuizState();
     if (safePage < totalPages - 1) goPage(safePage + 1);
@@ -838,24 +1054,46 @@ function TeachMode({ groups, gid: curGid }) {
     setRevealedCard(null);
   };
   const handleCardClick = (i) => {
-    if (!quizPhase) {
-      const isMeaningShown = !!showMeaningMap[i];
-
-      if (!isMeaningShown) {
-        setShowMeaningMap(p => ({ ...p, [i]: true }));
-      } else {
-        setShowMeaningMap(p => { const next = { ...p }; delete next[i]; return next; });
-        setShowExamplesMap(p => { const next = { ...p }; delete next[i]; return next; });
-        setFlippedCardMap(p => { const next = { ...p }; delete next[i]; return next; });
-        setExampleTranslationMap(p => { const next = { ...p }; delete next[i]; return next; });
-      }
+    // 1. Practice/Quiz Mode logic
+    if (quizPhase) {
+      if (!["kana","reverse"].includes(quizPhase) || cardStatus[i] !== "pending") return;
+      if (revealedCard !== null) return;
+      if (selectedCard === i) setRevealedCard(i);
+      else setSelectedCard(i);
       return;
     }
 
-    if (!["kana","reverse"].includes(quizPhase) || cardStatus[i] !== "pending") return;
-    if (revealedCard !== null) return;
-    if (selectedCard === i) setRevealedCard(i);
-    else setSelectedCard(i);
+    // 2. Prevent fast clicks/transition overlap
+    if (isFlippingRef.current) return;
+    
+    // 3. Skip if button's own click has set the guard ref
+    if (lastClickedBtnRef.current) {
+      lastClickedBtnRef.current = false;
+      return;
+    }
+
+    // 4. Back-side click: blank areas flip the card back to front; text areas stop propagation.
+    if (flippedCardMap[i]) {
+      isFlippingRef.current = true;
+      setFlippedCardMap(p => ({ ...p, [i]: false }));
+      setExampleTranslationMap(p => {
+        const next = { ...p };
+        // Clean translations
+        Object.keys(next).forEach(key => { if (key.startsWith(`${i}-`)) delete next[key]; });
+        return next;
+      });
+      setTimeout(() => { isFlippingRef.current = false; }, 680);
+      return;
+    }
+
+    // 5. Front-side click: toggle meaning display
+    const isMeaningShown = !!showMeaningMap[i];
+    if (!isMeaningShown) {
+      setShowMeaningMap(p => ({ ...p, [i]: true }));
+    } else {
+      setShowMeaningMap(p => { const next = { ...p }; delete next[i]; return next; });
+      setShowExamplesMap(p => { const next = { ...p }; delete next[i]; return next; });
+    }
   };
   const markCard = (i, result) => {
     if (!["kana","reverse"].includes(quizPhase)) return;
@@ -881,7 +1119,7 @@ function TeachMode({ groups, gid: curGid }) {
     if (cfg.showExamples && currentWords.some((w, i) => (w.examples || []).some(e => e.ja) && !showExamplesMap[i])) {
       setShowExamplesMap(Object.fromEntries(currentWords.map((w, i) => [i, (w.examples || []).some(e => e.ja)])));
       setFlippedCardMap(Object.fromEntries(currentWords.map((w, i) => [i, (w.examples || []).some(e => e.ja)])));
-      setExampleTranslationMap(Object.fromEntries(currentWords.map((_, i) => [i, false])));
+      setExampleTranslationMap({});
     }
   }, [currentWords, showMeaningMap, showExamplesMap, cfg.showExamples]);
 
@@ -892,44 +1130,85 @@ function TeachMode({ groups, gid: curGid }) {
   }, [words.length, cardCount, page, totalPages]);
 
   useEffect(() => {
+    const isFormField = (el) => {
+      if (!el) return false;
+      const tag = el.tagName;
+      return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el.isContentEditable;
+    };
+    const preventKeys = new Set([" ", "PageDown", "PageUp", "ArrowLeft", "ArrowRight", "Home", "End", "F5"]);
     const h = (e) => {
-      if (!words.length) return;
-      if (quizPhase) {
-        if (e.key === "ArrowRight" || e.key === "ArrowLeft") { e.preventDefault(); return; }
-        if (e.key === " ") {
-          e.preventDefault();
-          if (quizPhase === "countdown") enterKanaPhase();
-          else if (["kana","reverse"].includes(quizPhase)) {
-            if (selectedCard === null) pickRandomCard();
-            else if (revealedCard === null && cardStatus[selectedCard] === "pending") setRevealedCard(selectedCard);
-          }
-        }
-        if (e.key === "1" && revealedCard !== null) markCard(revealedCard, "correct");
-        if (e.key === "2" && revealedCard !== null) markCard(revealedCard, "wrong");
+      if (!words.length || shortcutsDisabled || isFormField(document.activeElement)) return;
+      const key = e.key;
+      const lower = key.toLowerCase();
+      const shortcutKeys = new Set([" ", "PageDown", "PageUp", "ArrowLeft", "ArrowRight", "Home", "End", "1", "2", "3", "b", "B", ".", "?", "/", "Escape", "F5", "q", "Q", "r", "R", "Enter", "j", "J", "k", "K", "n", "N"]);
+      if (!shortcutKeys.has(key) && !shortcutKeys.has(lower)) return;
+      if (preventKeys.has(key) || ["b",".","?","/","q","r","j","k","n","1","2","3"].includes(lower) || key === "Escape" || key === "Enter") e.preventDefault();
+
+      const now = Date.now();
+      if (now - lastShortcutAtRef.current < 120) return;
+      lastShortcutAtRef.current = now;
+
+      if (key === "Escape") {
+        if (showShortcutHelp) { setShowShortcutHelp(false); return; }
+        if (isPaused) { setIsPaused(false); return; }
+        if (quizPhase) { resetQuizState(); return; }
+        if (zoomedImage) { setZoomedImage(null); return; }
         return;
       }
-      if (e.key === "ArrowRight" && safePage < totalPages - 1) goPage(safePage + 1);
-      if (e.key === "ArrowLeft" && safePage > 0) goPage(safePage - 1);
-      if (e.key === " ") { e.preventDefault(); revealAll(); }
+      if (zoomedImage) return;
+      if (key === "?" || key === "/") { setShowShortcutHelp(v => !v); return; }
+      if (showShortcutHelp) return;
+      if (lower === "b" || key === ".") { setIsPaused(v => !v); return; }
+      if (isPaused) return;
+
+      const inQuiz = !!quizPhase;
+      if (key === "ArrowRight") { if (safePage < totalPages - 1) goPage(safePage + 1); return; }
+      if (key === "ArrowLeft") { if (safePage > 0) goPage(safePage - 1); return; }
+
+      if (inQuiz) {
+        const quizActions = {
+          F5: () => {},
+          q: () => {},
+          r: () => { if (["kana", "reverse"].includes(quizPhase)) pickRandomCard(); },
+          Enter: () => {
+            if (selectedCard !== null && revealedCard === null && cardStatus[selectedCard] === "pending") setRevealedCard(selectedCard);
+          },
+          " ": () => {},
+          pagedown: () => {},
+          j: () => { if (revealedCard !== null) markCard(revealedCard, "correct"); },
+          "1": () => { if (revealedCard !== null) markCard(revealedCard, "correct"); },
+          k: () => { if (revealedCard !== null) markCard(revealedCard, "wrong"); },
+          "2": () => { if (revealedCard !== null) markCard(revealedCard, "wrong"); },
+          n: () => {
+            if (quizPhase === "kana" && allQuizDone) enterReversePhase();
+            else if (quizPhase === "reverse" && allQuizDone) enterResultPhase();
+          },
+        };
+        const action = quizActions[key] || quizActions[lower];
+        if (action) action();
+        return;
+      }
+
+      const teachActions = {
+        " ": () => progressiveForward(),
+        PageDown: () => progressiveForward(),
+        PageUp: () => progressiveBackward(),
+        Home: () => goPage(0),
+        End: () => goPage(totalPages - 1),
+        "1": () => chooseCount(1),
+        "2": () => chooseCount(4),
+        "3": () => chooseCount(6),
+        F5: () => startQuiz(),
+        q: () => startQuiz(),
+      };
+      const action = teachActions[key] || teachActions[lower];
+      if (action) action();
     };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
-  }, [words.length, safePage, totalPages, revealAll, quizPhase, selectedCard, revealedCard, cardStatus, enterKanaPhase]);
+  }, [words.length, shortcutsDisabled, showShortcutHelp, isPaused, quizPhase, zoomedImage, safePage, totalPages, selectedCard, revealedCard, cardStatus, allQuizDone, progressiveForward, progressiveBackward, enterKanaPhase, enterReversePhase, enterResultPhase]);
 
-  useEffect(() => {
-    if (quizPhase !== "countdown" || countdownLeft <= 0) return;
-    const timer = setInterval(() => {
-      setCountdownLeft(prev => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          enterKanaPhase();
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [quizPhase, countdownLeft, enterKanaPhase]);
+  useEffect(() => () => clearCountdownTimer(), []);
 
   if (!group || group.words.length === 0) return (
     <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:VH, overflow:"hidden", background:C.bg, color:C.muted, fontSize:16 }}>
@@ -939,8 +1218,6 @@ function TeachMode({ groups, gid: curGid }) {
 
   const renderCard = (w, localIdx) => {
     const pos = getCellPosition(localIdx);
-    const isRightEdge = pos.col + pos.span - 1 >= pos.cols;
-    const isBottomEdge = pos.row >= pos.rows;
     const showMeaning = !!showMeaningMap[localIdx];
     const showExamples = !!showExamplesMap[localIdx];
     const examples = (w.examples || []).filter(e => e.ja || e.cn).slice(0, cfg.maxExamples);
@@ -965,194 +1242,255 @@ function TeachMode({ groups, gid: curGid }) {
     const meaningRevealed = !!(quizPhase || showMeaning);
     const examplesRevealed = !!(quizPhase || showExamples);
     const isBackShown = !isQuizCard && cfg.showExamples && examples.length > 0 && !!flippedCardMap[localIdx];
-    const translationRevealed = !!exampleTranslationMap[localIdx];
+    const isTranslationRevealed = (exampleIdx) => !!exampleTranslationMap[`${localIdx}-${exampleIdx}`];
+
+    const isSmallGrid = effectiveCount > 1;
+    const dynamicBackPadding = isSmallGrid && examples.length >= 3 ? (effectiveCount === 6 ? "6px 8px" : "12px 18px") : cfg.backPadding;
+    const dynamicGap = isSmallGrid && examples.length >= 3 ? (effectiveCount === 6 ? "4px" : "7px") : `${Math.max(7, cfg.exJaSize * 0.16)}px`;
+    const dynamicExJaSize = isSmallGrid && examples.length >= 3 ? (effectiveCount === 6 ? Math.max(24, cfg.exJaSize - 1) : Math.max(18, cfg.exJaSize - 1)) : cfg.exJaSize;
+    const dynamicExCnSize = isSmallGrid && examples.length >= 3 ? (effectiveCount === 6 ? Math.max(18, cfg.exCnSize - 1) : Math.max(14, cfg.exCnSize - 1)) : cfg.exCnSize;
+    const dynamicTranslationPadding = effectiveCount === 6 ? "5px 8px" : "8px 12px";
+    const accentCurveProps = {
+      color: C.accent || C.primary,
+      textColor: C.text,
+    };
 
     return (
-      <div className="fade-in" key={w.id} style={{ background:C.card, borderRadius:0, padding:0,
-        height:"100%", border:"none", borderRight:isRightEdge?"none":`1px solid ${C.borderLight}`, borderBottom:isBottomEdge?"none":`1px solid ${C.borderLight}`, display:"flex",
-        flexDirection:"row", gap:0, alignItems:"stretch", minHeight:0, position:"relative", cursor:isQuizCard&&status==="pending"?"pointer":"pointer",
-        opacity:dimCard?0.45:1,
-        boxShadow:"none",
+      <div className={`perspective-container fade-in ${!isBackShown ? "tactile-card" : ""} ${isSelected ? "active-card" : ""}`} key={w.id} style={{
+        opacity: dimCard ? 0.45 : 1,
         zIndex: isSelected ? 5 : 1,
-        outline:isSelected?`3px solid ${C.primary}`:"none", outlineOffset:-3, animation:isSelected?"breathe 1.5s ease-in-out infinite":undefined,
-        transition: "all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)" }}
-        onClick={()=>handleCardClick(localIdx)}>
+        transition: "opacity 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)"
+      }}>
+        <div className={`flip-card-inner ${isBackShown ? "flipped" : ""}`}
+          style={{
+            cursor: isBackShown ? "default" : (isQuizCard && status === "pending" ? "pointer" : "pointer")
+          }}
+          onClick={() => handleCardClick(localIdx)}>
 
-        {isBackShown ? (
-          <div style={{ width:"100%", height:"100%", padding:cfg.backPadding, display:"flex", flexDirection:"column", justifyContent:"center", background:C.card, position:"relative", zIndex:4, transformOrigin:"center", animation:"flipInY 0.28s ease both" }}>
-            <button onClick={(e)=>{ e.stopPropagation(); setFlippedCardMap(p => ({ ...p, [localIdx]: false })); setExampleTranslationMap(p => ({ ...p, [localIdx]: false })); }}
-              style={{ position:"absolute", top:14, right:14, padding:"6px 14px", borderRadius:18, border:`1px solid ${C.border}`, background:C.bg, color:C.muted, fontSize:13, fontWeight:700, cursor:"pointer" }}>
-              返回正面
-            </button>
-            <div style={{ color:C.primary, fontSize:Math.max(16, cfg.tagSize + 2), fontWeight:800, marginBottom:Math.max(12, cfg.exJaSize * 0.45), textAlign:"center" }}>
-              {w.kanji || w.kana} · 例句
+          {/* FRONT FACE */}
+          <div className="flip-card-front" style={{ display: "flex", flexDirection: "row", gap: 0, alignItems: "stretch", height: "100%", width: "100%", pointerEvents: isBackShown ? "none" : "auto" }}>
+            {hasImage && (
+              <div style={{ flex: cfg.imgFlex, background: chalkboardMode ? "rgba(255,255,255,0.035)" : "rgba(0,0,0,0.02)",
+                borderRadius: "20px 0 0 20px", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", minHeight: 0, position: "relative", zIndex: 1 }}>
+                <img src={w.imageUrl} alt=""
+                  style={{ width: "100%", height: "100%", objectFit: "contain", cursor: !quizPhase ? "zoom-in" : "default", transition: "transform 0.3s" }}
+                  onClick={(e) => {
+                    if (!quizPhase) {
+                      e.stopPropagation();
+                      setZoomedImage(w.imageUrl);
+                    }
+                  }}
+                  onError={e => e.currentTarget.parentElement.style.display = "none"} />
+                {quizPhase === "kana" && !isRevealed && (
+                  <div style={{ position: "absolute", inset: 0, background: "#000000", display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "20px 0 0 20px", zIndex: 2 }}>
+                    <span style={{ fontSize: 48, color: "rgba(255,255,255,0.3)", fontWeight: 700 }}>？</span>
+                  </div>
+                )}
+              </div>
+            )}
+            <div style={{ flex: 1, minWidth: 0, padding: cfg.textPadding, display: "flex", flexDirection: "column", justifyContent: "center", gap: effectiveCount === 1 ? 20 : 8, textAlign: noImageSingle ? "center" : "left", position: "relative", zIndex: 3 }}>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", width: "100%", textAlign: "center", position: "relative", zIndex: 3, flexShrink: 0 }}>
+                
+                {showMainCurve ? (
+                  <div style={{ margin: "4px 0 2px", maxWidth:"100%", overflowX:"auto", overflowY:"visible", scrollbarWidth:"none" }}>
+                    <VisualAccentCurve kana={w.kana} accent={w.accent} fontSize={noImageSingle ? cfg.noImgKanjiSize : cfg.kanjiSize} {...accentCurveProps} />
+                  </div>
+                ) : (
+                  <div className="card-main-text" style={{ width: "100%", fontSize: noImageSingle ? cfg.noImgKanjiSize : cfg.kanjiSize, fontWeight: 700, fontFamily: SF, color: isQuizCard && !isRevealed && quizPhase === "reverse" ? C.border : C.text, lineHeight: 1.12, overflowWrap: "anywhere", textAlign: "center", borderBottom: isQuizCard && !isRevealed && quizPhase === "reverse" ? `2px dashed ${C.border}` : "none", display: "block" }}>{mainText}</div>
+                )}
+
+                {subText && (
+                  showSubCurve ? (
+                    <div style={{ marginTop: 2, maxWidth:"100%", overflowX:"auto", overflowY:"visible", scrollbarWidth:"none" }}>
+                      <VisualAccentCurve kana={w.kana} accent={w.accent} fontSize={cfg.kanaSize} {...accentCurveProps} />
+                    </div>
+                  ) : (
+                    <div className="card-sub-text" style={{ width: "100%", fontSize: (quizPhase === "kana" || (quizPhase === "reverse" && !isRevealed)) ? cfg.kanjiSize : cfg.kanaSize, color: isQuizCard && !isRevealed ? C.border : C.muted, marginTop: 4, fontFamily: SF, overflowWrap: "anywhere", textAlign: "center", borderBottom: isQuizCard && !isRevealed ? `2px dashed ${C.border}` : "none", display: "block" }}>{subText}</div>
+                  )
+                )}
+
+                {showTags && <div style={{ display: "flex", gap: 8, marginTop: 12, alignItems: "center", justifyContent: "center", flexWrap: "wrap" }}>
+                  {(!w.accent || showMainCurve || showSubCurve) ? null : (
+                    <span style={{ padding: cfg.tagPadding, borderRadius: cfg.tagRadius, background: C.primaryLight, color: C.primary, fontSize: cfg.tagSize, fontWeight: 600 }}>声调 {w.accent}</span>
+                  )}
+                  <span style={{ padding: cfg.tagPadding, borderRadius: cfg.tagRadius, background: C.greenLight, color: C.green, fontSize: cfg.tagSize, fontWeight: 600 }}>{w.pos}</span>
+                </div>}
+              </div>
+
+              {showMeaningBlock && (
+                <div style={{
+                  flex: 0,
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "center",
+                  textAlign: "center",
+                  filter: meaningRevealed ? "none" : `blur(${cfg.blurRadius}px)`,
+                  opacity: meaningRevealed ? 1 : 0.15,
+                  transform: "scale(1)",
+                  letterSpacing: "normal",
+                  transition: "filter 0.55s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.55s cubic-bezier(0.25, 0.8, 0.25, 1), transform 0.55s cubic-bezier(0.25, 0.8, 0.25, 1)"
+                }}>
+                  <div className="card-meaning-text" style={{ fontSize: cfg.meaningSize, fontWeight: 700, color: C.primary, lineHeight: 1.22, overflowWrap: "anywhere", textAlign: "center" }}>{smartBreak(w.meaning, "cn", cfg.meaningSize)}</div>
+                  {cfg.showUsage && w.usage && (quizPhase !== "kana" || isRevealed) && <div className="card-usage-text" style={{ fontSize: cfg.usageSize, color: C.muted, marginTop: 6, lineHeight: 1.35, textAlign: "center" }}>💡 {smartBreak(w.usage, "cn", cfg.usageSize)}</div>}
+                  {!isQuizCard && examples.length > 0 && (
+                    <button onClick={(e) => {
+                      e.stopPropagation();
+                      if (!meaningRevealed) return;
+                      if (isFlippingRef.current) return;
+                      isFlippingRef.current = true;
+                      lastClickedBtnRef.current = true;
+
+                      // Execute flip
+                      setShowExamplesMap(p => ({ ...p, [localIdx]: true }));
+                      setFlippedCardMap(p => ({ ...p, [localIdx]: true }));
+                      setExampleTranslationMap(p => {
+                        const next = { ...p };
+                        examples.forEach((_, idx) => delete next[`${localIdx}-${idx}`]);
+                        return next;
+                      });
+
+                      setTimeout(() => {
+                        isFlippingRef.current = false;
+                        lastClickedBtnRef.current = false;
+                      }, 680);
+                    }}
+                      style={{ alignSelf: "center", marginTop: 8, padding: effectiveCount === 1 ? "7px 18px" : "5px 16px", borderRadius: 20, border: "none", background: C.primary, color: "#fff", fontSize: Math.max(13, cfg.tagSize), fontWeight: 800, cursor: meaningRevealed ? "pointer" : "default", boxShadow: "0 3px 12px rgba(200,64,45,0.2)", visibility: meaningRevealed ? "visible" : "hidden", pointerEvents: meaningRevealed ? "auto" : "none", letterSpacing: 0 }}>
+                      📖 例句
+                    </button>
+                  )}
+                </div>
+              )}
+
+              <div style={{ display: "flex", justifyContent: "center" }}>
+                {isQuizCard && showExamplesBlock && cfg.showExamples && examples.length > 0 && (
+                  <div style={{
+                    width: "fit-content",
+                    maxWidth: "100%",
+                    filter: examplesRevealed ? "none" : `blur(${cfg.blurRadius}px)`,
+                    opacity: examplesRevealed ? 1 : 0.15,
+                    transform: examplesRevealed ? "scale(1)" : "scale(0.96)",
+                    letterSpacing: examplesRevealed ? "normal" : "3px",
+                    transition: "filter 0.55s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.55s cubic-bezier(0.25, 0.8, 0.25, 1), transform 0.55s cubic-bezier(0.25, 0.8, 0.25, 1), letter-spacing 0.55s cubic-bezier(0.25, 0.8, 0.25, 1)"
+                  }}>
+                    {examples.map((ex, i) => (
+                      <div key={i} style={{ marginBottom: 6, paddingLeft: 8, borderLeft: `${cfg.exBarWidth}px solid ${C.primary}`, textAlign: "left" }}>
+                        <div className="card-example-ja" style={{ fontSize: cfg.exJaSize, color: C.text, fontFamily: SF, lineHeight: 1.35 }}>{smartBreak(ex.ja, "ja", cfg.exJaSize)}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
-            <div style={{ display:"flex", flexDirection:"column", gap:Math.max(10, cfg.exJaSize * 0.38), maxHeight:"82%", overflowY:"auto", paddingRight:4 }}>
-              {examples.map((ex,i) => (
-                <div key={i} style={{ paddingLeft:Math.max(10, cfg.exBarWidth * 4), borderLeft:`${cfg.exBarWidth}px solid ${C.primary}`, textAlign:"left" }}>
-                  <div style={{ fontSize:cfg.exJaSize, color:C.text, fontFamily:SF, fontWeight:700, lineHeight:1.38, overflowWrap:"anywhere" }}>
-                    {smartBreak(ex.ja, "ja", cfg.exJaSize)}
+
+            {isQuizCard && status === "correct" && <div style={{ position: "absolute", right: 12, bottom: 12, width: 28, height: 28, borderRadius: "50%", background: C.greenLight, color: C.green, fontSize: 16, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 8 }}>✓</div>}
+            {isQuizCard && status === "wrong" && <div style={{ position: "absolute", right: 12, bottom: 12, width: 28, height: 28, borderRadius: "50%", background: "rgba(209,67,67,0.1)", color: C.wrong, fontSize: 16, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 8 }}>✗</div>}
+            {isQuizCard && revealedCard === localIdx && (
+              <div style={{ position: "absolute", bottom: 12, left: "50%", transform: "translateX(-50%)", display: "flex", gap: 10, zIndex: 10 }}>
+                <button onClick={(e) => { e.stopPropagation(); markCard(localIdx, "correct"); }}
+                  style={{ padding: "6px 20px", borderRadius: 20, background: C.greenLight, border: `1.5px solid rgba(58,125,92,0.3)`, color: C.green, fontSize: 14, fontWeight: 700, cursor: "pointer" }}>✓ 正确</button>
+                <button onClick={(e) => { e.stopPropagation(); markCard(localIdx, "wrong"); }}
+                  style={{ padding: "6px 20px", borderRadius: 20, background: "rgba(209,67,67,0.08)", border: `1.5px solid rgba(209,67,67,0.2)`, color: C.wrong, fontSize: 14, fontWeight: 700, cursor: "pointer" }}>✗ 错误</button>
+              </div>
+            )}
+          </div>
+
+          {/* BACK FACE */}
+          <div className="flip-card-back"
+            style={{
+              width: "100%",
+              height: "100%",
+              padding: dynamicBackPadding,
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "center",
+              background: C.card,
+              position: "absolute",
+              cursor: "pointer",
+              pointerEvents: isBackShown ? "auto" : "none",
+              zIndex: isBackShown ? 5 : 2
+            }}>
+            <div style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: dynamicGap,
+              justifyContent: "center",
+              alignItems: "stretch",
+              flex: 1,
+              minHeight: 0,
+              width: "fit-content",
+              maxWidth: "100%",
+              alignSelf: "center",
+              textAlign: "left"
+            }}>
+              {examples.map((ex, i) => (
+                <div key={i} onClick={(e) => e.stopPropagation()} style={{ width: "100%", paddingLeft: Math.max(10, cfg.exBarWidth * 4), borderLeft: `${cfg.exBarWidth}px solid ${C.primary}`, textAlign: "left", cursor: "default" }}>
+                  <div className="card-example-ja" style={{ fontSize: dynamicExJaSize, color: C.text, fontFamily: SF, fontWeight: 700, lineHeight: 1.32, overflowWrap: "anywhere" }}>
+                    {smartBreak(ex.ja, "ja", dynamicExJaSize)}
                   </div>
                   {ex.cn && (
-                    <div onClick={(e)=>{ e.stopPropagation(); setExampleTranslationMap(p => ({ ...p, [localIdx]: true })); }}
-                      style={{ position:"relative", marginTop:4, cursor:translationRevealed?"default":"pointer", borderRadius:8, overflow:"hidden" }}>
-                      <div style={{
-                        fontSize:cfg.exCnSize,
-                        color:C.muted,
-                        lineHeight:1.38,
-                        overflowWrap:"anywhere",
-                        filter:translationRevealed ? "none" : `blur(${Math.max(5, Math.round(cfg.blurRadius * 0.85))}px)`,
-                        opacity:translationRevealed ? 1 : 0.28,
-                        transform:translationRevealed ? "scale(1)" : "scale(0.98)",
-                        transition:"filter 0.35s ease, opacity 0.35s ease, transform 0.35s ease"
+                    <div onClick={(e) => {
+                      e.stopPropagation();
+                      setExampleTranslationMap(p => ({ ...p, [`${localIdx}-${i}`]: !p[`${localIdx}-${i}`] }));
+                    }}
+                      style={{
+                        position: "relative",
+                        marginTop: 6,
+                        cursor: "pointer",
+                        borderRadius: 8,
+                        overflow: "hidden",
+                        background: isTranslationRevealed(i) ? "transparent" : "rgba(200, 64, 45, 0.04)",
+                        border: isTranslationRevealed(i) ? "1px solid transparent" : "1px solid rgba(200, 64, 45, 0.12)",
+                        padding: dynamicTranslationPadding,
+                        transition: "background 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), border-color 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)",
+                        width: "fit-content",
+                        maxWidth: "100%",
+                        minWidth: "130px"
                       }}>
-                        {smartBreak(ex.cn, "cn", cfg.exCnSize)}
+                      <div className="card-example-cn" style={{
+                        fontSize: dynamicExCnSize,
+                        color: isTranslationRevealed(i) ? C.muted : "rgba(200, 64, 45, 0.35)",
+                        lineHeight: 1.32,
+                        overflowWrap: "anywhere",
+                        filter: isTranslationRevealed(i) ? "none" : `blur(${Math.min(4, cfg.blurRadius * 0.5)}px)`,
+                        opacity: isTranslationRevealed(i) ? 1 : 0.4,
+                        transform: "scale(1)",
+                        letterSpacing: "normal",
+                        transition: "filter 0.5s ease, opacity 0.5s ease, transform 0.5s ease"
+                      }}>
+                        {smartBreak(ex.cn, "cn", dynamicExCnSize)}
                       </div>
-                      {!translationRevealed && (
-                        <div style={{
-                          position:"absolute",
-                          inset:-2,
-                          display:"flex",
-                          alignItems:"center",
-                          justifyContent:"center",
-                          background:"rgba(255,255,255,0.66)",
-                          color:C.primary,
-                          fontSize:Math.max(12, Math.round(cfg.exCnSize * 0.62)),
-                          fontWeight:800,
-                          letterSpacing:0,
-                          userSelect:"none"
-                        }}>
-                          点击显示中文
-                        </div>
-                      )}
                     </div>
                   )}
                 </div>
               ))}
             </div>
           </div>
-        ) : (
-        <>
-        {hasImage && (
-          <div style={{ flex:cfg.imgFlex, background:"rgba(0,0,0,0.02)",
-            borderRadius:0, display:"flex", alignItems:"center", justifyContent:"center", overflow:"hidden", minHeight:0, position:"relative", zIndex:1 }}>
-            <img src={w.imageUrl} alt=""
-              style={{ width:"100%", height:"100%", objectFit:"contain", cursor: !quizPhase ? "zoom-in" : "default", transition:"transform 0.3s" }}
-              onClick={(e) => {
-                if (!quizPhase) {
-                  e.stopPropagation();
-                  setZoomedImage(w.imageUrl);
-                }
-              }}
-              onError={e=>e.currentTarget.parentElement.style.display="none"}/>
-            {quizPhase === "kana" && !isRevealed && (
-              <div style={{ position:"absolute", inset:0, background:"#000000", display:"flex", alignItems:"center", justifyContent:"center", borderRadius:0, zIndex:2 }}>
-                <span style={{ fontSize:48, color:"rgba(255,255,255,0.3)", fontWeight:700 }}>？</span>
-              </div>
-            )}
-          </div>
-        )}
-        <div style={{ flex:1, minWidth:0, padding:cfg.textPadding, display:"flex", flexDirection:"column", justifyContent:"center", gap:effectiveCount===1?20:8, textAlign:noImageSingle?"center":"left", position:"relative", zIndex:3 }}>
-          <div style={{ display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", width:"100%", textAlign:"center", position:"relative", zIndex:3, flexShrink:0 }}>
-            
-            {showMainCurve ? (
-              <div style={{ transform:"scale(1.08)", transformOrigin:"center", margin:"10px 0" }}>
-                <VisualAccentCurve kana={w.kana} accent={w.accent} fontSize={noImageSingle ? cfg.noImgKanjiSize : cfg.kanjiSize} />
-              </div>
-            ) : (
-              <div style={{ width:"100%", fontSize:noImageSingle ? cfg.noImgKanjiSize : cfg.kanjiSize, fontWeight:700, fontFamily:SF, color:isQuizCard&&!isRevealed&&quizPhase==="reverse"?C.border:C.text, lineHeight:1.12, overflowWrap:"anywhere", textAlign:"center", borderBottom:isQuizCard&&!isRevealed&&quizPhase==="reverse"?`2px dashed ${C.border}`:"none", display:"block" }}>{mainText}</div>
-            )}
 
-            {subText && (
-              showSubCurve ? (
-                <div style={{ marginTop:8, transform:"scale(1.02)", transformOrigin:"center" }}>
-                  <VisualAccentCurve kana={w.kana} accent={w.accent} fontSize={cfg.kanaSize} />
-                </div>
-              ) : (
-                <div style={{ width:"100%", fontSize:(quizPhase==="kana" || (quizPhase==="reverse" && !isRevealed)) ? cfg.kanjiSize : cfg.kanaSize, color:isQuizCard&&!isRevealed?C.border:C.muted, marginTop:4, fontFamily:SF, overflowWrap:"anywhere", textAlign:"center", borderBottom:isQuizCard&&!isRevealed?`2px dashed ${C.border}`:"none", display:"block" }}>{subText}</div>
-              )
-            )}
-
-            {showTags && <div style={{ display:"flex", gap:8, marginTop:12, alignItems:"center", justifyContent:"center", flexWrap:"wrap" }}>
-              {(!w.accent || showMainCurve || showSubCurve) ? null : (
-                <span style={{ padding:cfg.tagPadding, borderRadius:cfg.tagRadius, background:C.primaryLight, color:C.primary, fontSize:cfg.tagSize, fontWeight:600 }}>声调 {w.accent}</span>
-              )}
-              <span style={{ padding:cfg.tagPadding, borderRadius:cfg.tagRadius, background:C.greenLight, color:C.green, fontSize:cfg.tagSize, fontWeight:600 }}>{w.pos}</span>
-            </div>}
-          </div>
-
-          {showMeaningBlock && (
-            <div style={{
-              flex: 0,
-              display: "flex",
-              flexDirection: "column",
-              justifyContent: "center",
-              textAlign: "center",
-              filter: meaningRevealed ? "none" : `blur(${cfg.blurRadius}px)`,
-              opacity: meaningRevealed ? 1 : 0.15,
-              transform: meaningRevealed ? "scale(1)" : "scale(0.96)",
-              letterSpacing: meaningRevealed ? "normal" : "4px",
-              transition: "filter 0.55s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.55s cubic-bezier(0.25, 0.8, 0.25, 1), transform 0.55s cubic-bezier(0.25, 0.8, 0.25, 1), letter-spacing 0.55s cubic-bezier(0.25, 0.8, 0.25, 1)"
-            }}>
-              <div style={{ fontSize:cfg.meaningSize, fontWeight:700, color:C.primary, lineHeight:1.22, overflowWrap:"anywhere", textAlign:"center" }}>{smartBreak(w.meaning, "cn", cfg.meaningSize)}</div>
-              {cfg.showUsage && w.usage && (quizPhase !== "kana" || isRevealed) && <div style={{ fontSize:cfg.usageSize, color:C.muted, marginTop:6, lineHeight:1.35, textAlign:"center" }}>💡 {smartBreak(w.usage, "cn", cfg.usageSize)}</div>}
-              {!isQuizCard && examples.length > 0 && meaningRevealed && (
-                <button onClick={(e)=>{ e.stopPropagation(); setShowExamplesMap(p => ({ ...p, [localIdx]: true })); setFlippedCardMap(p => ({ ...p, [localIdx]: true })); setExampleTranslationMap(p => ({ ...p, [localIdx]: false })); }}
-                  style={{ alignSelf:"center", marginTop:8, padding:effectiveCount===1?"7px 18px":"5px 16px", borderRadius:20, border:"none", background:C.primary, color:"#fff", fontSize:Math.max(13, cfg.tagSize), fontWeight:800, cursor:"pointer", boxShadow:"0 3px 12px rgba(200,64,45,0.2)" }}>
-                  📖 例句
-                </button>
-              )}
-            </div>
-          )}
-
-          <div style={{ maxHeight:"35%", overflow:"auto", display:"flex", justifyContent:"center" }}>
-            {isQuizCard && showExamplesBlock && cfg.showExamples && examples.length > 0 && (
-              <div style={{
-                width: "fit-content",
-                maxWidth: "100%",
-                filter: examplesRevealed ? "none" : `blur(${cfg.blurRadius}px)`,
-                opacity: examplesRevealed ? 1 : 0.15,
-                transform: examplesRevealed ? "scale(1)" : "scale(0.96)",
-                letterSpacing: examplesRevealed ? "normal" : "3px",
-                transition: "filter 0.55s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.55s cubic-bezier(0.25, 0.8, 0.25, 1), transform 0.55s cubic-bezier(0.25, 0.8, 0.25, 1), letter-spacing 0.55s cubic-bezier(0.25, 0.8, 0.25, 1)"
-              }}>
-                {examples.map((ex,i) => (
-                  <div key={i} style={{ marginBottom:6, paddingLeft:8, borderLeft:`${cfg.exBarWidth}px solid ${C.primary}`, textAlign:"left" }}>
-                    <div style={{ fontSize:cfg.exJaSize, color:C.text, fontFamily:SF, lineHeight:1.35 }}>{smartBreak(ex.ja, "ja", cfg.exJaSize)}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
         </div>
-        </>
-        )}
-
-        {isQuizCard && status === "correct" && <div style={{ position:"absolute", right:12, bottom:12, width:28, height:28, borderRadius:"50%", background:C.greenLight, color:C.green, fontSize:16, fontWeight:800, display:"flex", alignItems:"center", justifyContent:"center", zIndex:8 }}>✓</div>}
-        {isQuizCard && status === "wrong" && <div style={{ position:"absolute", right:12, bottom:12, width:28, height:28, borderRadius:"50%", background:"rgba(209,67,67,0.1)", color:C.wrong, fontSize:16, fontWeight:800, display:"flex", alignItems:"center", justifyContent:"center", zIndex:8 }}>✗</div>}
-        {isQuizCard && revealedCard === localIdx && (
-          <div style={{ position:"absolute", bottom:12, left:"50%", transform:"translateX(-50%)", display:"flex", gap:10, zIndex:10 }}>
-            <button onClick={(e)=>{ e.stopPropagation(); markCard(localIdx, "correct"); }}
-              style={{ padding:"6px 20px", borderRadius:20, background:C.greenLight, border:`1.5px solid rgba(58,125,92,0.3)`, color:C.green, fontSize:14, fontWeight:700, cursor:"pointer" }}>✓ 正确</button>
-            <button onClick={(e)=>{ e.stopPropagation(); markCard(localIdx, "wrong"); }}
-              style={{ padding:"6px 20px", borderRadius:20, background:"rgba(209,67,67,0.08)", border:`1.5px solid rgba(209,67,67,0.2)`, color:C.wrong, fontSize:14, fontWeight:700, cursor:"pointer" }}>✗ 错误</button>
-          </div>
-        )}
       </div>
     );
   };
   const startQuiz = () => {
+    clearCountdownTimer();
     setShowMeaningMap(Object.fromEntries(pageWords.map((_, i) => [i, true])));
     setShowExamplesMap(Object.fromEntries(pageWords.map((w, i) => [i, (w.examples || []).some(e => e.ja)])));
-    restartQuiz();
+    setCountdownLeft(0);
+    setSelectedCard(null);
+    setRevealedCard(null);
+    setScores({ kana:{correct:0,total:0}, reverse:{correct:0,total:0} });
+    setKanaResults({});
+    setReverseResults({});
+    setQuizWords([]);
+    setCardStatus({});
+    setQuizPhase("countdown");
   };
   const renderStageBar = () => {
     const phases = [
       { key:"countdown", label:"限时记忆" },
-      { key:"kana", label:"假名速认" },
-      { key:"reverse", label:"看中文说单词" },
+      { key:"kana", label:"听写测试" },
+      { key:"reverse", label:"认读测试" },
     ];
-    const activeIdx = quizPhase === "result" ? 3 : Math.max(0, phases.findIndex(p => p.key === quizPhase));
+    const activeIdx = quizPhase === "result" ? phases.length : Math.max(0, phases.findIndex(p => p.key === quizPhase));
     return (
       <div style={{ height:32, flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center", position:"relative", borderTop:`1px solid ${C.borderLight}`, background:C.card }}>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
@@ -1177,7 +1515,7 @@ function TeachMode({ groups, gid: curGid }) {
       <div style={{ fontSize:28, fontWeight:700, color:C.text }}>📊 背记结果</div>
       <div style={{ display:"flex", gap:40, alignItems:"center" }}>
         <div style={{ textAlign:"center" }}>
-          <div style={{ fontSize:15, color:C.muted, marginBottom:8 }}>假名速认（正向）</div>
+          <div style={{ fontSize:15, color:C.muted, marginBottom:8 }}>听写测试</div>
           <div style={{ display:"flex", gap:4, justifyContent:"center", marginBottom:6 }}>
             {currentWords.map((_, i) => <div key={i} style={{ width:14, height:14, borderRadius:"50%", background:i < scores.kana.correct ? C.green : C.borderLight }} />)}
           </div>
@@ -1185,7 +1523,7 @@ function TeachMode({ groups, gid: curGid }) {
         </div>
         <div style={{ width:1, height:60, background:C.borderLight }} />
         <div style={{ textAlign:"center" }}>
-          <div style={{ fontSize:15, color:C.muted, marginBottom:8 }}>逆向产出（反向）</div>
+          <div style={{ fontSize:15, color:C.muted, marginBottom:8 }}>认读测试</div>
           <div style={{ display:"flex", gap:4, justifyContent:"center", marginBottom:6 }}>
             {currentWords.map((_, i) => <div key={i} style={{ width:14, height:14, borderRadius:"50%", background:i < scores.reverse.correct ? C.green : C.borderLight }} />)}
           </div>
@@ -1204,65 +1542,50 @@ function TeachMode({ groups, gid: curGid }) {
       </div>
     </div>
   );
+  const syncStatusText = syncMeta.loading ? "云端同步中" : (syncMeta.status === "error" ? "云端同步异常" : syncMeta.status === "dirty" ? "待同步" : "云端同步正常");
+  const syncColor = syncMeta.loading ? C.blue : (syncMeta.status === "error" ? C.wrong : syncMeta.status === "dirty" ? C.accent : C.correct);
+  const modeOptions = [
+    { key:"edit", label:"编辑" },
+    { key:"teach", label:"授课" },
+    { key:"practice", label:"练习" },
+  ];
+  const jumpByTrack = (e) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    goPage(Math.round(ratio * (totalPages - 1)));
+  };
+  const teachToolButtonStyle = {
+    height:34,
+    padding:"0 12px",
+    borderRadius:17,
+    border:`1px solid ${C.border}`,
+    background:C.card,
+    color:C.text,
+    fontSize:12,
+    fontWeight:800,
+    cursor:"pointer",
+    whiteSpace:"nowrap",
+  };
 
   return (
-    <div style={{ height:VH, overflow:"hidden", background:C.bg, display:"flex", flexDirection:"column", position:"relative" }}>
-      {/* Progress */}
-      <div style={{ height:40, padding:"0 16px", flexShrink:0, display:"flex", alignItems:"center", gap:14, whiteSpace:"nowrap" }}>
-        <span style={{ color:C.muted, fontSize:13, maxWidth:260, overflow:"hidden", textOverflow:"ellipsis" }}>{group.name}</span>
-        {quizPhase === "countdown" && countdownLeft > 0 && (
-          <button onClick={enterKanaPhase} style={{ padding:"5px 11px", borderRadius:18, border:`1px solid ${C.border}`, background:C.bg, color:C.muted, fontSize:12, fontWeight:700, cursor:"pointer" }}>⏭ 跳过</button>
-        )}
-        <div style={{ height:3, background:C.borderLight, borderRadius:3, flex:1, minWidth:80 }}>
-          <div style={{ height:3, background:quizPhase === "countdown" && countdownLeft > 0 ? countdownColor : C.primary, borderRadius:3, width:quizPhase === "countdown" && countdownLeft > 0 ? `${countdownRatio * 100}%` : `${pct}%`, transition:"width 0.4s", animation:quizPhase === "countdown" && countdownRatio < 0.2 ? "blink 0.5s infinite" : undefined }}/>
-        </div>
-        {quizPhase === "countdown" && countdownLeft > 0 && <span style={{ color:countdownColor, fontSize:16, fontWeight:700, minWidth:44, textAlign:"right" }}>{countdownLeft}s</span>}
-        <div style={{ display:"flex", alignItems:"center", gap:10, justifyContent:"flex-end" }}>
-          {!quizPhase && (
-            <div style={{ display:"flex", gap:4, background:C.bg, border:`1px solid ${C.borderLight}`, borderRadius:20, padding:3 }}>
-              {countOptions.map(opt => {
-                const disabled = (opt.count === 4 && words.length < 4) || (opt.count === 6 && words.length < 6);
-                return (
-                <button key={opt.count} onClick={()=>chooseCount(opt.count)} title={opt.desc} disabled={disabled}
-                  style={{ padding:"4px 16px", borderRadius:16, border:"none", cursor:disabled?"not-allowed":"pointer", pointerEvents:disabled?"none":"auto", opacity:disabled?0.35:1, background:effectiveCount===opt.count?C.primary:"transparent", color:effectiveCount===opt.count?"#fff":C.muted, fontSize:13, fontWeight:600, transition:"all 0.2s" }}>
-                  {opt.label}
-                </button>
-                );
-              })}
-            </div>
-          )}
-          {!quizPhase && (allMeaningShown ? (
-            <button onClick={startQuiz}
-              style={{ background:C.primary, color:"#fff", padding:"5px 14px", borderRadius:20, border:"none", fontWeight:700, fontSize:13, cursor:"pointer" }}>
-              🧠 开始背记
-            </button>
-          ) : (
-            <button onClick={revealAll}
-              style={{ padding:"5px 11px", background:C.bg, border:`1px solid ${C.border}`, borderRadius:20, cursor:"pointer", color:C.muted, fontSize:12, fontWeight:600 }}>
-              {revealLabel}
-            </button>
-          ))}
-          {["kana","reverse"].includes(quizPhase) && !allQuizDone && (
-            <button onClick={pickRandomCard} disabled={pendingIndexes.length===0}
-              style={{ padding:"5px 14px", background:pendingIndexes.length?C.primary:C.borderLight, color:pendingIndexes.length?"#fff":C.hint, border:"none", borderRadius:20, cursor:pendingIndexes.length?"pointer":"not-allowed", fontSize:13, fontWeight:700 }}>
-              🎲 随机抽词
-            </button>
-          )}
-          {quizPhase === "kana" && allQuizDone && (
-            <button onClick={enterReversePhase} style={{ padding:"5px 14px", background:C.primary, color:"#fff", border:"none", borderRadius:20, cursor:"pointer", fontSize:13, fontWeight:700 }}>下一阶段 →</button>
-          )}
-          {quizPhase === "reverse" && allQuizDone && (
-            <button onClick={enterResultPhase} style={{ padding:"5px 14px", background:C.primary, color:"#fff", border:"none", borderRadius:20, cursor:"pointer", fontSize:13, fontWeight:700 }}>查看结果 →</button>
-          )}
-          <span style={{ color:C.muted, fontSize:13 }}>第 {safePage+1} / {totalPages} 页</span>
-        </div>
-      </div>
+    <div style={{
+      height:"100%",
+      overflow:"hidden",
+      background:C.bg,
+      color:C.text,
+      display:"flex",
+      flexDirection:"column",
+      position:"relative",
+      "--card-bg":C.card,
+      "--border-color":C.border,
+      "--teach-shadow":chalkboardMode ? "0 18px 44px rgba(0,0,0,0.34), inset 0 0 0 1px rgba(255,255,255,0.035)" : "0 4px 18px rgba(0,0,0,0.02)"
+    }}>
       {quizPhase && renderStageBar()}
 
       {/* Card */}
       <div style={{ flex:1, display:"flex", alignItems:"stretch", justifyContent:"stretch", padding:0, minHeight:0, overflow:"hidden", position:"relative" }}>
         {quizPhase === "result" ? renderResult() : (
-        <div style={{ width:"100%", height:"100%", display:"grid", gap:0,
+        <div className="teach-grid-container" style={{ width:"100%", height:"100%", display:"grid", gap:"10px", padding:"10px",
           gridTemplateColumns:`repeat(${gridColumns}, minmax(0, 1fr))`,
           gridTemplateRows:`repeat(${gridRows}, minmax(0, 1fr))`,
           justifyContent:"center", alignItems:"stretch" }}>
@@ -1285,33 +1608,61 @@ function TeachMode({ groups, gid: curGid }) {
                   </button>
                 ))}
               </div>
+              <button onClick={enterKanaPhase}
+                style={{ marginTop:16, height:32, padding:"0 18px", borderRadius:16, border:`1.5px solid ${C.border}`, background:C.bg, color:C.text, fontSize:13, fontWeight:800, cursor:"pointer" }}>
+                跳过记忆，直接听写
+              </button>
             </div>
           </div>
         )}
-      </div>
-
-      {/* Navigation */}
-      <div style={{ height:36, display:"flex", justifyContent:"center", gap:14, padding:"0 16px", alignItems:"center", flexShrink:0 }}>
-        <button onClick={()=>safePage>0&&goPage(safePage-1)} disabled={safePage===0}
-          style={{ padding:"0 14px", height:30, borderRadius:16, background:safePage>0?C.bg:C.borderLight, border:`1px solid ${C.border}`, cursor:safePage>0?"pointer":"not-allowed", display:"flex", alignItems:"center", justifyContent:"center", gap:8, color:safePage>0?C.text:C.hint, fontSize:13, fontWeight:600, transition:"all 0.2s" }}>
-          <IChevL size={18} color={safePage>0?C.text:C.hint}/> 上一页
-        </button>
-        {totalPages <= 20 && (
-          <div style={{ display:"flex", gap:6, alignItems:"center" }}>
-            {Array.from({length:totalPages}).map((_,i) => (
-              <button key={i} onClick={()=>goPage(i)}
-                style={{ width:i===safePage?26:10, height:10, borderRadius:5, border:"none", cursor:"pointer",
-                  background: i===safePage?C.primary : i<safePage?"rgba(200,64,45,0.3)":C.borderLight, transition:"all 0.3s" }}/>
-            ))}
+        {isPaused && (
+          <div style={{ position:"absolute", inset:0, background:C.bg, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", zIndex:55, color:C.text }}>
+            <div style={{ fontSize:15, color:C.muted, fontWeight:700, marginBottom:8, maxWidth:"80%", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{group.name}</div>
+            <div style={{ fontSize:34, fontWeight:900, color:C.primary, letterSpacing:0 }}>暂停中</div>
+            <div style={{ marginTop:10, fontSize:42, color:C.primary, lineHeight:1 }}>◷</div>
           </div>
         )}
-        {totalPages > 20 && <span style={{ color:C.muted, fontSize:13, minWidth:88, textAlign:"center" }}>第 {safePage+1} / {totalPages} 页</span>}
-        <button onClick={()=>safePage<totalPages-1&&goPage(safePage+1)} disabled={safePage>=totalPages-1}
-          style={{ padding:"0 14px", height:30, borderRadius:16, background:safePage<totalPages-1?C.bg:C.borderLight, border:`1px solid ${C.border}`, cursor:safePage<totalPages-1?"pointer":"not-allowed", display:"flex", alignItems:"center", justifyContent:"center", gap:8, color:safePage<totalPages-1?C.text:C.hint, fontSize:13, fontWeight:600, transition:"all 0.2s" }}>
-          下一页 <IChevR size={18} color={safePage<totalPages-1?C.text:C.hint}/>
-        </button>
       </div>
 
+      {showShortcutHelp && (
+        <div onClick={() => setShowShortcutHelp(false)} style={{ position:"absolute", inset:0, zIndex:80, background:"rgba(30,30,30,0.38)", display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
+          <div onClick={e=>e.stopPropagation()} className="pop-in" style={{ width:"min(880px, 94vw)", maxHeight:"86vh", overflowY:"auto", background:C.card, border:`1px solid ${C.border}`, borderRadius:18, boxShadow:"0 24px 80px rgba(0,0,0,0.22)", padding:"24px 28px", color:C.text }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:18 }}>
+              <div style={{ fontSize:24, fontWeight:900, color:C.text }}>快捷键速查</div>
+              <button onClick={() => setShowShortcutHelp(false)} style={{ width:32, height:32, borderRadius:"50%", border:`1px solid ${C.border}`, background:C.bg, cursor:"pointer", color:C.muted, fontWeight:900 }}>×</button>
+            </div>
+            <div style={{ padding:"16px 18px", borderRadius:14, background:C.primaryLight, border:`1px solid rgba(200,64,45,0.16)`, marginBottom:18 }}>
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:12, flexWrap:"wrap", marginBottom:10 }}>
+                {["图", "释义", "例句", "翻译"].map((label, i) => (
+                  <React.Fragment key={label}>
+                    {i > 0 && <span style={{ color:C.primary, fontWeight:900 }}>→</span>}
+                    <span style={{ minWidth:70, textAlign:"center", padding:"8px 14px", borderRadius:18, background:i<=revealLayer?C.primary:C.card, color:i<=revealLayer?"#fff":C.muted, fontWeight:900 }}>{label}</span>
+                  </React.Fragment>
+                ))}
+              </div>
+              <div style={{ textAlign:"center", fontSize:14, color:C.primary, fontWeight:800 }}>PgDn / Space 推进一层，PgUp 撤回一层；任何一层都可以反复推进或撤回</div>
+            </div>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(220px, 1fr))", gap:14 }}>
+              {[
+                ["渐进授课", [["PgDn / Space","推进一层"],["PgUp","撤回一层"]]],
+                ["直接翻页与布局", [["← / →","直接翻页"],["Home / End","首页 / 尾页"],["1 / 2 / 3","大图 / 4宫格 / 6宫格"]]],
+                ["训练模式", [["F5 / Q","开始训练"],["R","随机抽词"],["Enter","揭示选中卡片"],["J / 1","判正确"],["K / 2","判错误"],["N","下一阶段"]]],
+                ["全局", [["B / .","遮屏暂停"],["? / /","打开或关闭速查"],["Esc","关闭浮层 / 退出暂停 / 退出训练"]]],
+              ].map(([title, rows]) => (
+                <div key={title} style={{ border:`1px solid ${C.borderLight}`, borderRadius:12, padding:14, background:C.bg }}>
+                  <div style={{ fontSize:15, fontWeight:900, marginBottom:10, color:C.text }}>{title}</div>
+                  {rows.map(([keyName, desc]) => (
+                    <div key={keyName} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, padding:"6px 0", borderTop:`1px solid ${C.borderLight}` }}>
+                      <kbd style={{ fontFamily:"inherit", background:C.bg, border:`1px solid ${C.border}`, borderRadius:7, padding:"3px 8px", color:C.primary, fontWeight:900, whiteSpace:"nowrap" }}>{keyName}</kbd>
+                      <span style={{ color:C.muted, fontSize:13, textAlign:"right" }}>{desc}</span>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
 
       {/* Lightbox for Zoomed Images */}
@@ -1332,12 +1683,29 @@ function TeachMode({ groups, gid: curGid }) {
 }
 
 /* ===== PRACTICE: FLASHCARD ===== */
-function FlashcardPractice({ words, onBack }) {
+function FlashcardPractice({ words, onBack, C, onStateChange }) {
   const [deck, setDeck] = useState(() => shuffle(words));
   const [idx, setIdx] = useState(0);
   const [flipped, setFlipped] = useState(false);
   const [known, setKnown] = useState(0);
   const reset = () => { setDeck(shuffle(words)); setIdx(0); setFlipped(false); setKnown(0); };
+
+  const w = deck[idx];
+  const next = (ok) => { if(ok) setKnown(k=>k+1); setFlipped(false); setTimeout(()=>setIdx(i=>i+1), 120); };
+
+  useEffect(() => {
+    if (onStateChange) {
+      onStateChange({
+        title: "闪卡记忆",
+        progressText: idx >= deck.length ? "练习已完成" : `${idx + 1} / ${deck.length}`,
+        flipped,
+        isDone: idx >= deck.length,
+        markKnown: () => next(true),
+        markUnknown: () => next(false),
+        reset,
+      });
+    }
+  }, [idx, deck.length, flipped, onStateChange]);
 
   if (idx >= deck.length) return (
     <div className="fade-in" style={{ textAlign:"center", padding:40, color:C.text }}>
@@ -1353,9 +1721,6 @@ function FlashcardPractice({ words, onBack }) {
       </div>
     </div>
   );
-
-  const w = deck[idx];
-  const next = (ok) => { if(ok) setKnown(k=>k+1); setFlipped(false); setTimeout(()=>setIdx(i=>i+1), 120); };
 
   return (
     <div style={{ flex:1, minHeight:0, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"20px 36px" }}>
@@ -1402,7 +1767,7 @@ function FlashcardPractice({ words, onBack }) {
 }
 
 /* ===== PRACTICE: CHOICE ===== */
-function ChoicePractice({ words, onBack }) {
+function ChoicePractice({ words, onBack, C, onStateChange }) {
   const [mode, setMode] = useState("ja2cn");
   const [questions, setQuestions] = useState([]);
   const [qi, setQi] = useState(0);
@@ -1422,6 +1787,19 @@ function ChoicePractice({ words, onBack }) {
   }, [words]);
 
   useEffect(() => { setQuestions(generate(mode)); setQi(0); setSel(null); setScore(0); }, [mode, generate]);
+
+  useEffect(() => {
+    if (onStateChange) {
+      onStateChange({
+        title: "选择题",
+        progressText: qi >= questions.length ? "练习已完成" : `${qi + 1} / ${questions.length}`,
+        isDone: qi >= questions.length,
+        mode,
+        setMode,
+        reset: () => { setQuestions(generate(mode)); setQi(0); setSel(null); setScore(0); },
+      });
+    }
+  }, [qi, questions.length, mode, onStateChange, generate]);
 
   if (!questions.length) return null;
 
@@ -1483,7 +1861,7 @@ function ChoicePractice({ words, onBack }) {
 }
 
 /* ===== PRACTICE: MATCH ===== */
-function MatchPractice({ words, onBack }) {
+function MatchPractice({ words, onBack, C, onStateChange }) {
   const [items, setItems] = useState(() => shuffle(words).slice(0, Math.min(6, words.length)));
   const [leftOrd] = useState(() => shuffle([...Array(Math.min(6,words.length)).keys()]));
   const [rightOrd] = useState(() => shuffle([...Array(Math.min(6,words.length)).keys()]));
@@ -1508,6 +1886,17 @@ function MatchPractice({ words, onBack }) {
     const ni = shuffle(words).slice(0,Math.min(6,words.length));
     setItems(ni); setMatched(new Set()); setSelL(null); setWrong(null); setDone(false);
   };
+
+  useEffect(() => {
+    if (onStateChange) {
+      onStateChange({
+        title: "配对连线",
+        progressText: done ? "练习已完成" : `已完成 ${matched.size} / ${items.length}`,
+        isDone: done,
+        reset,
+      });
+    }
+  }, [matched.size, items.length, done, onStateChange]);
 
   if (done) return (
     <div className="fade-in" style={{ textAlign:"center", padding:40, color:C.text }}>
@@ -1562,18 +1951,53 @@ function MatchPractice({ words, onBack }) {
 }
 
 /* ===== PRACTICE WRAPPER ===== */
-function PracticeMode({ groups, gid: curGid }) {
+function PracticeMode({ groups, gid: curGid, chalkboardMode, onPracticeStateChange }) {
   const group = groups.find(g => g.id === curGid);
   const [type, setType] = useState(null);
+  const [subPracticeState, setSubPracticeState] = useState(null);
+  const C = chalkboardMode ? TEACH_CHALK : TEACH_LIGHT;
+
+  useEffect(() => {
+    if (!type) {
+      setSubPracticeState(null);
+    }
+  }, [type]);
+
+  useEffect(() => {
+    if (onPracticeStateChange) {
+      if (!type) {
+        onPracticeStateChange({
+          type: null,
+          title: "选择练习方式",
+          progressText: `${group?.name || ""} · ${group?.words?.length || 0} 个单词`,
+          setType,
+        });
+      } else {
+        onPracticeStateChange({
+          type,
+          title: subPracticeState?.title || "",
+          progressText: subPracticeState?.progressText || "",
+          flipped: subPracticeState?.flipped,
+          isDone: subPracticeState?.isDone,
+          markKnown: subPracticeState?.markKnown,
+          markUnknown: subPracticeState?.markUnknown,
+          mode: subPracticeState?.mode,
+          setMode: subPracticeState?.setMode,
+          reset: subPracticeState?.reset,
+          setType,
+        });
+      }
+    }
+  }, [type, subPracticeState, group, onPracticeStateChange]);
 
   if (!group || group.words.length < 2) return (
-    <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:VH, overflow:"hidden", background:C.bg, color:C.muted, fontSize:16 }}>
+    <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%", overflow:"hidden", background:C.bg, color:C.muted, fontSize:16 }}>
       请选择一个包含至少 2 个单词的单词组进行练习
     </div>
   );
 
   if (!type) return (
-    <div style={{ height:VH, overflow:"hidden", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center" }}>
+    <div style={{ height:"100%", overflow:"hidden", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center" }}>
       <div style={{ textAlign:"center" }}>
         <div style={{ fontSize:14, color:C.muted, marginBottom:10 }}>{group.name} · {group.words.length} 个单词</div>
         <h2 style={{ color:C.text, fontSize:28, fontWeight:700, marginBottom:36, margin:"0 0 36px" }}>选择练习方式</h2>
@@ -1597,9 +2021,9 @@ function PracticeMode({ groups, gid: curGid }) {
     </div>
   );
 
-  const pp = { words: group.words, onBack:()=>setType(null) };
+  const pp = { words: group.words, onBack:()=>setType(null), C, onStateChange: setSubPracticeState };
   return (
-    <div style={{ height:VH, overflow:"hidden", background:C.bg, display:"flex", flexDirection:"column" }}>
+    <div style={{ height:"100%", overflow:"hidden", background:C.bg, display:"flex", flexDirection:"column" }}>
       <div style={{ padding:"10px 28px", flexShrink:0 }}>
         <button onClick={()=>setType(null)} style={{ background:C.bg, border:`1px solid ${C.border}`, borderRadius:8, padding:"7px 16px", cursor:"pointer", color:C.muted, fontSize:13, transition:"all 0.15s" }}
           onMouseEnter={e=>e.currentTarget.style.background=C.borderLight} onMouseLeave={e=>e.currentTarget.style.background=C.bg}>
@@ -1619,6 +2043,7 @@ function App() {
   const [curGid, setCurGid] = useState(null);
   const [groupId, setGroupId] = useState(() => parseGroupIdFromUrl());
   const [mode, setMode] = useState("edit");
+  const [teachChalkboardMode, setTeachChalkboardMode] = useState(true);
   const [ready, setReady] = useState(false);
   const [syncMeta, setSyncMeta] = useState({ loading:false, status:"idle", message:"", lastSyncedAt:null, error:"" });
   const [showExportMenu, setShowExportMenu] = useState(false);
@@ -1629,6 +2054,10 @@ function App() {
   const [importResult, setImportResult] = useState(null);
   const [showSyncPopover, setShowSyncPopover] = useState(false);
   const [syncConflict, setSyncConflict] = useState(null);
+  const [teachState, setTeachState] = useState(null);
+  const [practiceState, setPracticeState] = useState(null);
+  const [triggerAddWord, setTriggerAddWord] = useState(0);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
   const fileRef = useRef();
   const syncTimerRef = useRef(null);
   const groupsRef = useRef(groups);
@@ -2017,82 +2446,855 @@ function App() {
     { key:"teach", label:"📖 授课", color:C.primary },
     { key:"practice", label:"🎯 练习", color:C.primary },
   ];
+  const appC = (mode === "teach" || mode === "practice") && teachChalkboardMode ? TEACH_CHALK : C;
 
-  return (
-    <div style={{ minHeight:"100vh", background:C.bg }}>
-      {/* Header */}
-      <div style={{ height:64, background:C.card, borderBottom:`1px solid ${C.border}`,
-        display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 22px", position:"sticky", top:0, zIndex:100 }}>
-        <div style={{ display:"flex", alignItems:"center", gap:10, position:"relative", fontSize:20, fontWeight:800, fontFamily:SF, color:C.primary, userSelect:"none" }}>
-          <span style={{ color:C.primary, fontSize:24 }}>言葉</span> 勉強システム
+  const renderMiddleControls = () => {
+    if (mode === "edit") {
+      const isDirty = syncMeta.status === "dirty";
+      const isSyncing = syncMeta.status === "syncing";
+      const isError = syncMeta.status === "error";
+
+      return (
+        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
           <button
-            type="button"
-            onClick={handleManualSync}
-            onMouseEnter={()=>setShowSyncPopover(true)}
-            onMouseLeave={()=>setShowSyncPopover(false)}
-            aria-label="同步状态"
-            title="同步状态"
-            disabled={syncMeta.loading}
-            style={{ width:12, height:12, borderRadius:"50%", border:"none", padding:0, cursor:syncMeta.loading?"not-allowed":"pointer", background: syncMeta.loading ? C.blue : (syncMeta.status === "error" ? C.wrong : syncMeta.status === "synced" ? C.green : syncMeta.status === "dirty" ? C.primary : C.border), boxShadow: syncMeta.loading ? `0 0 0 4px rgba(59,107,165,0.14)` : `0 0 0 3px rgba(200,64,45,0.08)`, position:"relative" }}
+            onClick={() => setTriggerAddWord(v => v + 1)}
+            style={sBtnSm(appC.primary, "#fff", {
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              fontWeight: 700,
+              boxShadow: `0 4px 12px ${appC.primary}33`,
+              height: 32,
+              padding: "0 14px",
+              borderRadius: 8
+            })}
           >
-            {syncMeta.loading && <span style={{ position:"absolute", inset:-4, borderRadius:"50%", border:`2px solid ${C.blueLight}`, borderTopColor:C.blue, animation:"spin 0.9s linear infinite" }} />}
+            <span>➕ 新增单词</span>
           </button>
-          {showSyncPopover && (
-            <div
-              onMouseEnter={()=>setShowSyncPopover(true)}
-              onMouseLeave={()=>setShowSyncPopover(false)}
-              style={{ position:"absolute", left:"50%", top:"calc(100% + 10px)", transform:"translateX(-50%)", width:240, maxWidth:"calc(100vw - 24px)", maxHeight:"calc(100vh - 120px)", overflowY:"auto", background:"rgba(255,255,255,0.98)", border:`1px solid ${C.border}`, borderRadius:12, boxShadow:"0 14px 30px rgba(0,0,0,0.12)", padding:"10px 12px", zIndex:120 }}>
-              <div style={{ fontSize:12, fontWeight:800, color:C.text, marginBottom:6 }}>同步状态</div>
-              <div style={{ fontSize:12, color:C.muted, lineHeight:1.6 }}>
-                <div>云端分组：{groupId}</div>
-                <div>当前词组：{currentWordGroup?.name || "未选择"}</div>
-                <div>状态：{syncMeta.loading ? "同步中" : (syncMeta.status === "error" ? "异常" : syncMeta.status === "dirty" ? "待同步" : "正常")}</div>
-                <div>上次同步：{formatSyncTime(syncMeta.lastSyncedAt)}</div>
-                <div style={{ marginTop:6, color:syncMeta.status === "error" ? C.wrong : C.muted }}>{syncMeta.message || "自动同步已启用"}</div>
+          
+          <button
+            onClick={handleManualSync}
+            disabled={isSyncing}
+            style={sBtnSm(
+              isError ? "rgba(209,67,67,0.1)" : isDirty ? appC.primaryLight : "rgba(58,125,92,0.1)",
+              isError ? appC.wrong : isDirty ? appC.primary : appC.green,
+              {
+                display: "flex",
+                alignItems: "center",
+                gap: 6,
+                border: `1px solid ${isError ? "rgba(209,67,67,0.2)" : isDirty ? "rgba(200,64,45,0.2)" : "rgba(58,125,92,0.2)"}`,
+                fontWeight: 600,
+                height: 32,
+                padding: "0 14px",
+                borderRadius: 8,
+                cursor: isSyncing ? "not-allowed" : "pointer"
+              }
+            )}
+          >
+            {isSyncing ? (
+              <>
+                <span style={{ display:"inline-block", width:10, height:10, borderRadius:"50%", border:`1.5px solid ${appC.primaryLight}`, borderTopColor:appC.primary, animation:"spin 0.9s linear infinite" }} />
+                <span>正在同步...</span>
+              </>
+            ) : isError ? (
+              <span>⚠️ 同步异常，重试</span>
+            ) : isDirty ? (
+              <span style={{ animation: "breathe 1.5s infinite" }}>💾 立即同步</span>
+            ) : (
+              <span>✓ 数据已同步</span>
+            )}
+          </button>
+        </div>
+      );
+    }
+
+    if (mode === "teach" && teachState) {
+      const {
+        page,
+        totalPages,
+        quizPhase,
+        effectiveCount,
+        pct,
+        allQuizDone,
+        allMeaningShown,
+        goPage,
+        chooseCount,
+        revealMeaningsForCurrentPage,
+        startQuiz,
+        resetQuizState,
+        restartQuiz,
+        pickRandomCard,
+        exitAndNextPage,
+        isPaused,
+        setIsPaused,
+        countdownLeft,
+        countdownTotal,
+        enterKanaPhase,
+        enterReversePhase,
+        enterResultPhase
+      } = teachState;
+
+      const isQuizActive = !!quizPhase;
+
+      if (quizPhase === "countdown") {
+        const countdownRatio = countdownTotal ? countdownLeft / countdownTotal : 0;
+        const countdownColor = countdownRatio > 0.5 ? appC.green : countdownRatio > 0.2 ? "#E8A040" : appC.primary;
+        const bottomBtnBase = { height: 32, padding: "0 12px", borderRadius: 8 };
+
+        return (
+          <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+            <span style={{ fontSize: 13, fontWeight: 800, color: appC.text }}>1 / 3 限时记忆</span>
+            {countdownLeft > 0 ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <div
+                  style={{
+                    width: 160,
+                    height: 12,
+                    background: appC.borderLight,
+                    borderRadius: 6,
+                    position: "relative",
+                    overflow: "hidden",
+                    boxShadow: "inset 0 1px 3px rgba(0,0,0,0.1)"
+                  }}
+                >
+                  <div
+                    style={{
+                      width: `${countdownRatio * 100}%`,
+                      height: "100%",
+                      background: countdownColor,
+                      borderRadius: 6,
+                      transition: "width 1s linear, background 0.3s ease"
+                    }}
+                  />
+                </div>
+                <span style={{ fontSize: 13, fontWeight: 700, color: countdownColor, minWidth: 38 }}>
+                  ⏳ {countdownLeft}s
+                </span>
               </div>
+            ) : (
+              <span style={{ fontSize: 13, color: appC.muted }}>选择记忆时间后开始计时</span>
+            )}
+            <button
+              onClick={enterKanaPhase}
+              style={sBtnSm(appC.primaryLight, appC.primary, {
+                ...bottomBtnBase,
+                border: `1.5px solid rgba(255,82,82,0.25)`,
+                fontWeight: 800,
+                fontSize: 12
+              })}
+            >
+              ⏩ 跳过
+            </button>
+            <button
+              onClick={resetQuizState}
+              style={sBtnSm(appC.bg, appC.text, {
+                ...bottomBtnBase,
+                border: `1.5px solid ${appC.border}`,
+                fontWeight: 600,
+                fontSize: 12
+              })}
+            >
+              ⏹ 退出流程
+            </button>
+          </div>
+        );
+      }
+
+      if (!isQuizActive) {
+        const floatLeft = totalPages > 1 ? (page / (totalPages - 1)) * 100 : 50;
+        const bottomBtnBase = { height: 32, padding: "0 12px", borderRadius: 8 };
+        const layoutOptions = [
+          { label: "大", count: 1 },
+          { label: "中", count: 4 },
+          { label: "小", count: 6 },
+        ];
+
+        return (
+          <div style={{ display: "flex", gap: 16, alignItems: "center" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <button
+                disabled={page === 0}
+                onClick={() => goPage(page - 1)}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: page === 0 ? appC.hint : appC.text,
+                  cursor: page === 0 ? "default" : "pointer",
+                  fontSize: 16,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: 32,
+                  height: 32,
+                  borderRadius: "50%",
+                  transition: "background 0.2s"
+                }}
+                onMouseEnter={e => { if (page > 0) e.currentTarget.style.background = appC.borderLight; }}
+                onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+              >
+                ◀
+              </button>
+
+              <div
+                style={{
+                  width: 140,
+                  height: 12,
+                  background: appC.borderLight,
+                  borderRadius: 6,
+                  position: "relative",
+                  display: "flex",
+                  alignItems: "center",
+                  overflow: "visible"
+                }}
+              >
+                <div
+                  style={{
+                    width: `${pct}%`,
+                    height: "100%",
+                    background: appC.primary,
+                    borderRadius: 6,
+                    transition: "width 0.3s ease",
+                    opacity: 0.25,
+                    position: "absolute",
+                    left: 0,
+                    top: 0
+                  }}
+                />
+                
+                <div
+                  style={{
+                    position: "absolute",
+                    left: `calc(${floatLeft}% - 11px)`,
+                    width: 22,
+                    height: 22,
+                    borderRadius: "50%",
+                    background: appC.primary,
+                    color: "#FFFFFF",
+                    fontSize: 10,
+                    fontWeight: 700,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: "default",
+                    transition: "left 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)",
+                    boxShadow: "0 2px 6px rgba(0,0,0,0.18)",
+                    border: `1.5px solid ${appC.card}`
+                  }}
+                >
+                  {page + 1}
+                </div>
+              </div>
+
+              <button
+                disabled={page === totalPages - 1}
+                onClick={() => goPage(page + 1)}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: page === totalPages - 1 ? appC.hint : appC.text,
+                  cursor: page === totalPages - 1 ? "default" : "pointer",
+                  fontSize: 16,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: 32,
+                  height: 32,
+                  borderRadius: "50%",
+                  transition: "background 0.2s"
+                }}
+                onMouseEnter={e => { if (page < totalPages - 1) e.currentTarget.style.background = appC.borderLight; }}
+                onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+              >
+                ▶
+              </button>
             </div>
-          )}
-        </div>
-        <div style={{ display:"flex", alignItems:"center", gap:4, background:C.bg, borderRadius:12, padding:4 }}>
-          {modes.map(m => (
-            <button key={m.key} onClick={()=>setMode(m.key)}
-              style={{ padding:"8px 20px", borderRadius:9, border:"none", cursor:"pointer", fontSize:14, fontWeight:600, transition:"all 0.2s",
-                background: mode===m.key ? C.card : "transparent",
-                color: mode===m.key ? C.text : C.muted,
-                boxShadow: mode===m.key ? "0 2px 8px rgba(0,0,0,0.1)" : "none" }}>
-              {m.label}
+
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              {layoutOptions.map(opt => {
+                const disabled = (opt.count === 4 && (currentWordGroup?.words?.length || 0) < 4) || (opt.count === 6 && (currentWordGroup?.words?.length || 0) < 6);
+                const active = effectiveCount === opt.count;
+                return (
+                  <button
+                    key={opt.count}
+                    disabled={disabled}
+                    onClick={() => chooseCount(opt.count)}
+                    title={`${opt.label}布局`}
+                    style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: "50%",
+                      border: `1.5px solid ${active ? appC.primary : appC.border}`,
+                      background: active ? appC.primaryLight : "transparent",
+                      color: disabled ? appC.hint : active ? appC.primary : appC.text,
+                      cursor: disabled ? "not-allowed" : "pointer",
+                      fontSize: 13,
+                      fontWeight: 900,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      opacity: disabled ? 0.45 : 1,
+                      transition: "all 0.15s"
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            <button
+              onClick={allMeaningShown ? startQuiz : revealMeaningsForCurrentPage}
+              style={sBtnSm(allMeaningShown ? appC.primary : appC.bg, allMeaningShown ? "#fff" : appC.text, {
+                ...bottomBtnBase,
+                border: allMeaningShown ? "none" : `1.5px solid ${appC.border}`,
+                fontWeight: 800,
+                fontSize: 12,
+                boxShadow: allMeaningShown ? `0 3px 10px ${appC.primary}25` : "none"
+              })}
+            >
+              {allMeaningShown ? "▶ 开始练习" : "👁 查看所有含义"}
             </button>
-          ))}
-        </div>
-        <div style={{ display:"flex", gap:8, position:"relative" }}>
-          <button onClick={handleDownloadTemplate} style={sBtnSm(C.bg, C.muted, {display:"flex",alignItems:"center",gap:5, border:`1px solid ${C.border}`})}>
-            下载模板
+          </div>
+        );
+      } else {
+        if (quizPhase === "result") {
+          return (
+            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: appC.text, marginRight: 6 }}>测试结束</span>
+              <button
+                onClick={restartQuiz}
+                style={sBtnSm(appC.primary, "#fff", {
+                  borderRadius: 8,
+                  fontWeight: 700,
+                  height: 32,
+                  padding: "0 14px"
+                })}
+              >
+                🔄 重新测试
+              </button>
+              <button
+                onClick={resetQuizState}
+                style={sBtnSm(appC.bg, appC.muted, {
+                  border: `1.5px solid ${appC.border}`,
+                  borderRadius: 8,
+                  height: 32,
+                  padding: "0 14px"
+                })}
+              >
+                ✕ 退出
+              </button>
+            </div>
+          );
+        }
+
+        return (
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <button
+              onClick={() => setIsPaused(!isPaused)}
+              style={sBtnSm(isPaused ? appC.primary : appC.bg, isPaused ? "#fff" : appC.text, {
+                border: isPaused ? "none" : `1.5px solid ${appC.border}`,
+                borderRadius: 8,
+                fontWeight: 600,
+                height: 32,
+                padding: "0 12px"
+              })}
+            >
+              {isPaused ? "▶ 继续" : "⏸ 暂停"}
+            </button>
+            <button
+              onClick={pickRandomCard}
+              disabled={isPaused}
+              style={sBtnSm(appC.blueLight, appC.blue, {
+                border: `1.5px solid rgba(115,183,255,0.25)`,
+                borderRadius: 8,
+                fontWeight: 600,
+                height: 32,
+                padding: "0 12px",
+                opacity: isPaused ? 0.5 : 1
+              })}
+            >
+              🎲 抽取卡片
+            </button>
+            <button
+              onClick={() => quizPhase === "kana" ? enterReversePhase() : enterResultPhase()}
+              disabled={!allQuizDone}
+              style={sBtnSm(allQuizDone ? appC.green : appC.bg, allQuizDone ? "#fff" : appC.muted, {
+                border: allQuizDone ? "none" : `1.5px solid ${appC.border}`,
+                borderRadius: 8,
+                fontWeight: 700,
+                height: 32,
+                padding: "0 14px",
+                cursor: allQuizDone ? "pointer" : "not-allowed"
+              })}
+            >
+              {quizPhase === "kana" ? "✓ 进入认读测试" : "✓ 查看结果"}
+            </button>
+            <button
+              onClick={resetQuizState}
+              style={sBtnSm(appC.bg, appC.wrong, {
+                border: `1.5px solid rgba(255,82,82,0.2)`,
+                borderRadius: 8,
+                fontWeight: 600,
+                height: 32,
+                padding: "0 12px"
+              })}
+            >
+              ✕ 退出测试
+            </button>
+          </div>
+        );
+      }
+    }
+
+    if (mode === "practice" && practiceState) {
+      const { type, isDone, flipped, markKnown, markUnknown, reset, setType: setPracticeType, mode: pMode, setMode: setPracticeMode } = practiceState;
+
+      if (!type) {
+        return <span style={{ fontSize: 13, color: appC.muted }}>请选择上面的练习方式</span>;
+      }
+
+      if (isDone) {
+        return (
+          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+            <button
+              onClick={reset}
+              style={sBtnSm(appC.primary, "#fff", {
+                borderRadius: 8,
+                fontWeight: 700,
+                height: 32,
+                padding: "0 14px"
+              })}
+            >
+              🔄 再来一次
+            </button>
+            <button
+              onClick={() => setPracticeType(null)}
+              style={sBtnSm(appC.bg, appC.text, {
+                border: `1.5px solid ${appC.border}`,
+                borderRadius: 8,
+                height: 32,
+                padding: "0 14px"
+              })}
+            >
+              ⬅ 返回
+            </button>
+          </div>
+        );
+      }
+
+      if (type === "flash") {
+        if (!flipped) {
+          return <span style={{ fontSize: 13, color: appC.muted, animation: "blink 1.5s infinite" }}>👆 请点击卡片翻面以查看释义</span>;
+        }
+
+        return (
+          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+            <button
+              onClick={markUnknown}
+              style={sBtnSm("rgba(209,67,67,0.06)", appC.wrong, {
+                border: `1.5px solid rgba(209,67,67,0.25)`,
+                borderRadius: 8,
+                fontWeight: 600,
+                height: 32,
+                padding: "0 14px"
+              })}
+            >
+              ❌ 没记住 😣
+            </button>
+            <button
+              onClick={markKnown}
+              style={sBtnSm(appC.greenLight, appC.green, {
+                border: `1.5px solid rgba(58,125,92,0.25)`,
+                borderRadius: 8,
+                fontWeight: 600,
+                height: 32,
+                padding: "0 14px"
+              })}
+            >
+              ✅ 已掌握 ✌️
+            </button>
+          </div>
+        );
+      }
+
+      if (type === "choice") {
+        return (
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <button
+              onClick={() => setPracticeMode("ja2cn")}
+              style={sBtnSm(pMode === "ja2cn" ? appC.primaryLight : "transparent", pMode === "ja2cn" ? appC.primary : appC.muted, {
+                border: `1.5px solid ${pMode === "ja2cn" ? "rgba(200,64,45,0.2)" : appC.border}`,
+                borderRadius: 8,
+                fontWeight: 600,
+                height: 32,
+                padding: "0 12px"
+              })}
+            >
+              🇯🇵 日语 → 🇨🇳 中文
+            </button>
+            <button
+              onClick={() => setPracticeMode("cn2ja")}
+              style={sBtnSm(pMode === "cn2ja" ? appC.primaryLight : "transparent", pMode === "cn2ja" ? appC.primary : appC.muted, {
+                border: `1.5px solid ${pMode === "cn2ja" ? "rgba(200,64,45,0.2)" : appC.border}`,
+                borderRadius: 8,
+                fontWeight: 600,
+                height: 32,
+                padding: "0 12px"
+              })}
+            >
+              🇨🇳 中文 → 🇯🇵 日语
+            </button>
+          </div>
+        );
+      }
+
+      if (type === "match") {
+        return (
+          <button
+            onClick={reset}
+            style={sBtnSm(appC.bg, appC.text, {
+              border: `1.5px solid ${appC.border}`,
+              borderRadius: 8,
+              fontWeight: 600,
+              height: 32,
+              padding: "0 14px"
+            })}
+          >
+            🔄 重置连线
           </button>
-          <div style={{ position:"relative" }}>
-            <button onClick={()=>setShowExportMenu(v=>!v)} style={sBtnSm(C.greenLight, C.green, {display:"flex",alignItems:"center",gap:5})}>
-              <IDownload size={14} color={C.green}/> 导出
+        );
+      }
+    }
+
+    return null;
+  };
+
+  // renderTopbar has been removed to maximize viewport display height.
+
+  const renderBottombar = () => {
+    return (
+      <div
+        style={{
+          position: "fixed",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: 48,
+          background: (mode === "teach" || mode === "practice") && teachChalkboardMode ? "#262626" : "#FFFFFF",
+          color: (mode === "teach" || mode === "practice") && teachChalkboardMode ? "#FFFFFF" : "#1E1E1E",
+          borderTop: `1.5px solid ${(mode === "teach" || mode === "practice") && teachChalkboardMode ? "#4A4A4A" : "#E6DED3"}`,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "0 16px",
+          zIndex: 1000,
+          boxShadow: (mode === "teach" || mode === "practice") && teachChalkboardMode ? "0 -8px 24px rgba(0,0,0,0.22)" : "0 -4px 16px rgba(0,0,0,0.04)",
+          transition: "all 0.3s ease",
+          userSelect: "none"
+        }}
+      >
+        <div style={{ display: "flex", background: (mode === "teach" || mode === "practice") && teachChalkboardMode ? "#1E1E1E" : "#F7F3ED", borderRadius: 8, padding: 3, gap: 2, height: 32, alignItems: "center" }}>
+          {modes.map(m => {
+            const isActive = mode === m.key;
+            return (
+              <button
+                key={m.key}
+                onClick={() => setMode(m.key)}
+                style={{
+                  padding: "0 12px",
+                  height: "100%",
+                  borderRadius: 6,
+                  border: "none",
+                  cursor: "pointer",
+                  fontSize: 12,
+                  fontWeight: isActive ? 700 : 500,
+                  transition: "all 0.2s",
+                  background: isActive ? appC.card : "transparent",
+                  color: isActive ? appC.text : appC.muted
+                }}
+              >
+                {m.label.split(" ")[1]}
+              </button>
+            );
+          })}
+        </div>
+
+        <div style={{ flex: 1, display: "flex", justifyContent: "center" }}>
+          {renderMiddleControls()}
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 8, height: 32 }}>
+          {(mode === "teach" || mode === "practice") && (
+            <button
+              onClick={() => setTeachChalkboardMode(!teachChalkboardMode)}
+              style={sBtnSm(appC.bg, appC.text, {
+                border: `1.5px solid ${appC.border}`,
+                borderRadius: 8,
+                fontWeight: 600,
+                fontSize: 12,
+                height: 32,
+                padding: "0 10px",
+                display: "flex",
+                alignItems: "center",
+                gap: 4
+              })}
+            >
+              {teachChalkboardMode ? "☀️ 浅色" : "🌙 黑板"}
             </button>
-            {showExportMenu && (
-              <div style={{ position:"absolute", right:0, top:38, width:150, background:C.card, border:`1px solid ${C.border}`, borderRadius:10, boxShadow:"0 10px 30px rgba(0,0,0,0.14)", padding:6, zIndex:20 }}>
-                <button onClick={handleExportExcel} style={{ width:"100%", textAlign:"left", padding:"8px 10px", border:"none", background:"transparent", borderRadius:7, cursor:"pointer", color:C.text, fontSize:13 }}>导出 Excel</button>
-                <button onClick={handleExportJson} style={{ width:"100%", textAlign:"left", padding:"8px 10px", border:"none", background:"transparent", borderRadius:7, cursor:"pointer", color:C.text, fontSize:13 }}>导出 JSON 备份</button>
+          )}
+
+          <div style={{ position: "relative" }}>
+            <button
+              onClick={() => setShowMoreMenu(v => !v)}
+              style={sBtnSm(appC.bg, appC.muted, {
+                display: "flex",
+                alignItems: "center",
+                gap: 4,
+                border: `1.5px solid ${appC.border}`,
+                borderRadius: 8,
+                fontWeight: 600,
+                fontSize: 12,
+                height: 32,
+                padding: "0 10px"
+              })}
+            >
+              <span>⚙️ 更多</span>
+            </button>
+            
+            {showMoreMenu && (
+              <>
+                <div style={{ position: "fixed", inset: 0, zIndex: 1010 }} onClick={() => setShowMoreMenu(false)} />
+                <div
+                  style={{
+                    position: "absolute",
+                    right: 0,
+                    bottom: 38,
+                    width: 160,
+                    background: appC.card,
+                    border: `1.5px solid ${appC.border}`,
+                    borderRadius: 10,
+                    boxShadow: "0 -8px 24px rgba(0,0,0,0.18)",
+                    padding: 5,
+                    zIndex: 1020,
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 2
+                  }}
+                >
+                  <button
+                    onClick={() => { handleDownloadTemplate(); setShowMoreMenu(false); }}
+                    style={{
+                      width: "100%",
+                      textAlign: "left",
+                      padding: "7px 10px",
+                      border: "none",
+                      background: "transparent",
+                      borderRadius: 6,
+                      cursor: "pointer",
+                      color: appC.text,
+                      fontSize: 12,
+                      fontWeight: 500,
+                      transition: "background 0.2s"
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = appC.borderLight}
+                    onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                  >
+                    📥 下载导入模板
+                  </button>
+                  <button
+                    onClick={() => { handleExportExcel(); setShowMoreMenu(false); }}
+                    style={{
+                      width: "100%",
+                      textAlign: "left",
+                      padding: "7px 10px",
+                      border: "none",
+                      background: "transparent",
+                      borderRadius: 6,
+                      cursor: "pointer",
+                      color: appC.text,
+                      fontSize: 12,
+                      fontWeight: 500,
+                      transition: "background 0.2s"
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = appC.borderLight}
+                    onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                  >
+                    📤 导出为 Excel
+                  </button>
+                  <button
+                    onClick={() => { handleExportJson(); setShowMoreMenu(false); }}
+                    style={{
+                      width: "100%",
+                      textAlign: "left",
+                      padding: "7px 10px",
+                      border: "none",
+                      background: "transparent",
+                      borderRadius: 6,
+                      cursor: "pointer",
+                      color: appC.text,
+                      fontSize: 12,
+                      fontWeight: 500,
+                      transition: "background 0.2s"
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = appC.borderLight}
+                    onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                  >
+                    💾 备份为 JSON
+                  </button>
+                  <button
+                    onClick={() => { fileRef.current?.click(); setShowMoreMenu(false); }}
+                    style={{
+                      width: "100%",
+                      textAlign: "left",
+                      padding: "7px 10px",
+                      border: "none",
+                      background: "transparent",
+                      borderRadius: 6,
+                      cursor: "pointer",
+                      color: appC.text,
+                      fontSize: 12,
+                      fontWeight: 500,
+                      transition: "background 0.2s"
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = appC.borderLight}
+                    onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                  >
+                    📂 导入 Excel 单词表
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Sync LED and Popover */}
+          <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+            <button
+              type="button"
+              onClick={handleManualSync}
+              onMouseEnter={() => setShowSyncPopover(true)}
+              onMouseLeave={() => setShowSyncPopover(false)}
+              aria-label="同步状态"
+              title="同步状态"
+              disabled={syncMeta.loading}
+              style={{
+                width: 12,
+                height: 12,
+                borderRadius: "50%",
+                border: "none",
+                padding: 0,
+                cursor: syncMeta.loading ? "not-allowed" : "pointer",
+                background: syncMeta.loading ? appC.blue : (syncMeta.status === "error" ? appC.wrong : syncMeta.status === "synced" ? appC.green : syncMeta.status === "dirty" ? "#E8A040" : appC.border),
+                boxShadow: syncMeta.loading ? `0 0 8px ${appC.blue}` : (syncMeta.status === "error" ? `0 0 8px ${appC.wrong}` : (syncMeta.status === "dirty" ? `0 0 8px #E8A040` : `0 0 8px ${appC.green}`)),
+                position: "relative",
+                transition: "all 0.3s ease",
+                margin: "0 6px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center"
+              }}
+            >
+              {syncMeta.loading && (
+                <span style={{
+                  position: "absolute",
+                  inset: -3,
+                  borderRadius: "50%",
+                  border: `1.5px solid ${appC.blueLight}`,
+                  borderTopColor: appC.blue,
+                  animation: "spin 0.9s linear infinite"
+                }} />
+              )}
+            </button>
+
+            {showSyncPopover && (
+              <div
+                onMouseEnter={() => setShowSyncPopover(true)}
+                onMouseLeave={() => setShowSyncPopover(false)}
+                style={{
+                  position: "absolute",
+                  right: 0,
+                  bottom: 34,
+                  width: 240,
+                  background: appC.card,
+                  border: `1.5px solid ${appC.border}`,
+                  borderRadius: 12,
+                  boxShadow: "0 -8px 30px rgba(0,0,0,0.18)",
+                  padding: "12px 14px",
+                  zIndex: 1020,
+                  textAlign: "left"
+                }}
+              >
+                <div style={{ fontSize: 12, fontWeight: 800, color: appC.text, marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
+                  <span>🌐 云端词库同步看板</span>
+                </div>
+                <div style={{ fontSize: 11, color: appC.muted, lineHeight: 1.6, display: "flex", flexDirection: "column", gap: 4 }}>
+                  <div>组 ID：<span style={{ fontFamily: "monospace", color: appC.text }}>{groupId}</span></div>
+                  <div>当前词组：<span style={{ color: appC.text, fontWeight: 600 }}>{currentWordGroup?.name || "未选择"}</span></div>
+                  <div>状态：<span style={{
+                    color: syncMeta.loading ? appC.blue : (syncMeta.status === "error" ? appC.wrong : syncMeta.status === "dirty" ? "#E8A040" : appC.green),
+                    fontWeight: 700
+                  }}>
+                    {syncMeta.loading ? "正在同步中" : (syncMeta.status === "error" ? "连接失败 (异常)" : syncMeta.status === "dirty" ? "本地有修改 (待同步)" : "已与云端同步")}
+                  </span></div>
+                  <div>上次同步：<span style={{ color: appC.text }}>{formatSyncTime(syncMeta.lastSyncedAt)}</span></div>
+                  <div style={{
+                    marginTop: 6,
+                    paddingTop: 6,
+                    borderTop: `1px dashed ${appC.border}`,
+                    color: syncMeta.status === "error" ? appC.wrong : appC.muted,
+                    fontSize: 10
+                  }}>
+                    {syncMeta.message || "自动静默同步已启用"}
+                  </div>
+                </div>
               </div>
             )}
           </div>
-          <input ref={fileRef} type="file" accept=".xlsx,.xls" style={{display:"none"}} onChange={handleImport}/>
-          <button onClick={()=>fileRef.current?.click()} style={sBtnSm(C.blueLight, C.blue, {display:"flex",alignItems:"center",gap:5})}>
-            <IUpload size={14} color={C.blue}/> 导入
-          </button>
         </div>
       </div>
+    );
+  };
 
-      {/* Content */}
-      {mode==="edit" && <EditMode groups={groups} setGroups={setGroups} gid={curGid} setGid={setCurGid}/>}
-      {mode==="teach" && <TeachMode groups={groups} gid={curGid}/>}
-      {mode==="practice" && <PracticeMode groups={groups} gid={curGid}/>}
+  return (
+    <div style={{ height: "100vh", background: appC.bg, transition: "background 0.3s ease", position: "relative", overflow: "hidden" }}>
+      <input ref={fileRef} type="file" accept=".xlsx,.xls" style={{display:"none"}} onChange={handleImport}/>
+
+      <div
+        style={{
+          position: "absolute",
+          top: 0,
+          bottom: 48,
+          left: 0,
+          right: 0,
+          overflow: "hidden",
+          background: appC.bg,
+          transition: "background 0.3s ease"
+        }}
+      >
+        {mode === "edit" && <EditMode groups={groups} setGroups={setGroups} gid={curGid} setGid={setCurGid} triggerAddWord={triggerAddWord} syncMeta={syncMeta} groupId={groupId}/>}
+        {mode === "teach" && <TeachMode
+          groups={groups}
+          gid={curGid}
+          setGid={setCurGid}
+          mode={mode}
+          setMode={setMode}
+          shortcutsDisabled={importOpen || !!syncConflict?.open}
+          chalkboardMode={teachChalkboardMode}
+          setChalkboardMode={setTeachChalkboardMode}
+          syncMeta={syncMeta}
+          groupId={groupId}
+          onDownloadTemplate={handleDownloadTemplate}
+          onImportClick={()=>fileRef.current?.click()}
+          onExportExcel={handleExportExcel}
+          onExportJson={handleExportJson}
+          onTeachStateChange={setTeachState}
+        />}
+        {mode === "practice" && <PracticeMode groups={groups} gid={curGid} chalkboardMode={teachChalkboardMode} onPracticeStateChange={setPracticeState}/>}
+      </div>
+
+      {renderBottombar()}
 
       {syncConflict?.open && (
-        <div style={{ position:"fixed", inset:0, zIndex:140, background:"rgba(0,0,0,0.34)", display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
+        <div style={{ position:"fixed", inset:0, zIndex:1400, background:"rgba(0,0,0,0.45)", backdropFilter: "blur(4px)", display:"flex", alignItems:"center", justifyContent:"center", padding:16 }}>
           <div style={{ width:"min(520px, 94vw)", background:C.card, borderRadius:16, border:`1px solid ${C.border}`, boxShadow:"0 24px 80px rgba(0,0,0,0.22)", padding:24 }}>
             <div style={{ fontSize:18, fontWeight:800, color:C.text, marginBottom:10 }}>检测到同步冲突</div>
             <div style={{ fontSize:13, color:C.muted, lineHeight:1.75, marginBottom:18 }}>
