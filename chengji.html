@@ -3151,9 +3151,13 @@
 	                    this.history = [];
 	                    this.maxHistorySize = 10;
 	                    this.deviceId = this.getDeviceId();
+	                    this.isDataChangedRef = { current: false };
+	                    this.lastLocalDataSnapshot = null;
+	                    this.pendingDelta = null;
 	                    this.load();
 	                    this.ensureSyncShape();
 	                    this.rebuildScoreIndex();
+	                    this.resetDeltaTracking();
 	                    window.addEventListener('beforeunload', () => {
 	                        if (this.saveTimeout) {
 	                            clearTimeout(this.saveTimeout);
@@ -3195,6 +3199,105 @@
 	                }
 	                getScoreKey(score) {
 	                    return score ? `${score.studentId}_${score.examId}` : '';
+	                }
+	                cloneSyncState() {
+	                    this.ensureSyncShape();
+	                    return JSON.parse(JSON.stringify({
+	                        data: this.state.data || { students: [], exams: [], scores: [], examTemplates: [] },
+	                        deleted: this.state.deleted || { students: {}, exams: {}, scores: {} }
+	                    }));
+	                }
+	                resetDeltaTracking() {
+	                    this.lastLocalDataSnapshot = this.cloneSyncState();
+	                    this.pendingDelta = null;
+	                    this.isDataChangedRef.current = false;
+	                }
+	                _recordKey(kind, item) {
+	                    if (!item) return '';
+	                    if (kind === 'scores') return `${item.studentId}_${item.examId}`;
+	                    return item.id || '';
+	                }
+	                _makeDeltaBucket() {
+	                    return {
+	                        students: {},
+	                        exams: {},
+	                        scores: {},
+	                        examTemplates: null,
+	                        deleted: { students: {}, exams: {}, scores: {} },
+	                        last_synced_at: this.state.syncMeta ? (this.state.syncMeta.lastCloudTs || this.state.syncMeta.lastPulledAt || 0) : 0
+	                    };
+	                }
+	                buildDeltaSinceSnapshot() {
+	                    const before = this.lastLocalDataSnapshot || { data: { students: [], exams: [], scores: [], examTemplates: [] }, deleted: { students: {}, exams: {}, scores: {} } };
+	                    const after = this.cloneSyncState();
+	                    const delta = this._makeDeltaBucket();
+	                    let changed = false;
+	                    const diffArr = (kind, keyFn) => {
+	                        const prevMap = new Map((before.data[kind] || []).map(item => [keyFn(item), JSON.stringify(item)]));
+	                        const nextKeys = new Set();
+	                        (after.data[kind] || []).forEach(item => {
+	                            const key = keyFn(item);
+	                            if (!key) return;
+	                            nextKeys.add(key);
+	                            const nextStr = JSON.stringify(item);
+	                            if (prevMap.get(key) !== nextStr) {
+	                                delta[kind][key] = item;
+	                                changed = true;
+	                            }
+	                        });
+	                        prevMap.forEach((_, key) => {
+	                            if (!key || nextKeys.has(key)) return;
+	                            const deletedTs = (after.deleted[kind] || {})[key] || Date.now();
+	                            delta.deleted[kind][key] = deletedTs;
+	                            changed = true;
+	                        });
+	                    };
+	                    diffArr('students', item => item && item.id);
+	                    diffArr('exams', item => item && item.id);
+	                    diffArr('scores', item => item && `${item.studentId}_${item.examId}`);
+	                    const beforeTemplates = JSON.stringify(before.data.examTemplates || []);
+	                    const afterTemplates = JSON.stringify(after.data.examTemplates || []);
+	                    if (beforeTemplates !== afterTemplates) {
+	                        delta.examTemplates = after.data.examTemplates || [];
+	                        changed = true;
+	                    }
+	                    ['students', 'exams', 'scores'].forEach(kind => {
+	                        const prevDeleted = before.deleted[kind] || {};
+	                        const nextDeleted = after.deleted[kind] || {};
+	                        Object.entries(nextDeleted).forEach(([key, ts]) => {
+	                            if ((prevDeleted[key] || 0) !== ts) {
+	                                delta.deleted[kind][key] = ts;
+	                                changed = true;
+	                            }
+	                        });
+	                    });
+	                    return changed ? delta : null;
+	                }
+	                mergePendingDelta(delta) {
+	                    if (!delta) return;
+	                    if (!this.pendingDelta) this.pendingDelta = this._makeDeltaBucket();
+	                    ['students', 'exams', 'scores'].forEach(kind => {
+	                        Object.assign(this.pendingDelta[kind], delta[kind] || {});
+	                    });
+	                    if (delta.examTemplates) this.pendingDelta.examTemplates = delta.examTemplates;
+	                    ['students', 'exams', 'scores'].forEach(kind => {
+	                        Object.assign(this.pendingDelta.deleted[kind], (delta.deleted && delta.deleted[kind]) || {});
+	                    });
+	                    const currentBase = this.pendingDelta.last_synced_at || 0;
+	                    const nextBase = delta.last_synced_at || 0;
+	                    this.pendingDelta.last_synced_at = currentBase && nextBase ? Math.min(currentBase, nextBase) : (currentBase || nextBase);
+	                }
+	                hasPendingDelta(delta = this.pendingDelta) {
+	                    if (!delta) return false;
+	                    return ['students', 'exams', 'scores'].some(kind => Object.keys(delta[kind] || {}).length > 0)
+	                        || ['students', 'exams', 'scores'].some(kind => Object.keys((delta.deleted && delta.deleted[kind]) || {}).length > 0)
+	                        || Array.isArray(delta.examTemplates);
+	                }
+	                consumePendingDelta() {
+	                    const delta = this.pendingDelta;
+	                    this.pendingDelta = null;
+	                    this.isDataChangedRef.current = false;
+	                    return delta;
 	                }
 	                markDeleted(kind, key, ts = Date.now()) {
 	                    this.ensureSyncShape();
@@ -3428,14 +3531,20 @@
                     return this.scoreIndex.get(`${studentId}_${examId}`) || null;
                 }
 	                save() {
-	                    this.state.ts = Date.now();
 	                    this.ensureSyncShape();
 	                    this.rebuildScoreIndex();
+	                    const delta = this.buildDeltaSinceSnapshot();
+	                    if (delta) {
+	                        this.isDataChangedRef.current = true;
+	                        this.mergePendingDelta(delta);
+	                        this.state.ts = Date.now();
+	                    }
 	                    try {
 	                        this.writeLocalState();
 	                        this.hasUnsavedChanges = false;
 	                        this.updateSaveIndicator();
-	                        if(window.app && window.app.sync) window.app.sync.push();
+	                        this.lastLocalDataSnapshot = this.cloneSyncState();
+	                        if(delta && window.app && window.app.sync) window.app.sync.push();
                     } catch(e) {
                         if (e.name === 'QuotaExceededError' || e.message.includes('QuotaExceeded')) {
                             this.showStorageQuotaWarning();
@@ -3514,9 +3623,8 @@
 	                    this.rebuildScoreIndex();
 	                    this.updateUndoButton();
 	                    try {
-	                        this.state.ts = Date.now();
-	                        this.writeLocalState();
-	                        if(window.app && window.app.sync) window.app.sync.push();
+	                        this.isDataChangedRef.current = true;
+	                        this.save();
 	                    } catch(e) {
 	                        Utils.msg("撤销操作失败", "error");
 	                    }
@@ -3529,14 +3637,15 @@
                     });
                 }
                 markAsUnsaved() {
+                    this.isDataChangedRef.current = true;
                     if (!this.hasUnsavedChanges) {
                         this.hasUnsavedChanges = true;
                         this.updateSaveIndicator();
-                        if (this.saveTimeout) clearTimeout(this.saveTimeout);
-                        this.saveTimeout = setTimeout(() => {
-                            this.save();
-                        }, 2000); // 自动保存延迟
                     }
+                    if (this.saveTimeout) clearTimeout(this.saveTimeout);
+                    this.saveTimeout = setTimeout(() => {
+                        this.save();
+                    }, 3000); // 高频登分防抖：停手 3 秒后再保存/同步
                 }
 	                updateSaveIndicator() {
 	                    const dot = document.getElementById('sync-dot');
@@ -3639,7 +3748,7 @@
 	                    this.store = store;
 	                    this.api = 'https://sync.nekosensei.cn/gakuten-all';
 	                    this.groupId = 'gakuten_prod_stable_v1'; 
-	                    this.debouncedPush = Utils.debounce(this._push.bind(this), 2000);
+	                    this.debouncedPush = Utils.debounce(this._push.bind(this), 3000);
 	                    this.isPulling = false;
 	                    this.isPushing = false;
 	                    this.pendingPush = false;
@@ -3686,6 +3795,60 @@
 	                    if (!res.ok) throw new Error(`云端读取失败：HTTP ${res.status}`);
 	                    return this.normalizeCloud(await res.json());
 	                }
+	                applyDeltaToCloud(cloud, delta) {
+	                    const merged = this.normalizeCloud(JSON.parse(JSON.stringify(cloud || {})));
+	                    delta = delta || {};
+	                    const upsertByKey = (kind, keyFn) => {
+	                        const incoming = delta[kind] || {};
+	                        const map = new Map((merged.data[kind] || []).map(item => [keyFn(item), item]));
+	                        Object.entries(incoming).forEach(([key, item]) => {
+	                            if (key && item) map.set(key, item);
+	                        });
+	                        const deleted = (delta.deleted && delta.deleted[kind]) || {};
+	                        Object.entries(deleted).forEach(([key, ts]) => {
+	                            merged.deleted[kind][key] = Math.max(merged.deleted[kind][key] || 0, Number(ts) || 0);
+	                            map.delete(key);
+	                        });
+	                        merged.data[kind] = Array.from(map.values()).filter(item => {
+	                            const key = keyFn(item);
+	                            return key && !((merged.deleted[kind] || {})[key] >= (item._ts || 0));
+	                        });
+	                    };
+	                    upsertByKey('students', item => item && item.id);
+	                    upsertByKey('exams', item => item && item.id);
+	                    upsertByKey('scores', item => item && `${item.studentId}_${item.examId}`);
+	                    if (Array.isArray(delta.examTemplates)) merged.data.examTemplates = delta.examTemplates;
+	                    merged.ts = Date.now();
+	                    merged.syncMeta = {
+	                        ...(merged.syncMeta || {}),
+	                        deviceId: this.store.deviceId,
+	                        last_synced_at: delta.last_synced_at || 0,
+	                        lastPushedAt: Date.now()
+	                    };
+	                    return merged;
+	                }
+	                async postCloud(merged, delta) {
+	                    const payloadData = { ...merged.data, __deleted: merged.deleted };
+	                    const res = await fetch(this.api, {
+	                        method:'POST',
+	                        headers:{'Content-Type':'application/json'},
+	                        body:JSON.stringify({
+	                            groupId:this.groupId,
+	                            ts: merged.ts,
+	                            last_synced_at: delta ? (delta.last_synced_at || 0) : 0,
+	                            data: payloadData,
+	                            deleted: merged.deleted,
+	                            syncMeta: merged.syncMeta
+	                        })
+	                    });
+	                    if (res.status === 409 || res.status === 412) {
+	                        const err = new Error('云端数据已被其他老师更新，正在重新合并');
+	                        err.code = 'STALE_CLOUD_VERSION';
+	                        throw err;
+	                    }
+	                    if (!res.ok) throw new Error(`云端保存失败：HTTP ${res.status}`);
+	                    return res;
+	                }
 	                async pull(options = {}) {
 	                    if (this.isPulling) return false;
 	                    this.isPulling = true;
@@ -3694,8 +3857,10 @@
 	                        const cloud = await this.fetchCloud();
 	                        const changed = this.merge(cloud);
 	                        this.store.state.syncMeta.lastPulledAt = Date.now();
+	                        this.store.state.syncMeta.lastCloudTs = cloud.ts || 0;
 	                        this.store.state.syncMeta.lastError = '';
 	                        this.store.silentSave();
+	                        if (!this.store.hasPendingDelta()) this.store.resetDeltaTracking();
 	                        if (changed && window.app && window.app.ui) window.app.ui.refresh();
 	                        this.setDot('synced', `云端数据已同步（${new Date().toLocaleTimeString()}）`);
 	                        return changed;
@@ -3769,39 +3934,52 @@
 	                    this.store.rebuildScoreIndex();
 	                    return changed || conflictCount > 0;
 	                }
-	                push() { this.debouncedPush(); }
+	                push() {
+	                    if (!this.store.isDataChangedRef || !this.store.isDataChangedRef.current) return;
+	                    if (!this.store.hasPendingDelta()) return;
+	                    this._push();
+	                }
 	                async _push() {
 	                    if (this.isPushing) { this.pendingPush = true; return; }
+	                    if (!this.store.isDataChangedRef || !this.store.isDataChangedRef.current || !this.store.hasPendingDelta()) return;
 	                    this.isPushing = true;
 	                    this.setDot('unsaved', '正在保存至云端...');
+	                    const delta = this.store.consumePendingDelta();
 	                    try {
-	                        try {
-	                            const cloud = await this.fetchCloud();
-	                            this.merge(cloud);
-	                        } catch (pullErr) {
-	                            // 离线时仍保留本地待同步状态；后续定时同步会继续尝试。
-	                            throw pullErr;
+	                        let merged = null;
+	                        let latestCloud = null;
+	                        for (let attempt = 0; attempt < 3; attempt++) {
+	                            latestCloud = await this.fetchCloud();
+	                            if ((latestCloud.ts || 0) > (delta.last_synced_at || 0)) {
+	                                this.merge(latestCloud);
+	                                delta.last_synced_at = latestCloud.ts || Date.now();
+	                            }
+	                            merged = this.applyDeltaToCloud(latestCloud, delta);
+	                            try {
+	                                await this.postCloud(merged, delta);
+	                                break;
+	                            } catch (err) {
+	                                if (err.code !== 'STALE_CLOUD_VERSION' || attempt === 2) throw err;
+	                                const fresh = await this.fetchCloud();
+	                                this.merge(fresh);
+	                                delta.last_synced_at = fresh.ts || Date.now();
+	                            }
 	                        }
-	                        this.store.state.ts = Date.now();
-	                        this.store.ensureSyncShape();
-	                        const payloadData = { ...this.store.state.data, __deleted: this.store.state.deleted };
-	                        const res = await fetch(this.api, {
-	                            method:'POST',
-	                            headers:{'Content-Type':'application/json'},
-	                            body:JSON.stringify({
-	                                groupId:this.groupId,
-	                                ts:this.store.state.ts,
-	                                data: payloadData,
-	                                deleted: this.store.state.deleted,
-	                                syncMeta: { ...this.store.state.syncMeta, deviceId: this.store.deviceId, lastPushedAt: Date.now() }
-	                            })
-	                        });
-	                        if (!res.ok) throw new Error(`云端保存失败：HTTP ${res.status}`);
+	                        if (!merged) throw new Error('云端保存失败：无法生成合并数据');
+	                        this.store.state.data = merged.data;
+	                        this.store.state.deleted = merged.deleted;
+	                        this.store.state.ts = merged.ts;
 	                        this.store.state.syncMeta.lastPushedAt = Date.now();
+	                        this.store.state.syncMeta.lastPulledAt = Date.now();
+	                        this.store.state.syncMeta.lastCloudTs = merged.ts;
 	                        this.store.state.syncMeta.lastError = '';
+	                        this.store.rebuildScoreIndex();
 	                        this.store.silentSave();
+	                        if (!this.store.hasPendingDelta()) this.store.resetDeltaTracking();
 	                        this.setDot('synced', `云端数据已同步（${new Date().toLocaleTimeString()}）`);
 	                    } catch(e) {
+	                        this.store.mergePendingDelta(delta);
+	                        this.store.isDataChangedRef.current = true;
 	                        this.store.ensureSyncShape();
 	                        this.store.state.syncMeta.lastError = e.message || '同步失败或离线';
 	                        this.setDot('error', this.store.state.syncMeta.lastError);
@@ -12561,6 +12739,7 @@
         window.app = {};
         window.onload = () => {
             window.app.store = new AppCore.Store();
+            window.app.isDataChangedRef = window.app.store.isDataChangedRef;
             window.app.sync = new AppCore.Sync(window.app.store);
             window.app.ui = new AppCore.UI(window.app.store);
             const aiProviderSelect = document.getElementById('ai-provider-select');
