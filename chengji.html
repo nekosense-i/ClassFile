@@ -3091,25 +3091,75 @@
                     const sum = scores.reduce((a, s) => a + (s.details[typeName] || 0), 0);
                     return parseFloat((sum / scores.length).toFixed(1));
                 },
+                inverseNormalCDF(p) {
+                    if (p <= 0) return -3.89;
+                    if (p >= 1) return 3.89;
+                    
+                    p = Math.max(0.00001, Math.min(0.99999, p));
+                    
+                    const isUpper = p > 0.5;
+                    const q = isUpper ? 1.0 - p : p;
+                    
+                    const t = Math.sqrt(-2.0 * Math.log(q));
+                    const c0 = 2.515517;
+                    const c1 = 0.802853;
+                    const c2 = 0.010328;
+                    const d1 = 1.432788;
+                    const d2 = 0.189269;
+                    const d3 = 0.001308;
+                    
+                    const z = t - ((c0 + c1 * t + c2 * t * t) / (1.0 + d1 * t + d2 * t * t + d3 * t * t * t));
+                    
+                    return isUpper ? z : -z;
+                },
                 gradeStats(exam, allStudents, allScores, campusFilter = null) {
                     const gradeStudentIds = allStudents
                         .filter(s => s.grade === exam.grade && (!campusFilter || s.campus === campusFilter))
                         .map(s => s.id);
                     const gradeScores = allScores
                         .filter(s => s.examId === exam.id && gradeStudentIds.includes(s.studentId) && s.total > 0 && !s.examAbsent && !s.isEstimated)
-                        .map(s => s.total);
-                    if (gradeScores.length === 0) return { mean: 0, stdDev: 1, count: 0 };
+                        .map(s => s.total)
+                        .sort((a, b) => a - b); // 升序排列以计算百分位数
+                    if (gradeScores.length === 0) return { mean: 0, stdDev: 1, count: 0, scores: [] };
                     const mean = gradeScores.reduce((a, b) => a + b, 0) / gradeScores.length;
                     const variance = gradeScores.reduce((a, v) => a + (v - mean) ** 2, 0) / gradeScores.length;
-                    return { mean, stdDev: Math.sqrt(variance) || 1, count: gradeScores.length };
+                    return { mean, stdDev: Math.sqrt(variance) || 1, count: gradeScores.length, scores: gradeScores };
                 },
                 convertScore(rawScore, exam, scoreType, gradeStatsObj) {
                     if (scoreType === 'pct') {
                         return exam.maxTotal ? parseFloat(((rawScore / exam.maxTotal) * 100).toFixed(1)) : 0;
                     }
                     if (scoreType === 'std') {
-                        const z = (rawScore - gradeStatsObj.mean) / gradeStatsObj.stdDev;
-                        return parseFloat((z * 10 + 50).toFixed(1));
+                        // 如果缺失年级成绩常模数组，自动安全降级为原有线性标准分计算
+                        if (!gradeStatsObj || !gradeStatsObj.scores || gradeStatsObj.scores.length === 0) {
+                            const z = (gradeStatsObj && gradeStatsObj.stdDev) ? (rawScore - gradeStatsObj.mean) / gradeStatsObj.stdDev : 0;
+                            return parseFloat((z * 10 + 50).toFixed(1));
+                        }
+                        
+                        // 计算百分位等级 PR = (L + 0.5 * E) / N
+                        const scores = gradeStatsObj.scores;
+                        const N = scores.length;
+                        let L = 0; // 严格小于当前分数的人数
+                        let E = 0; // 等于当前分数的人数
+                        for (let i = 0; i < N; i++) {
+                            if (scores[i] < rawScore) {
+                                L++;
+                            } else if (scores[i] === rawScore) {
+                                E++;
+                            } else {
+                                break;
+                            }
+                        }
+                        
+                        // 兜底防御，若没有找到该成绩记录，则采用线性标准分降级
+                        if (E === 0) {
+                            const z = gradeStatsObj.stdDev ? (rawScore - gradeStatsObj.mean) / gradeStatsObj.stdDev : 0;
+                            return parseFloat((z * 10 + 50).toFixed(1));
+                        }
+                        
+                        const pr = (L + 0.5 * E) / N;
+                        const zNorm = this.inverseNormalCDF(pr);
+                        return parseFloat((zNorm * 10 + 50).toFixed(1));
                     }
                     if (scoreType === 'ratio') {
                         return gradeStatsObj.mean === 0 ? 0 : parseFloat(((rawScore / gradeStatsObj.mean) * 100).toFixed(1));
@@ -8094,7 +8144,6 @@
                         "成绩数据明细",
                         "班级均分明细",
                         "题型得分率",
-                        "目标达成情况",
                         "临界生关注"
                     ];
 
@@ -9121,6 +9170,435 @@
                     } finally {
                         if (btnElement) btnElement.disabled = false;
                         if (ctx && ctx.student) this._updateStudentProfileAIButton(ctx.student);
+                    }
+                }
+
+                _getFilterHash(focus) {
+                    const parts = [
+                        (focus.campuses || []).sort().join(','),
+                        (focus.grades || []).sort().join(','),
+                        (focus.phases || []).sort().join(','),
+                        (focus.tClasses || []).sort().join(','),
+                        (focus.tags || []).sort().join(',')
+                    ];
+                    return parts.join('|') || 'ALL_GRADE';
+                }
+
+                _getFilterDescription(focus) {
+                    const parts = [];
+                    if (focus.campuses && focus.campuses.length > 0) parts.push(`校区: ${focus.campuses.join(', ')}`);
+                    if (focus.grades && focus.grades.length > 0) parts.push(`年级: ${focus.grades.join(', ')}`);
+                    if (focus.phases && focus.phases.length > 0) parts.push(`学期阶段: ${focus.phases.join(', ')}`);
+                    if (focus.tClasses && focus.tClasses.length > 0) parts.push(`班级: ${focus.tClasses.join(', ')}`);
+                    if (focus.tags && focus.tags.length > 0) parts.push(`标签: ${focus.tags.join(', ')}`);
+                    return parts.join(' | ') || '全年级所有班级';
+                }
+
+                _buildClassAISummaryContext(eid) {
+                    const { exam, scoreRows } = this._getDetailsViewScoreRows(eid);
+                    if (!exam || scoreRows.length === 0) return null;
+
+                    const studentCount = scoreRows.length;
+                    const totals = scoreRows.map(r => r.total);
+                    const maxScore = Math.max(...totals);
+                    const minScore = Math.min(...totals);
+                    const sumScore = totals.reduce((a, b) => a + b, 0);
+                    const classAvg = Number((sumScore / studentCount).toFixed(1));
+                    const fullScore = Number(exam.fullScore || exam.maxTotal || ((exam.types || []).reduce((sum, t) => sum + Number(t.max || 0), 0)) || 150);
+                    const passLine = fullScore * 0.6;
+                    const excellentLine = fullScore * 0.8;
+                    const passCount = scoreRows.filter(r => r.total >= passLine).length;
+                    const excellentCount = scoreRows.filter(r => r.total >= excellentLine).length;
+                    const passRate = Number(((passCount / studentCount) * 100).toFixed(1));
+                    const excellentRate = Number(((excellentCount / studentCount) * 100).toFixed(1));
+                    
+                    const mean = sumScore / studentCount;
+                    const variance = totals.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / studentCount;
+                    const stdDev = Number(Math.sqrt(variance).toFixed(1));
+
+                    // T-Score Distribution
+                    const activeStats = StatsEngine.gradeStats(exam, this.store.state.data.students, this.store.state.data.scores, null);
+                    let t60 = 0, t50 = 0, t40 = 0, tUnder40 = 0;
+                    scoreRows.forEach(row => {
+                        const t = StatsEngine.convertScore(row.total, exam, 'std', activeStats);
+                        if (t >= 60) t60++;
+                        else if (t >= 50) t50++;
+                        else if (t >= 40) t40++;
+                        else tUnder40++;
+                    });
+
+                    // Module details (Sub-parts)
+                    const moduleDetails = [];
+                    const gradeScores = this.store.state.data.scores.filter(s => s.examId === exam.id && s.total > 0 && !s.examAbsent);
+                    (exam.types || []).forEach(t => {
+                        let classSum = 0;
+                        let gradeSum = 0;
+                        scoreRows.forEach(row => classSum += Number(row.details?.[t.name] || 0));
+                        gradeScores.forEach(gs => gradeSum += Number(gs.details?.[t.name] || 0));
+
+                        const classPartAvg = Number((classSum / studentCount).toFixed(1));
+                        const classPartRate = t.max > 0 ? Number(((classPartAvg / t.max) * 100).toFixed(1)) : 0;
+                        const gradePartAvg = gradeScores.length > 0 ? Number((gradeSum / gradeScores.length).toFixed(1)) : 0;
+                        const gradePartRate = t.max > 0 ? Number(((gradePartAvg / t.max) * 100).toFixed(1)) : 0;
+
+                        moduleDetails.push({
+                            name: t.name,
+                            max: t.max,
+                            classAvg: classPartAvg,
+                            classRate: classPartRate,
+                            gradeAvg: gradePartAvg,
+                            gradeRate: gradePartRate
+                        });
+                    });
+
+                    // Top Performers (Top 5)
+                    const topStus = scoreRows.slice(0, 5).map(r => `${r.name}(${r.total}分, T:${StatsEngine.convertScore(r.total, exam, 'std', activeStats)})`);
+
+                    // Borderline Students (50%-70% of fullScore) - up to 5
+                    const bStus = scoreRows.filter(r => r.total >= fullScore * 0.5 && r.total <= fullScore * 0.7).slice(0, 5).map(r => `${r.name}(${r.total}分)`);
+
+                    // Struggling Students (< 40% of fullScore) - up to 5
+                    const sStus = scoreRows.filter(r => r.total < fullScore * 0.4).slice(0, 5).map(r => `${r.name}(${r.total}分)`);
+
+                    // Progressive Stars (based on T-Score delta from prior exam)
+                    const examsByDateDesc = [...(this.store.state.data.exams || [])].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+                    const currentExamIndex = examsByDateDesc.findIndex(e => e.id === exam.id);
+                    let prevExam = null;
+                    if (currentExamIndex >= 0) {
+                        for (let i = currentExamIndex + 1; i < examsByDateDesc.length; i++) {
+                            const pe = examsByDateDesc[i];
+                            const peScores = this.store.state.data.scores.filter(s => s.examId === pe.id && s.total > 0 && !s.examAbsent);
+                            if (peScores.length > 0) {
+                                prevExam = pe;
+                                break;
+                            }
+                        }
+                    }
+
+                    const progressDeltaList = [];
+                    if (prevExam) {
+                        const prevStats = StatsEngine.gradeStats(prevExam, this.store.state.data.students, this.store.state.data.scores, null);
+                        scoreRows.forEach(row => {
+                            const curT = StatsEngine.convertScore(row.total, exam, 'std', activeStats);
+                            const prevScore = this.store.getScore(row.id, prevExam.id);
+                            if (prevScore && prevScore.total > 0 && !prevScore.examAbsent) {
+                                const prevT = StatsEngine.convertScore(prevScore.total, prevExam, 'std', prevStats);
+                                progressDeltaList.push({
+                                    name: row.name,
+                                    delta: Number((curT - prevT).toFixed(1)),
+                                    curT,
+                                    prevT
+                                });
+                            }
+                        });
+                    }
+                    progressDeltaList.sort((a, b) => b.delta - a.delta);
+                    const topProgressStus = progressDeltaList.slice(0, 5).map(p => `${p.name}(T分提高:${p.delta > 0 ? '+' : ''}${p.delta})`);
+
+                    return {
+                        examName: exam.name,
+                        fullScore,
+                        studentCount,
+                        classAvg,
+                        gradeAvg: activeStats.mean ? Number(activeStats.mean.toFixed(1)) : classAvg,
+                        maxScore,
+                        minScore,
+                        passRate,
+                        excellentRate,
+                        t60,
+                        t50,
+                        t40,
+                        tUnder40,
+                        moduleDetails,
+                        topStudents: topStus.join('、') || '无',
+                        borderlineStudents: bStus.join('、') || '无',
+                        strugglingStudents: sStus.join('、') || '无',
+                        progressiveStudents: topProgressStus.join('、') || '无'
+                    };
+                }
+
+                _buildClassAISummaryPrompt(examName, ctx) {
+                    const moduleLines = ctx.moduleDetails.map(m => 
+                        `- ${m.name}：满分${m.max}分，班级均分${m.classAvg}(得分率${ctx.classAvg ? m.classRate : 0}%)，年级均分${m.gradeAvg}(得分率${m.gradeRate}%)`
+                    ).join('\n  ');
+
+                    return `你是一位资深的高中日语教研组长。请对以下筛选出的班级/年级考试成绩数据进行深度学术诊断。
+
+【数据上下文】
+- 考试名称：${examName} (满分 ${ctx.fullScore} 分)
+- 参考生数：共 ${ctx.studentCount} 人参考
+- 宏观成绩：班均分 ${ctx.classAvg} (年级均分 ${ctx.gradeAvg})，最高分 ${ctx.maxScore}，及格率 ${ctx.passRate}%，优秀率 ${ctx.excellentRate}%
+- 正态化 T 分数区间分布：优秀带 [T≥60] 共 ${ctx.t60}人，主力带 [50≤T<60] 共 ${ctx.t50}人，关注带 [40≤T<50] 共 ${ctx.t40}人，困难带 [T<40] 共 ${ctx.tUnder40}人
+- 各题型模块表现（班均得分率 vs 年级得分率）：
+  ${moduleLines}
+- 重点关注群体：
+  * 高分拔尖：${ctx.topStudents}
+  * 进步黑马：${ctx.progressiveStudents}
+  * 临界关注生 (及格边缘)：${ctx.borderlineStudents}
+  * 需特别关怀：${ctx.strugglingStudents}
+
+【诊断核心规则】
+1. 报告结构必须为以下三个清晰板块，每板块以 Markdown 标题或列表呈现：
+   - 🎯 一、班级学情多维透视 (优势与短板总结，指出偏科或两极分化情况)
+   - 🔍 二、题型模块精准诊断 (对比年级平均水平，详细解析哪项题型偏弱，并分析可能的原因)
+   - 🚀 三、分层教学与教学改进动作方案 (提供对高分生、临界生、学困生的具体分层教学建议，以及对后续课堂教学的 2 条具体策略调整)
+2. 语气：客观严谨、具备学术教研高度，同时温暖务实、贴近实际教学场景。
+3. 禁令：严禁包含任何“根据上述数据”等生硬开场，字数控制在 500-600 字以内，直接输出正文。`;
+                }
+
+                _renderClassAiTabContent(eid) {
+                    const exam = this.store.state.data.exams?.find(e => e.id === eid);
+                    if (!exam) return '<div style="padding:20px; text-align:center; color:var(--text-sub);">考试数据未找到</div>';
+
+                    const focus = this.store.state.globalFocus || { campuses: [], grades: [], phases: [], tClasses: [], tags: [] };
+                    const filterHash = this._getFilterHash(focus);
+                    const filterDesc = this._getFilterDescription(focus);
+
+                    exam.classAiReports = exam.classAiReports || {};
+                    const report = exam.classAiReports[filterHash];
+
+                    if (!report) {
+                        return `
+                        <div class="class-ai-empty-state" style="padding: 40px 20px; text-align: center; background: linear-gradient(135deg, rgba(239,246,255,0.4) 0%, rgba(219,234,254,0.3) 100%); border: 1px dashed rgba(59,130,246,0.3); border-radius: var(--radius-lg); margin: 10px 0; box-shadow: var(--shadow-sm);">
+                            <div style="font-size: 42px; margin-bottom: 16px; animation: float 3s ease-in-out infinite;">✨</div>
+                            <h3 style="margin: 0 0 8px 0; color: var(--text-main); font-size: 16px;">AI 智能学情诊断报告</h3>
+                            <p style="margin: 0 auto 20px; max-width: 500px; color: var(--text-sub); font-size: 13px; line-height: 1.6;">
+                                提炼当前筛选条件 <b>(${filterDesc})</b> 下的多维指标（均分、分段、临界生、高频错题模块、进步黑马等），AI 引擎将自动定制一份深度的班级/年级学情诊断与教学策略报告。
+                            </p>
+                            <button class="primary" onclick="window.app.ui.generateClassAISummary('${eid}', this)" style="padding: 10px 24px; font-size: 14px; font-weight: 700; border-radius: var(--radius-pill); border: none; display: inline-flex; align-items: center; gap: 8px; cursor: pointer; background: linear-gradient(135deg, #0072b2, #005a8c); box-shadow: 0 4px 14px rgba(0,114,178,0.3); transition: all var(--motion-base);">
+                                ✨ 一键生成学情诊断
+                            </button>
+                        </div>
+                        `;
+                    }
+
+                    const dateStr = new Date(report.timestamp).toLocaleString();
+                    const sumData = report.summaryData || {};
+                    const gapText = sumData.classAvg && sumData.gradeAvg 
+                        ? (sumData.classAvg >= sumData.gradeAvg ? `↑ 超年级 ${(sumData.classAvg - sumData.gradeAvg).toFixed(1)}分` : `↓ 低年级 ${(sumData.gradeAvg - sumData.classAvg).toFixed(1)}分`)
+                        : '';
+                    const gapColor = sumData.classAvg >= sumData.gradeAvg ? '#10b981' : '#ef4444';
+
+                    let partsHtml = '';
+                    if (report.commentText) {
+                        const lines = report.commentText.split(/\r?\n/);
+                        const formattedLines = lines.map(line => {
+                            let trimmed = line.trim();
+                            if (!trimmed) {
+                                return '<div style="height: 10px;"></div>';
+                            }
+                            let escaped = Utils.escapeHTML(line);
+                            if (escaped.startsWith('###')) {
+                                return `<h3 style="margin: 18px 0 8px 0; color: var(--primary); font-size: 15px; border-bottom: 1px solid var(--border); padding-bottom: 6px; font-weight: 700;">${escaped.replace(/^###\s*/, '')}</h3>`;
+                            }
+                            if (escaped.startsWith('##')) {
+                                return `<h2 style="margin: 22px 0 10px 0; color: var(--primary); font-size: 16px; font-weight: 700;">${escaped.replace(/^##\s*/, '')}</h2>`;
+                            }
+                            if (escaped.startsWith('#')) {
+                                return `<h1 style="margin: 26px 0 12px 0; color: var(--primary); font-size: 18px; font-weight: 700;">${escaped.replace(/^#\s*/, '')}</h1>`;
+                            }
+                            if (escaped.startsWith('-') || escaped.startsWith('*')) {
+                                let content = escaped.replace(/^[\-\*]\s*/, '');
+                                content = content.replace(/\*\*(.*?)\*\*/g, '<strong style="color: var(--text-main); font-weight: 700;">$1</strong>');
+                                return `<li style="margin-left: 18px; margin-bottom: 6px; list-style-type: disc; color: var(--text-main); line-height: 1.65;">${content}</li>`;
+                            }
+                            let content = escaped.replace(/\*\*(.*?)\*\*/g, '<strong style="color: var(--text-main); font-weight: 700;">$1</strong>');
+                            return `<div style="margin-bottom: 6px; line-height: 1.65;">${content}</div>`;
+                        });
+                        partsHtml = `<div class="ai-report-body" style="font-size:14px; line-height:1.75; color:var(--text-main); background: #fafafa; padding:20px; border-radius:12px; border:1px solid var(--border); box-shadow:var(--shadow-sm);">${formattedLines.join('')}</div>`;
+                    }
+
+                    return `
+                    <div class="class-ai-report-dashboard" style="display:flex; flex-direction:column; gap:16px;">
+                        <div class="report-meta-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; border-bottom:1px solid var(--border); padding-bottom:12px;">
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <span style="background:#dcfce7; color:#15803d; font-size:11px; font-weight:700; padding:3px 8px; border-radius:12px; display:inline-flex; align-items:center; gap:4px;"><span style="width:6px; height:6px; background:#22c55e; border-radius:50%;"></span>已生成</span>
+                                <span style="font-size:12px; color:var(--text-sub);">生成于: ${dateStr}</span>
+                                <span style="font-size:12px; color:var(--text-sub);">范围: <b style="color:var(--text-main);">${Utils.escapeHTML(filterDesc)}</b></span>
+                            </div>
+                            <div style="display:flex; gap:8px;">
+                                <button class="secondary" onclick="window.app.ui.copyClassAiReportToClipboard(this)" style="font-size:12px; padding:6px 12px; border-radius:6px; border:1px solid var(--border); background:white; cursor:pointer;">📋 复制报告</button>
+                                <button class="secondary" onclick="window.app.ui.generateClassAISummary('${eid}', this)" style="font-size:12px; padding:6px 12px; border-radius:6px; border:1px solid var(--border); background:white; cursor:pointer;">✨ 重新生成</button>
+                            </div>
+                        </div>
+
+                        <!-- Mini metrics cards -->
+                        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:12px;">
+                            <div style="background:var(--bg-secondary); border:1px solid var(--border); border-radius:10px; padding:12px; display:flex; flex-direction:column; gap:4px;">
+                                <span style="font-size:11px; color:var(--text-sub);">参考学生人数</span>
+                                <span style="font-size:20px; font-weight:800; color:var(--text-main);">${sumData.studentCount || 0} <small style="font-size:12px; font-weight:normal; color:var(--text-sub);">人</small></span>
+                            </div>
+                            <div style="background:var(--bg-secondary); border:1px solid var(--border); border-radius:10px; padding:12px; display:flex; flex-direction:column; gap:4px;">
+                                <span style="font-size:11px; color:var(--text-sub);">总分平均分</span>
+                                <span style="font-size:20px; font-weight:800; color:var(--text-main);">${sumData.classAvg || 0} <small style="font-size:12px; font-weight:normal; color:${gapColor}; font-weight:700; margin-left:4px;">${gapText}</small></span>
+                            </div>
+                            <div style="background:var(--bg-secondary); border:1px solid var(--border); border-radius:10px; padding:12px; display:flex; flex-direction:column; gap:4px;">
+                                <span style="font-size:11px; color:var(--text-sub);">及格率 / 优秀率</span>
+                                <span style="font-size:18px; font-weight:800; color:var(--text-main);">${sumData.passRate || 0}% <span style="font-size:12px; font-weight:normal; color:var(--text-sub);">/</span> ${sumData.excellentRate || 0}%</span>
+                            </div>
+                            <div style="background:var(--bg-secondary); border:1px solid var(--border); border-radius:10px; padding:12px; display:flex; flex-direction:column; gap:4px;">
+                                <span style="font-size:11px; color:var(--text-sub);">最高分 / 最低分</span>
+                                <span style="font-size:18px; font-weight:800; color:var(--text-main);">${sumData.maxScore || 0} <span style="font-size:12px; font-weight:normal; color:var(--text-sub);">/</span> ${sumData.minScore || 0}</span>
+                            </div>
+                        </div>
+
+                        ${partsHtml}
+                    </div>
+                    `;
+                }
+
+                copyClassAiReportToClipboard(btn) {
+                    const state = this.store && this.store.state ? this.store.state : {};
+                    const eid = state.currentExamId;
+                    if (!eid) return;
+                    const focus = this.store.state.globalFocus || { campuses: [], grades: [], phases: [], tClasses: [], tags: [] };
+                    const filterHash = this._getFilterHash(focus);
+                    const exam = this.store.state.data.exams?.find(e => e.id === eid);
+                    if (!exam || !exam.classAiReports || !exam.classAiReports[filterHash]) return;
+
+                    const report = exam.classAiReports[filterHash];
+                    navigator.clipboard.writeText(report.commentText).then(() => {
+                        const originalText = btn.innerText;
+                        btn.innerText = '✓ 已复制';
+                        btn.style.color = '#10b981';
+                        setTimeout(() => {
+                            btn.innerText = originalText;
+                            btn.style.color = '';
+                        }, 2000);
+                    }).catch(err => {
+                        console.error('Copy failed', err);
+                        alert('复制失败，请手动选中文本复制');
+                    });
+                }
+
+                async generateClassAISummary(eid, btnElement) {
+                    const card = document.getElementById('class-ai-tab-card');
+                    if (!card) return;
+
+                    const ctx = this._buildClassAISummaryContext(eid);
+                    if (!ctx) {
+                        alert('当前没有筛选出的成绩数据，请先调整过滤条件');
+                        return;
+                    }
+
+                    card.innerHTML = `
+                    <div class="class-ai-loading-screen" style="padding: 50px 20px; text-align: center; background: rgba(255,255,255,0.7); backdrop-filter: saturate(180%) blur(12px); -webkit-backdrop-filter: saturate(180%) blur(12px); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow-lg); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;">
+                        <div class="ai-loading-brain-icon" style="font-size: 48px; position: relative; width: 80px; height: 80px; display: flex; align-items: center; justify-content: center; background: rgba(37,99,235,0.06); border-radius: 50%;">
+                            🧠
+                            <div class="pulse-ring" style="position: absolute; inset: 0; border: 2px solid rgba(0,114,178,0.3); border-radius: 50%; animation: pulseRing 1.8s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;"></div>
+                        </div>
+                        <h4 style="margin: 0; font-size: 15px; color: var(--text-main);">正在为您生成智能学情诊断报告...</h4>
+                        <div id="ai-loading-status" style="font-size: 13px; color: #0072b2; font-weight: 600; min-height: 20px;">📊 正在提炼班级/年级多维成绩指标与分段常模...</div>
+                        <style>
+                            @keyframes pulseRing {
+                                0% { transform: scale(0.6); opacity: 0; }
+                                50% { opacity: 0.5; }
+                                100% { transform: scale(1.3); opacity: 0; }
+                            }
+                        </style>
+                    </div>
+                    `;
+
+                    const statusText = document.getElementById('ai-loading-status');
+                    let statusStep = 1;
+                    const statusInterval = setInterval(() => {
+                        if (statusStep === 1) {
+                            if (statusText) statusText.innerText = '🔌 正在建立安全加密 AI 引擎通道...';
+                            statusStep = 2;
+                        } else if (statusStep === 2) {
+                            if (statusText) statusText.innerText = '🧠 智能诊断学情中，正在为您构思精准课堂分层教学策略...';
+                            statusStep = 3;
+                        }
+                    }, 2000);
+
+                    try {
+                        const apiKey = localStorage.getItem('gakuten_ai_key');
+                        if (!apiKey) throw new Error('请先在系统设置中填写 AI API Key！');
+
+                        const providerSelect = document.getElementById('ai-provider-select');
+                        const baseUrlInput = document.getElementById('ai-base-url');
+                        const modelInput = document.getElementById('ai-model-input');
+                        const provider = (localStorage.getItem('gakuten_ai_provider') || (providerSelect && providerSelect.value) || 'deepseek').trim();
+                        const rawBaseUrl = (localStorage.getItem('gakuten_ai_base_url') || (baseUrlInput && baseUrlInput.value) || '').trim();
+                        const modelFromInput = (localStorage.getItem('gakuten_ai_model') || (modelInput && modelInput.value) || '').trim();
+                        const defaultModelMap = {
+                            deepseek: 'deepseek-v4-flash',
+                            gemini: 'gemini-3-flash-preview',
+                            qwen: 'qwen3.6-plus',
+                            'openai-compatible': 'gpt-4o-mini'
+                        };
+                        const modelName = modelFromInput || defaultModelMap[provider] || 'deepseek-v4-flash';
+                        const normalizedBaseUrl = rawBaseUrl.replace(/\/+$/, '');
+                        const defaultBaseUrlMap = {
+                            deepseek: 'https://api.deepseek.com',
+                            gemini: 'https://generativelanguage.googleapis.com/v1beta',
+                            qwen: 'https://dashscope.aliyuncs.com/compatible-mode/v1'
+                        };
+                        const apiBaseUrl = normalizedBaseUrl || defaultBaseUrlMap[provider] || '';
+
+                        const prompt = this._buildClassAISummaryPrompt(ctx.examName, ctx);
+                        const systemPrompt = '你是一位拥有多年丰富教学经验的杰出高中日语学科带带头人与教研组长。你擅长通过精确的定量成绩数据，诊断班级和年级在不同题型板块中的优劣势，并为老师提供极具可操作性、科学合理的个性化分层教学改进策略方案。';
+
+                        let response;
+                        let responseData;
+                        let commentText = '';
+
+                        if (provider === 'gemini') {
+                            response = await fetch(`${apiBaseUrl}/models/${encodeURIComponent(modelName)}:generateContent?key=${encodeURIComponent(apiKey)}`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    systemInstruction: { parts: [{ text: systemPrompt }] },
+                                    contents: [{ role: 'user', parts: [{ text: prompt }] }],
+                                    generationConfig: { temperature: 0.7 }
+                                })
+                            });
+                            responseData = await response.json();
+                            if (responseData.error) throw new Error(responseData.error.message || 'Gemini 请求失败');
+                            commentText = (responseData.candidates?.[0]?.content?.parts || []).map(p => p.text || '').join('').trim();
+                        } else {
+                            response = await fetch(`${apiBaseUrl}/chat/completions`, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Authorization': `Bearer ${apiKey}`
+                                },
+                                body: JSON.stringify({
+                                    model: modelName,
+                                    messages: [
+                                        { role: 'system', content: systemPrompt },
+                                        { role: 'user', content: prompt }
+                                    ],
+                                    temperature: 0.7
+                                })
+                            });
+                            responseData = await response.json();
+                            if (responseData.error) throw new Error(responseData.error.message || 'AI 请求失败');
+                            commentText = (responseData.choices?.[0]?.message?.content || '').trim();
+                        }
+
+                        if (!commentText) throw new Error('未返回有效内容');
+
+                        const exam = this.store.state.data.exams?.find(e => e.id === eid);
+                        if (exam) {
+                            const focus = this.store.state.globalFocus || { campuses: [], grades: [], phases: [], tClasses: [], tags: [] };
+                            const filterHash = this._getFilterHash(focus);
+                            exam.classAiReports = exam.classAiReports || {};
+                            exam.classAiReports[filterHash] = {
+                                commentText: commentText,
+                                timestamp: Date.now(),
+                                summaryData: ctx
+                            };
+                            this.store.save();
+                        }
+                        
+                        Utils.msg('AI 学情诊断报告生成成功！', 'success');
+                    } catch (err) {
+                        console.error('AI Report generation failed', err);
+                        alert(`生成失败: ${err.message}`);
+                    } finally {
+                        clearInterval(statusInterval);
+                        this.renderDetailsView();
                     }
                 }
 
@@ -12266,9 +12744,23 @@
                             : '<span style="color:var(--text-faint); background:rgba(148,163,184,0.1); padding:2px 6px; border-radius:4px; font-size:11px;">未生成</span>';
                         const rankCellHtml = this._renderInlineMarkedCell(rankValueHtml, '', rankPrefixHtml);
                         const nameCellHtml = this._renderInlineMarkedCell(nameLink, diagDots);
-                        const classAtExam = Utils.getClassForExam(d, exam);
-                        const classCell = `${Utils.escapeHTML(classAtExam.teachingClass || d.teachingClass || '-')}${Utils.hasTransferred(d) && classAtExam.teachingClass !== d.teachingClass ? ' 🔀' : ''}`;
-                        let trHtml = `<tr style="background: ${rowBgColor}; transition: background var(--motion-base);" class="${rowClass}"><td class="sticky-col-left" style="width:80px; min-width:80px; max-width:80px;">${rankCellHtml}</td><td class="sticky-col-left" style="left:80px; width:120px; min-width:120px; max-width:120px; font-weight:700;">${nameCellHtml}</td><td class="table-meta">${Utils.escapeHTML(d.campus||'-')}</td><td class="table-meta">${classCell}</td><td class="table-meta">${Utils.escapeHTML(d.adminClass||'-')}</td>`;
+                        
+                        let targetScoreHtml = '-';
+                        let gapHtml = '-';
+                        let statusHtml = '-';
+                        
+                        if (d.estimatedTotal && d.estimatedTotal > 0) {
+                            targetScoreHtml = `${d.estimatedTotal}`;
+                            const gap = parseFloat(((d.total || 0) - d.estimatedTotal).toFixed(1));
+                            const remainingGap = d.estimatedTotal - (d.total || 0);
+                            const status = (d.total || 0) >= d.estimatedTotal ? '已达成' : (remainingGap > 5 ? '需努力' : '接近达成');
+                            const statusColor = (d.total || 0) >= d.estimatedTotal ? '#10b981' : (remainingGap > 5 ? '#ef4444' : '#f59e0b');
+                            const gapColor = gap < 0 ? '#ef4444' : (gap > 0 ? '#10b981' : '#64748b');
+                            gapHtml = `<span style="color:${gapColor}; font-weight:700;">${gap > 0 ? '+' : ''}${gap}</span>`;
+                            statusHtml = `<span style="color:${statusColor}; font-weight:700;">${status}</span>`;
+                        }
+
+                        let trHtml = `<tr style="background: ${rowBgColor}; transition: background var(--motion-base);" class="${rowClass}"><td class="sticky-col-left" style="width:80px; min-width:80px; max-width:80px;">${rankCellHtml}</td><td class="sticky-col-left" style="left:80px; width:120px; min-width:120px; max-width:120px; font-weight:700;">${nameCellHtml}</td><td class="table-meta">${Utils.escapeHTML(d.adminClass||'-')}</td>`;
                         (exam.types||[]).forEach(t => {
                             const stuScore = d.details[t.name] || 0;
                             const stuRate = t.max > 0 ? (stuScore / t.max) : 0;
@@ -12282,11 +12774,11 @@
                             trHtml += `<td style="${cellStyle}">${stuScore}${anomalyIcon}</td>`;
                         });
                         const rate = (exam && exam.maxTotal) ? (d.total / exam.maxTotal) : 0;
-                        trHtml += `<td class="score-total-cell">${d.total}</td><td id="ai-status-cell-${d.name}">${aiStatus}</td></tr>`;
+                        trHtml += `<td class="score-total-cell">${d.total}</td><td>${targetScoreHtml}</td><td>${gapHtml}</td><td>${statusHtml}</td><td id="ai-status-cell-${d.name}">${aiStatus}</td></tr>`;
                         rowsHTML.push(trHtml);
                     });
 
-                    const scoreRowsHtml = rowsHTML.length > 0 ? rowsHTML.join('') : `<tr><td colspan="${7 + (exam.types || []).length}" style="text-align:center; color:var(--text-sub); padding:18px;">暂无成绩数据</td></tr>`;
+                    const scoreRowsHtml = rowsHTML.length > 0 ? rowsHTML.join('') : `<tr><td colspan="${8 + (exam.types || []).length}" style="text-align:center; color:var(--text-sub); padding:18px;">暂无成绩数据</td></tr>`;
 
                     const subjectAverages = (exam.types || []).map(t => {
                         const vals = scoreRows.map(r => Number(r.details[t.name] || 0));
@@ -12369,7 +12861,129 @@
                         return `<tr><td style="text-align:center; font-weight:700;">${idx + 1}</td><td><a href="javascript:void(0)" onclick="window.app.ui.showStudentProfile('${row.id}')" class="student-link">${Utils.escapeHTML(row.name)}</a></td><td>${Utils.escapeHTML(row.campus)}</td><td>${Utils.escapeHTML(row.teachingClass)}</td><td>${row.total}</td><td>${gapToPass}</td></tr>`;
                     }).join('') : `<tr><td colspan="6" style="text-align:center; color:var(--text-sub); padding:18px;">暂无临界生</td></tr>`;
 
-                    const currentTab = this.store.state.currentDetailsTab || 'score';
+                    // 获取属于该年级的全部考试，按日期升序排列
+                    const allExamsForDetails = (data.exams || []).filter(e => {
+                        return e.grade === exam.grade;
+                    }).sort((a,b) => (a.date||'').localeCompare(b.date||''));
+
+                    const activeExamIndex = allExamsForDetails.findIndex(e => e.id === eid);
+                    const examsUpToActive = activeExamIndex >= 0 ? allExamsForDetails.slice(0, activeExamIndex + 1) : allExamsForDetails;
+                    const gradeLast4 = examsUpToActive.slice(-4);
+
+                    let changesRowsHtml = '';
+                    let currentTab = this.store.state.currentDetailsTab || 'score';
+                    if (currentTab === 'target') {
+                        currentTab = 'score';
+                    }
+
+                    if (currentTab === 'changes') {
+                        // 预计算每个学生在本次考试较上一次考试的年级标准分变化，用于默认排序
+                        const activeStats = StatsEngine.gradeStats(exam, data.students, data.scores, null);
+                        const prevExam = activeExamIndex > 0 ? allExamsForDetails[activeExamIndex - 1] : null;
+                        const prevStats = prevExam ? StatsEngine.gradeStats(prevExam, data.students, data.scores, null) : null;
+
+                        const studentChanges = new Map();
+                        scoreRows.forEach(d => {
+                            const currentRec = this.store.getScore(d.id, eid);
+                            if (!currentRec || currentRec.examAbsent || currentRec.total <= 0) {
+                                studentChanges.set(d.id, -99999); // 缺考或无本次成绩的学生排最后
+                                return;
+                            }
+                            const currentStd = StatsEngine.convertScore(currentRec.total, exam, 'std', activeStats);
+                            
+                            if (prevExam) {
+                                const prevRec = this.store.getScore(d.id, prevExam.id);
+                                if (prevRec && !prevRec.examAbsent && prevRec.total > 0) {
+                                    const prevStd = StatsEngine.convertScore(prevRec.total, prevExam, 'std', prevStats);
+                                    const stdDiff = parseFloat((currentStd - prevStd).toFixed(1));
+                                    studentChanges.set(d.id, stdDiff);
+                                } else {
+                                    studentChanges.set(d.id, -9999); // 本生为首考
+                                }
+                            } else {
+                                studentChanges.set(d.id, -9999); // 全年级首考
+                            }
+                        });
+
+                        const changesScoreRows = [...scoreRows].sort((a, b) => {
+                            const changeA = studentChanges.get(a.id);
+                            const changeB = studentChanges.get(b.id);
+                            if (changeA !== changeB) {
+                                return changeB - changeA; // 按照标准分变化降序排列 (进步幅度最大排最前)
+                            }
+                            return b.total - a.total; // 同等变化或无变化时，按本次考试总分降序排列
+                        });
+
+                        const rows = [];
+                        changesScoreRows.forEach((d) => {
+                            let tr = `<tr>
+                                <td class="sticky-col-left" style="font-weight:700; text-align:center; left: 0; z-index: 2;"><a href="javascript:void(0)" onclick="window.app.ui.openStudentProfile('${d.id}')" class="student-link">${Utils.escapeHTML(d.name)}</a></td>
+                                <td style="color:var(--text-sub); text-align:center;">${Utils.escapeHTML(d.adminClass || '-')}</td>`;
+                            
+                            gradeLast4.forEach(ex => {
+                                const currentRec = this.store.getScore(d.id, ex.id);
+                                if (!currentRec || currentRec.examAbsent || currentRec.total <= 0) {
+                                    tr += `<td style="text-align:center; color:var(--text-faint);">-</td>
+                                           <td style="text-align:center; color:var(--text-faint);">-</td>`;
+                                    return;
+                                }
+
+                                const exIndex = allExamsForDetails.findIndex(e => e.id === ex.id);
+                                let rawChangeHtml = '<span style="color:var(--text-faint);">-</span>';
+                                let stdChangeHtml = '<span style="color:var(--text-faint);">-</span>';
+
+                                // 计算当前考试全年级标准分
+                                const currentStats = StatsEngine.gradeStats(ex, data.students, data.scores, null);
+                                const currentStd = StatsEngine.convertScore(currentRec.total, ex, 'std', currentStats);
+
+                                if (exIndex > 0) {
+                                    const prevExam = allExamsForDetails[exIndex - 1];
+                                    const prevRec = this.store.getScore(d.id, prevExam.id);
+                                    if (prevRec && !prevRec.examAbsent && prevRec.total > 0) {
+                                        const prevStats = StatsEngine.gradeStats(prevExam, data.students, data.scores, null);
+                                        const prevStd = StatsEngine.convertScore(prevRec.total, prevExam, 'std', prevStats);
+
+                                        const rawDiff = currentRec.total - prevRec.total;
+                                        const stdDiff = parseFloat((currentStd - prevStd).toFixed(1));
+
+                                        if (rawDiff > 0) {
+                                            rawChangeHtml = `<span style="color:#16a34a; font-weight:700;">+${rawDiff}</span>`;
+                                        } else if (rawDiff < 0) {
+                                            rawChangeHtml = `<span style="color:#dc2626; font-weight:700;">${rawDiff}</span>`;
+                                        } else {
+                                            rawChangeHtml = `<span style="color:#8e8e93;">0</span>`;
+                                        }
+
+                                        if (stdDiff > 0) {
+                                            stdChangeHtml = `<span style="color:#16a34a; font-weight:700;">+${stdDiff.toFixed(1)}</span>`;
+                                        } else if (stdDiff < 0) {
+                                            stdChangeHtml = `<span style="color:#dc2626; font-weight:700;">${stdDiff.toFixed(1)}</span>`;
+                                        } else {
+                                            stdChangeHtml = `<span style="color:#8e8e93;">0.0</span>`;
+                                        }
+                                    } else {
+                                        rawChangeHtml = `<span style="color:#8e8e93; font-size:11px;">首考</span>`;
+                                        stdChangeHtml = `<span style="color:#8e8e93; font-size:11px;">-</span>`;
+                                    }
+                                } else {
+                                    rawChangeHtml = `<span style="color:#8e8e93; font-size:11px;">首考</span>`;
+                                    stdChangeHtml = `<span style="color:#8e8e93; font-size:11px;">-</span>`;
+                                }
+
+                                tr += `<td style="text-align:center; font-weight:600;">${currentRec.total} (${rawChangeHtml})</td>
+                                       <td style="text-align:center; font-weight:600;">${currentStd.toFixed(1)} (${stdChangeHtml})</td>`;
+                            });
+                            
+                            tr += `</tr>`;
+                            rows.push(tr);
+                        });
+                        
+                        if (rows.length === 0) {
+                            changesRowsHtml = `<tr><td colspan="${2 + gradeLast4.length * 2}" style="text-align:center; color:var(--text-sub); padding:18px;">暂无成绩数据</td></tr>`;
+                        } else {
+                            changesRowsHtml = rows.join('');
+                        }
+                    }
 
                     const html = `
     <div class="top-navbar details-top-navbar" style="display: flex; justify-content: space-between; align-items: center; padding-right: 20px;">
@@ -12377,11 +12991,12 @@
             <div class="page-title" style="flex:0 0 auto;"><span>📋</span> 学生成绩详情</div>
             <div class="analysis-tabs details-tabs--inline">
                 <div class="analysis-tab ${currentTab === 'score' ? 'active' : ''}" onclick="window.app.ui.switchDetailsTab('score')">成绩数据明细</div>
+                <div class="analysis-tab ${currentTab === 'changes' ? 'active' : ''}" onclick="window.app.ui.switchDetailsTab('changes')">近四次成绩变化</div>
                 <div class="analysis-tab ${currentTab === 'avg' ? 'active' : ''}" onclick="window.app.ui.switchDetailsTab('avg')">班级均分明细</div>
                 <div class="analysis-tab ${currentTab === 'rate' ? 'active' : ''}" onclick="window.app.ui.switchDetailsTab('rate')">题型得分率明细</div>
                 <div class="analysis-tab ${currentTab === 'segment' ? 'active' : ''}" onclick="window.app.ui.switchDetailsTab('segment')">分段统计概览</div>
-                <div class="analysis-tab ${currentTab === 'target' ? 'active' : ''}" onclick="window.app.ui.switchDetailsTab('target')">目标达成情况</div>
                 <div class="analysis-tab ${currentTab === 'borderline' ? 'active' : ''}" onclick="window.app.ui.switchDetailsTab('borderline')">临界生重点关注</div>
+                <div class="analysis-tab ${currentTab === 'classAi' ? 'active' : ''}" onclick="window.app.ui.switchDetailsTab('classAi')">AI 智能学情诊断</div>
             </div>
         </div>
         <div class="details-top-actions">
@@ -12406,8 +13021,35 @@
                 </h3>
                 <div class="table-scroll-container" style="max-height:none;">
                     <table style="width:100%; border-collapse:separate; border-spacing:0; background:var(--bg-secondary);">
-                        <thead><tr><th>排名</th><th>姓名</th><th>校区</th><th>日语班</th><th>行政班</th>${(exam.types || []).map(t => `<th>${Utils.escapeHTML(t.name)}</th>`).join('')}<th>总分</th><th id="btn-batch-ai" class="details-ai-batch-th" style="width:86px;" tabindex="0" onmouseenter="window.app.ui.showDetailsAiHint(event)" onfocus="window.app.ui.showDetailsAiHint(event)" onmouseleave="window.app.ui.hideDetailsAiHint()" onblur="window.app.ui.hideDetailsAiHint()" onclick="window.app.ui.batchGenerateAIComments()">AI 诊断</th></tr></thead>
+                        <thead><tr><th>排名</th><th>姓名</th><th>行政班</th>${(exam.types || []).map(t => `<th>${Utils.escapeHTML(t.name)}</th>`).join('')}<th>总分</th><th>目标分数</th><th>差距</th><th>达成状态</th><th id="btn-batch-ai" class="details-ai-batch-th" style="width:86px;" tabindex="0" onmouseenter="window.app.ui.showDetailsAiHint(event)" onfocus="window.app.ui.showDetailsAiHint(event)" onmouseleave="window.app.ui.hideDetailsAiHint()" onblur="window.app.ui.hideDetailsAiHint()" onclick="window.app.ui.batchGenerateAIComments()">AI 诊断</th></tr></thead>
                         <tbody>${scoreRowsHtml}</tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- 近四次考试较上次成绩与标准分变化明细表 -->
+            <div class="card" style="padding:14px 16px; margin-bottom:0; display: ${currentTab === 'changes' ? 'block' : 'none'};">
+                <h3 style="margin:0 0 10px 0; display:flex; align-items:center; justify-content:space-between;">
+                    <span>📈 近四次考试成绩与标准分变化波动明细表 (全年级标准分比对)</span>
+                    <small style="font-weight:normal; font-size:12px; color:var(--text-sub); background: rgba(0,0,0,0.03); padding: 4px 8px; border-radius: 4px;">
+                        标准分变化基于全年级数据比对，不受当前筛选器影响
+                    </small>
+                </h3>
+                <div class="table-scroll-container" style="max-height:none;">
+                    <table style="width:100%; border-collapse:separate; border-spacing:0; background:var(--bg-secondary);">
+                        <thead style="position: sticky; top: 0; z-index: var(--z-sticky);">
+                            <tr>
+                                <th rowspan="2" class="sticky-col-left" style="text-align:center; vertical-align:middle; width:120px; z-index:var(--z-sticky); left: 0;">姓名</th>
+                                <th rowspan="2" style="text-align:center; vertical-align:middle; width:100px;">行政班</th>
+                                ${gradeLast4.map(ex => `<th colspan="2" style="text-align:center;">${Utils.escapeHTML(ex.name)}</th>`).join('')}
+                            </tr>
+                            <tr>
+                                ${gradeLast4.map(() => `<th style="text-align:center; width:140px;">卷面总分 (变化)</th><th style="text-align:center; width:140px;">标准分 (变化)</th>`).join('')}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${changesRowsHtml}
+                        </tbody>
                     </table>
                 </div>
             </div>
@@ -12437,16 +13079,6 @@
                 <div style="display:flex; flex-direction:column; gap:10px;">${segmentBlocks}</div>
             </div>
 
-            <div class="card" style="padding:14px 16px; margin-bottom:0; display: ${currentTab === 'target' ? 'block' : 'none'};">
-                <h3 style="margin:0 0 10px 0;">目标达成情况表</h3>
-                <div class="table-scroll-container" style="max-height:none;">
-                    <table style="width:100%; border-collapse:separate; border-spacing:0; background:var(--bg-secondary);">
-                        <thead><tr><th>姓名</th><th>当前成绩</th><th>目标分数</th><th>差距</th><th>完成度</th><th>达成状态</th></tr></thead>
-                        <tbody>${targetRowsHtml}</tbody>
-                    </table>
-                </div>
-            </div>
-
             <div class="card" style="padding:14px 16px; margin-bottom:0; display: ${currentTab === 'borderline' ? 'block' : 'none'};">
                 <h3 style="margin:0 0 10px 0;">临界生重点关注表</h3>
                 <div class="table-scroll-container" style="max-height:none;">
@@ -12456,9 +13088,13 @@
                     </table>
                 </div>
             </div>
+
+            <div class="card" style="padding:14px 16px; margin-bottom:0; display: ${currentTab === 'classAi' ? 'block' : 'none'};" id="class-ai-tab-card">
+                ${this._renderClassAiTabContent(eid)}
+            </div>
         </div>
     </div>
-`;
+    `;
 
                     container.innerHTML = html;
                     this._bindAnalysisTabsEdgeIndicators(container);
