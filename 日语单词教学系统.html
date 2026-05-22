@@ -69,7 +69,7 @@
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
   html, body { height: 100vh; overflow: hidden; margin: 0; padding: 0; }
-  body { font-family: 'Noto Sans JP', 'Hiragino Sans', 'Microsoft YaHei', sans-serif; transition: background 0.35s ease, color 0.35s ease; }
+  body { font-family: 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', 'Source Han Sans SC', 'Hiragino Sans GB', sans-serif; transition: background 0.35s ease, color 0.35s ease; }
   ::-webkit-scrollbar { width:6px; }
   ::-webkit-scrollbar-thumb { background:#ccc; border-radius:3px; }
   button { font-family: inherit; }
@@ -281,13 +281,14 @@ const shuffle = (a) => {
 };
 
 const POS_OPTIONS = ["名詞","動詞","い形容詞","な形容詞","副詞","接続詞","感動詞","助詞","連体詞","代名詞","その他"];
-const EMPTY_WORD = { kana:"", kanji:"", accent:"", pos:"名詞", meaning:"", usage:"", examples:[{ja:"",cn:""}], imageUrl:"" };
-const EXCEL_HEADERS = ["假名","汉字","声调","词性","中文释义","用法说明","例句1日文","例句1中文","例句2日文","例句2中文","例句3日文","例句3中文","图片URL"];
+const EMPTY_WORD = { kana:"", kanji:"", accent:"", pos:"名詞", meaning:"", usage:"", examples:[{ja:"",cn:""}], imageUrl:"", hidden:false };
+const EXCEL_HEADERS = ["假名","汉字","声调","词性","中文释义","用法说明","例句1日文","例句1中文","例句2日文","例句2中文","例句3日文","例句3中文","图片URL","是否隐藏"];
 const EXCEL_TEMPLATE_ROWS = [
-  { kana:"たまご", kanji:"卵", accent:"2", pos:"名詞", meaning:"鸡蛋", usage:"日常食材，可做主菜或配料", examples:[{ja:"朝ごはんに卵を食べます。",cn:"早餐吃鸡蛋。"},{ja:"卵はいくつありますか。",cn:"有几个鸡蛋？"}], imageUrl:"https://images.unsplash.com/photo-1518569656558-1f25e69d93d7?w=400&h=260&fit=crop" },
-  { kana:"あたらしい", kanji:"新しい", accent:"4", pos:"い形容詞", meaning:"新的", usage:"い形容词，修饰名词时直接接名词", examples:[{ja:"新しい本を買いました。",cn:"买了新书。"},{ja:"この教室は新しいです。",cn:"这间教室是新的。"}], imageUrl:"" },
+  { kana:"たまご", kanji:"卵", accent:"2", pos:"名詞", meaning:"鸡蛋", usage:"日常食材，可做主菜或配料", examples:[{ja:"朝ごはんに卵を食べます。",cn:"早餐吃鸡蛋。"},{ja:"卵はいくつありますか。",cn:"有几个鸡蛋？"}], imageUrl:"https://images.unsplash.com/photo-1518569656558-1f25e69d93d7?w=400&h=260&fit=crop", hidden:false },
+  { kana:"あたらしい", kanji:"新しい", accent:"4", pos:"い形容詞", meaning:"新的", usage:"い形容词，修饰名词时直接接名词", examples:[{ja:"新しい本を買いました。",cn:"买了新书。"},{ja:"この教室は新しいです。",cn:"这间教室是新的。"}], imageUrl:"", hidden:false },
 ];
 const getCell = (row, key) => String(row[key] ?? "").trim();
+const parseHiddenFlag = (v) => /^(是|true|yes|y|1|隐藏)$/i.test(String(v ?? "").trim());
 const cleanAccent = (v) => {
   const s = String(v ?? "").trim();
   if (!s) return "";
@@ -317,6 +318,7 @@ const wordToExcelRow = (w) => {
     "例句3日文": ex[2]?.ja || "",
     "例句3中文": ex[2]?.cn || "",
     "图片URL": w.imageUrl || "",
+    "是否隐藏": w.hidden ? "是" : "否",
   };
 };
 const excelRowToWord = (row, rowNumber) => {
@@ -337,6 +339,7 @@ const excelRowToWord = (row, rowNumber) => {
       usage: getCell(row, "用法说明"),
       examples: examples.length ? examples : [{ja:"",cn:""}],
       imageUrl: cleanImageUrl(row["图片URL"]),
+      hidden: parseHiddenFlag(row["是否隐藏"]),
     }
   };
 };
@@ -599,7 +602,9 @@ const TEACH_CHALK = {
   w40:"rgba(255,255,255,0.4)", w30:"rgba(255,255,255,0.3)", w20:"rgba(255,255,255,0.2)",
   w15:"rgba(255,255,255,0.15)", w10:"rgba(255,255,255,0.1)", w06:"rgba(255,255,255,0.06)", w04:"rgba(255,255,255,0.04)",
 };
-const SF = "'Noto Serif JP','Yu Mincho',serif";
+const CN_FONT = "'PingFang SC','Microsoft YaHei','Noto Sans SC','Source Han Sans SC','Hiragino Sans GB',sans-serif";
+const JP_FONT = "'Noto Serif JP','Yu Mincho','Hiragino Mincho ProN',serif";
+const SF = JP_FONT;
 const VH = "calc(100vh - 64px)";
 
 /* ===== STORAGE ===== */
@@ -637,6 +642,7 @@ const IUpload = (p) => <Ico {...p} d={<><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 0
 const IDownload = (p) => <Ico {...p} d={<><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></>}/>;
 const IX = (p) => <Ico {...p} d={<><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></>}/>;
 const IEye = (p) => <Ico {...p} d={<><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></>}/>;
+const IEyeOff = (p) => <Ico {...p} d={<><path d="M17.94 17.94A10.94 10.94 0 0112 20C5 20 1 12 1 12a20.29 20.29 0 014.62-5.94"/><path d="M9.9 4.24A10.45 10.45 0 0112 4c7 0 11 8 11 8a20.72 20.72 0 01-2.16 3.19"/><path d="M14.12 14.12a3 3 0 01-4.24-4.24"/><path d="M3 3l18 18"/></>}/>;
 
 /* ===== SHARED STYLES ===== */
 const sInput = { width:"100%", padding:"9px 13px", border:`1px solid ${C.border}`, borderRadius:8, fontSize:14, outline:"none", boxSizing:"border-box", transition:"border-color 0.2s", background:"#fff" };
@@ -667,7 +673,7 @@ function Modal({ open, onClose, title, children, wide, themeC = C }) {
 /* ===== WORD FORM ===== */
 function WordForm({ word, onSave, onCancel, themeC = C }) {
   const C = themeC;
-  const [w, setW] = useState(word ? {...word, examples: word.examples.map(e=>({...e}))} : {...EMPTY_WORD, id:gid(), examples:[{ja:"",cn:""}]});
+  const [w, setW] = useState(word ? {...EMPTY_WORD, ...word, hidden:!!word.hidden, examples: (word.examples || [{ja:"",cn:""}]).map(e=>({...e}))} : {...EMPTY_WORD, id:gid(), examples:[{ja:"",cn:""}]});
   const fileRef = useRef();
   const set = (k,v) => setW(p => ({...p, [k]:v}));
   const setEx = (i,k,v) => setW(p => { const exs=[...p.examples]; exs[i]={...exs[i],[k]:v}; return {...p, examples:exs}; });
@@ -736,8 +742,11 @@ function EditMode({ groups, setGroups, categories, setCategories, gid: curGid, s
   const [renamingCat, setRenamingCat] = useState(null);
   const [catRenameVal, setCatRenameVal] = useState("");
   const [expandedCats, setExpandedCats] = useState(() => Object.fromEntries(DEFAULT_WORD_SET_CATEGORIES.map(cat => [cat, true])));
+  const [wordView, setWordView] = useState("pos");
   const [draggingGroupId, setDraggingGroupId] = useState(null);
   const [dragOverCategory, setDragOverCategory] = useState(null);
+  const [draggingWordId, setDraggingWordId] = useState(null);
+  const [dragOverWordId, setDragOverWordId] = useState(null);
   const group = groups.find(g => g.id === curGid);
   const activeCategory = inferWordSetCategory(group);
   const isDark = C.bg === TEACH_CHALK.bg;
@@ -856,12 +865,69 @@ function EditMode({ groups, setGroups, categories, setCategories, gid: curGid, s
     setShowForm(false); setEditWord(null);
   };
   const delWord = (wid) => { if(!confirm("删除该单词？")) return; setGroups(groups.map(g=>g.id!==curGid?g:{...g, words:g.words.filter(w=>w.id!==wid)})); };
-  const moveWord = (idx, dir) => {
+  const toggleWordHidden = (wid) => {
+    setGroups(groups.map(g => g.id !== curGid ? g : { ...g, words:g.words.map(w => w.id === wid ? { ...w, hidden:!w.hidden } : w) }));
+  };
+  const moveWordTo = (sourceId, targetId) => {
+    if (!sourceId || !targetId || sourceId === targetId) return;
     setGroups(groups.map(g => {
       if (g.id !== curGid) return g;
-      const ws=[...g.words]; const ni=idx+dir; if(ni<0||ni>=ws.length) return g;
-      [ws[idx],ws[ni]]=[ws[ni],ws[idx]]; return {...g, words:ws};
+      const ws = [...g.words];
+      const from = ws.findIndex(w => w.id === sourceId);
+      const to = ws.findIndex(w => w.id === targetId);
+      if (from < 0 || to < 0 || from === to) return g;
+      const [moved] = ws.splice(from, 1);
+      ws.splice(to, 0, moved);
+      return { ...g, words:ws };
     }));
+  };
+  const groupedWordsByPos = useMemo(() => {
+    const order = [];
+    const map = new Map();
+    (group?.words || []).forEach(word => {
+      const pos = word.pos || "その他";
+      if (!map.has(pos)) {
+        map.set(pos, []);
+        order.push(pos);
+      }
+      map.get(pos).push(word);
+    });
+    return order.map(pos => ({ pos, words:map.get(pos) }));
+  }, [group]);
+
+  const renderWordCard = (w) => {
+    const orderIndex = Math.max(0, (group?.words || []).findIndex(word => word.id === w.id)) + 1;
+    return (
+      <div key={w.id} className="fade-in" draggable
+        onDragStart={e=>{ setDraggingWordId(w.id); e.dataTransfer.effectAllowed="move"; e.dataTransfer.setData("text/plain", w.id); }}
+        onDragOver={e=>{ if (!draggingWordId || draggingWordId === w.id) return; e.preventDefault(); e.dataTransfer.dropEffect="move"; setDragOverWordId(w.id); }}
+        onDragLeave={e=>{ if (!e.currentTarget.contains(e.relatedTarget)) setDragOverWordId(null); }}
+        onDrop={e=>{ e.preventDefault(); const sourceId = e.dataTransfer.getData("text/plain") || draggingWordId; moveWordTo(sourceId, w.id); setDraggingWordId(null); setDragOverWordId(null); }}
+        onDragEnd={()=>{ setDraggingWordId(null); setDragOverWordId(null); }}
+        style={{ minHeight:78, background:C.card, borderRadius:10, padding:8, border:`1px solid ${dragOverWordId===w.id ? C.primary : w.hidden ? "rgba(209,67,67,0.24)" : C.borderLight}`, transition:"box-shadow 0.2s, transform 0.2s", opacity:draggingWordId===w.id?0.45:w.hidden?0.5:1, position:"relative", display:"flex", alignItems:"center", gap:10, overflow:"hidden", boxSizing:"border-box", cursor:"grab", boxShadow:dragOverWordId===w.id ? `inset 0 0 0 1px ${C.primary}` : "none" }}
+        onMouseEnter={e=>{e.currentTarget.style.boxShadow="0 4px 14px rgba(0,0,0,0.07)";e.currentTarget.style.transform="translateY(-1px)";}}
+        onMouseLeave={e=>{e.currentTarget.style.boxShadow=dragOverWordId===w.id ? `inset 0 0 0 1px ${C.primary}` : "none";e.currentTarget.style.transform="none";}}>
+        <div style={{ width:30, flex:"0 0 30px", textAlign:"center", color:C.muted, fontSize:12, fontWeight:900 }}>{String(orderIndex).padStart(2, "0")}</div>
+        <div style={{ width:60, height:60, borderRadius:8, overflow:"hidden", background:C.bg, border:`1px solid ${C.borderLight}`, flexShrink:0, display:"flex", alignItems:"center", justifyContent:"center", color:C.hint, fontSize:18 }}>
+          {w.imageUrl ? <img src={w.imageUrl} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }} onError={e=>{e.currentTarget.style.display="none";}}/> : "単"}
+        </div>
+        <button onClick={()=>{setEditWord(w);setShowForm(true)}} style={{ flex:"1 1 auto", minWidth:0, alignSelf:"stretch", background:"transparent", border:"none", padding:"2px 4px", cursor:"pointer", textAlign:"left", display:"grid", gridTemplateRows:"1fr 1fr", rowGap:3, alignItems:"center" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:6, minWidth:0, lineHeight:1.15 }}>
+            <span style={{ fontSize:17, fontWeight:800, fontFamily:SF, color:C.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", minWidth:0 }}>{w.kanji || w.kana}</span>
+            {w.accent && <span style={{ fontSize:10, color:C.primary, fontWeight:800, flexShrink:0 }}>[{w.accent}]</span>}
+            {w.hidden && <span style={{ padding:"1px 6px", borderRadius:999, background:"rgba(209,67,67,0.10)", color:C.wrong, fontSize:10, fontWeight:800, flexShrink:0 }}>隐藏</span>}
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"minmax(72px, 0.8fr) minmax(120px, 1.2fr)", gap:10, minWidth:0, alignItems:"center", lineHeight:1.2 }}>
+            <span style={{ fontSize:12, color:C.muted, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", fontFamily:SF, minWidth:0 }}>{w.kanji ? w.kana : w.pos}</span>
+            <span style={{ fontSize:13, color:C.primary, fontWeight:700, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", minWidth:0 }}>{w.meaning}</span>
+          </div>
+        </button>
+        <div draggable={false} onDragStart={e=>e.preventDefault()} style={{ display:"flex", gap:5, justifyContent:"end", flex:"0 0 86px" }}>
+          <button onClick={()=>toggleWordHidden(w.id)} title={w.hidden?"恢复课堂显示":"课堂隐藏该词"} aria-label={w.hidden?"恢复课堂显示":"课堂隐藏该词"} style={{ background:w.hidden?"rgba(209,67,67,0.1)":C.bg, border:"none", borderRadius:8, width:48, height:36, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>{w.hidden ? <IEyeOff size={18} color={C.wrong}/> : <IEye size={18} color={C.muted}/>}</button>
+          <button onClick={()=>delWord(w.id)} style={{ background:"rgba(209,67,67,0.1)", border:"none", borderRadius:8, width:32, height:36, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}><ITrash size={14} color={C.wrong}/></button>
+        </div>
+      </div>
+    );
   };
 
   const renderGroupNode = (g) => {
@@ -988,6 +1054,22 @@ function EditMode({ groups, setGroups, categories, setCategories, gid: curGid, s
                 <div style={{ fontSize:12, color:C.muted, fontWeight:800, marginBottom:4 }}>{inferWordSetCategory(group)}</div>
                 <h2 style={{ margin:0, fontSize:21, fontWeight:800, color:C.text }}>{group.name}</h2>
               </div>
+              {group.words.length > 0 && (
+                <div style={{ display:"flex", alignItems:"center", gap:6, background:C.card, border:`1px solid ${C.borderLight}`, borderRadius:10, padding:4 }}>
+                  {[
+                    { key:"order", label:"顺序视图" },
+                    { key:"pos", label:"词性视图" },
+                  ].map(item => {
+                    const active = wordView === item.key;
+                    return (
+                      <button key={item.key} onClick={()=>setWordView(item.key)}
+                        style={{ border:"none", borderRadius:7, padding:"7px 11px", cursor:"pointer", background:active?C.primaryLight:"transparent", color:active?C.primary:C.muted, fontSize:12, fontWeight:900 }}>
+                        {item.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
             {group.words.length === 0 ? (
               <div style={{ textAlign:"center", padding:"70px 20px", color:C.muted }}>
@@ -995,43 +1077,25 @@ function EditMode({ groups, setGroups, categories, setCategories, gid: curGid, s
                 <div style={{ fontSize:15 }}>该组还没有单词，请从底部“新增单词”录入或导入表格</div>
               </div>
             ) : (
-              <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(290px, 1fr))", gap:14 }}>
-                {group.words.map((w, idx) => (
-                  <div key={w.id} className="fade-in" style={{ background:C.card, borderRadius:14, padding:16, border:`1px solid ${C.borderLight}`, transition:"box-shadow 0.2s, transform 0.2s" }}
-                    onMouseEnter={e=>{e.currentTarget.style.boxShadow="0 6px 20px rgba(0,0,0,0.08)";e.currentTarget.style.transform="translateY(-2px)";}}
-                    onMouseLeave={e=>{e.currentTarget.style.boxShadow="none";e.currentTarget.style.transform="none";}}>
-                    {w.imageUrl && <img src={w.imageUrl} alt="" style={{ width:"100%", height:130, objectFit:"cover", borderRadius:10, marginBottom:12 }} onError={e=>e.target.style.display="none"}/>}                    
-                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
-                      <div>
-                        <div style={{ fontSize:22, fontWeight:700, fontFamily:SF, color:C.text }}>
-                          {w.kanji || w.kana}
-                          {w.accent && <sup style={{ fontSize:11, color:C.primary, marginLeft:4, fontFamily:"sans-serif" }}>[{w.accent}]</sup>}
-                        </div>
-                        {w.kanji && <div style={{ fontSize:14, color:C.muted, marginTop:1 }}>{w.kana}</div>}
-                        <span style={{ display:"inline-block", padding:"2px 8px", borderRadius:20, background:C.greenLight, color:C.green, fontSize:11, fontWeight:600, marginTop:5 }}>{w.pos}</span>
+              wordView === "order" ? (
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(430px, 1fr))", gap:8 }}>
+                  {group.words.map(renderWordCard)}
+                </div>
+              ) : (
+                <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+                  {groupedWordsByPos.map(section => (
+                    <div key={section.pos}>
+                      <div style={{ display:"flex", alignItems:"center", gap:8, margin:"0 0 8px", color:C.muted }}>
+                        <span style={{ fontSize:13, fontWeight:900 }}>{section.pos}</span>
+                        <span style={{ fontSize:11, color:C.hint }}>({section.words.length})</span>
                       </div>
-                      <div style={{ fontSize:16, fontWeight:700, color:C.primary, textAlign:"right", maxWidth:"40%" }}>{w.meaning}</div>
-                    </div>
-                    {w.usage && <div style={{ fontSize:12, color:C.muted, marginTop:8, fontStyle:"italic" }}>💡 {w.usage}</div>}
-                    {w.examples.filter(e=>e.ja).length > 0 && (
-                      <div style={{ marginTop:10, padding:"8px 10px", background:C.bg, borderRadius:8, fontSize:12 }}>
-                        {w.examples.filter(e=>e.ja).map((ex,i) => (
-                          <div key={i} style={{ marginBottom: i<w.examples.filter(e=>e.ja).length-1 ? 5:0 }}>
-                            <div style={{ color:C.text, fontFamily:SF }}>{ex.ja}</div>
-                            {ex.cn && <div style={{ color:C.muted }}>{ex.cn}</div>}
-                          </div>
-                        ))}
+                      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(430px, 1fr))", gap:8 }}>
+                        {section.words.map(renderWordCard)}
                       </div>
-                    )}
-                    <div style={{ display:"flex", gap:4, marginTop:10, justifyContent:"flex-end" }}>
-                      {idx > 0 && <button onClick={()=>moveWord(idx,-1)} style={{ background:C.bg, border:"none", borderRadius:6, width:28, height:28, cursor:"pointer", fontSize:13, color:C.text }}>↑</button>}
-                      {idx < group.words.length-1 && <button onClick={()=>moveWord(idx,1)} style={{ background:C.bg, border:"none", borderRadius:6, width:28, height:28, cursor:"pointer", fontSize:13, color:C.text }}>↓</button>}
-                      <button onClick={()=>{setEditWord(w);setShowForm(true)}} style={{ background:C.blueLight, border:"none", borderRadius:6, width:28, height:28, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}><IEdit size={13} color={C.blue}/></button>
-                      <button onClick={()=>delWord(w.id)} style={{ background:"rgba(209,67,67,0.1)", border:"none", borderRadius:6, width:28, height:28, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}><ITrash size={13} color={C.wrong}/></button>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )
             )}
           </div>
         ) : (
@@ -1084,7 +1148,7 @@ function VisualAccentCurve({
   }, [accent]);
 
   if (accentNum === null || morae.length === 0) {
-    return <span style={{ fontFamily: "'Noto Serif JP', serif", color:textColor }}>{kana}</span>;
+    return <span style={{ fontFamily: JP_FONT, color:textColor }}>{kana}</span>;
   }
 
   const N = morae.length;
@@ -1117,7 +1181,7 @@ function VisualAccentCurve({
   const sidePad = Math.max(2, fontSize * 0.08);
 
   return (
-    <span style={{ position:"relative", display:"inline-block", padding:`${Math.max(8, fontSize * 0.28)}px ${sidePad}px 0`, fontFamily:"'Noto Serif JP', serif", fontSize, fontWeight:800, lineHeight:1.08, color:textColor, whiteSpace:"nowrap", verticalAlign:"baseline" }}>
+    <span style={{ position:"relative", display:"inline-block", padding:`${Math.max(8, fontSize * 0.28)}px ${sidePad}px 0`, fontFamily:JP_FONT, fontSize, fontWeight:800, lineHeight:1.08, color:textColor, whiteSpace:"nowrap", verticalAlign:"baseline" }}>
       {hasLine && (
         <span style={{ position:"absolute", left:`calc(${highStart}% + ${sidePad}px)`, right:`calc(${100 - highEnd}% + ${sidePad}px)`, top:lineTop, height:2, borderRadius:2, background:color, boxShadow:`0 0 ${Math.max(2, fontSize * 0.08)}px ${color}66`, pointerEvents:"none" }} />
       )}
@@ -1132,6 +1196,7 @@ function VisualAccentCurve({
 function TeachMode({
   groups,
   gid: curGid,
+  setGroups = () => {},
   setGid = () => {},
   mode = "teach",
   setMode = () => {},
@@ -1147,7 +1212,9 @@ function TeachMode({
   onTeachStateChange,
 }) {
   const group = groups.find(g => g.id === curGid);
-  const words = group?.words || [];
+  const allWords = group?.words || [];
+  const hiddenCount = allWords.filter(w => w.hidden === true).length;
+  const words = allWords.filter(w => w.hidden !== true);
   const C = chalkboardMode ? TEACH_CHALK : TEACH_LIGHT;
   const [showTeachToolsMenu, setShowTeachToolsMenu] = useState(false);
   const [page, setPage] = useState(0);
@@ -1172,6 +1239,16 @@ function TeachMode({
   const lastClickedBtnRef = useRef(false);
   const lastShortcutAtRef = useRef(0);
   const countdownTimerRef = useRef(null);
+  const restoreHiddenWords = useCallback(() => {
+    if (!group || hiddenCount === 0) return;
+    setGroups(groups.map(g => g.id === group.id ? { ...g, words:(g.words || []).map(w => w.hidden ? { ...w, hidden:false } : w) } : g));
+    setPage(0);
+    setShowMeaningMap({});
+    setShowUsageMap({});
+    setShowExamplesMap({});
+    setFlippedCardMap({});
+    setExampleTranslationMap({});
+  }, [group, groups, hiddenCount, setGroups]);
 
   const CELL_CONFIG = {
     1: { cols:1, rows:1, imgFlex:"0 0 50%", textPadding:"48px 56px", backPadding:"24px 36px", textLineWidth:848, showImg:true, showUsage:true, showExamples:true, kanjiSize:72, noImgKanjiSize:84, kanaSize:52, meaningSize:56, tagSize:18, tagPadding:"6px 18px", tagRadius:24, usageSize:28, exJaSize:54, exCnSize:40, maxExamples:3, exBarWidth:5, blurRadius:10 },
@@ -1215,6 +1292,8 @@ function TeachMode({
         countdownLeft,
         countdownTotal,
         wordsCount: words.length,
+        hiddenCount,
+        restoreHiddenWords,
         allMeaningShown,
         chalkboardMode,
         showShortcutHelp,
@@ -1238,7 +1317,7 @@ function TeachMode({
         setShowShortcutHelp,
       });
     }
-  }, [safePage, totalPages, quizPhase, effectiveCount, pct, countdownLeft, countdownTotal, words.length, allMeaningShown, chalkboardMode, showShortcutHelp, isPaused, currentWords, selectedCard, cardStatus, enterKanaPhase]);
+  }, [safePage, totalPages, quizPhase, effectiveCount, pct, countdownLeft, countdownTotal, words.length, hiddenCount, restoreHiddenWords, allMeaningShown, chalkboardMode, showShortcutHelp, isPaused, currentWords, selectedCard, cardStatus, enterKanaPhase]);
   const countdownRatio = countdownTotal ? countdownLeft / countdownTotal : 0;
   const countdownColor = countdownRatio > 0.5 ? C.green : countdownRatio > 0.2 ? "#E8A040" : C.primary;
   const wordExamples = (word) => (word?.examples || []).filter(e => e.ja || e.cn).slice(0, cfg.maxExamples);
@@ -1622,6 +1701,12 @@ function TeachMode({
   if (!group || group.words.length === 0) return (
     <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:VH, overflow:"hidden", background:C.bg, color:C.muted, fontSize:16 }}>
       请先在「编辑」模式中选择一个含有单词的单词组
+    </div>
+  );
+  if (words.length === 0) return (
+    <div style={{ display:"flex", flexDirection:"column", gap:14, alignItems:"center", justifyContent:"center", height:VH, overflow:"hidden", background:C.bg, color:C.muted, fontSize:16 }}>
+      <div>当前单词组的单词都已在课堂隐藏</div>
+      <button onClick={restoreHiddenWords} style={sBtnSm(C.primaryLight, C.primary, { border:`1.5px solid ${C.primary}33`, fontWeight:800 })}>恢复全部</button>
     </div>
   );
 
@@ -2236,7 +2321,7 @@ function ChoicePractice({ words, onBack, C, onStateChange }) {
             <img src={q.word.imageUrl} alt="" style={{ width:"100%", maxHeight:100, objectFit:"contain", borderRadius:14 }} onError={e=>e.currentTarget.parentElement.style.display="none"}/>
           </div>
         )}
-        <div style={{ fontSize:34, fontWeight:700, fontFamily:SF, color:C.text, marginBottom:14 }}>{mode==="cn2ja"?q.word.meaning:(q.word.kanji||q.word.kana)}</div>
+        <div style={{ fontSize:34, fontWeight:700, fontFamily:mode==="cn2ja"?CN_FONT:SF, color:C.text, marginBottom:14 }}>{mode==="cn2ja"?q.word.meaning:(q.word.kanji||q.word.kana)}</div>
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
           {q.options.map((opt,i) => {
             let bg=C.bg, bdr=C.border, clr=C.text;
@@ -2246,7 +2331,7 @@ function ChoicePractice({ words, onBack, C, onStateChange }) {
             }
             return (
               <button key={i} onClick={()=>pick(i)}
-                style={{ padding:"10px 14px", background:bg, border:`1.5px solid ${bdr}`, borderRadius:12, cursor:sel!==null?"default":"pointer", color:clr, fontSize:15, fontWeight:500, fontFamily:mode==="cn2ja"?SF:"inherit", transition:"all 0.2s", animation:sel===i&&!q.options[i].correct?"shake 0.3s":"none" }}
+                style={{ padding:"10px 14px", background:bg, border:`1.5px solid ${bdr}`, borderRadius:12, cursor:sel!==null?"default":"pointer", color:clr, fontSize:15, fontWeight:500, fontFamily:mode==="cn2ja"?SF:CN_FONT, transition:"all 0.2s", animation:sel===i&&!q.options[i].correct?"shake 0.3s":"none" }}
                 onMouseEnter={e=>{if(sel===null)e.currentTarget.style.background=C.borderLight}}
                 onMouseLeave={e=>{if(sel===null)e.currentTarget.style.background=C.bg}}>
                 {opt.label}
@@ -2352,6 +2437,8 @@ function MatchPractice({ words, onBack, C, onStateChange }) {
 /* ===== PRACTICE WRAPPER ===== */
 function PracticeMode({ groups, gid: curGid, chalkboardMode, onPracticeStateChange }) {
   const group = groups.find(g => g.id === curGid);
+  const practiceWords = (group?.words || []).filter(w => w.hidden !== true);
+  const hiddenCount = (group?.words || []).filter(w => w.hidden === true).length;
   const [type, setType] = useState(null);
   const [subPracticeState, setSubPracticeState] = useState(null);
   const C = chalkboardMode ? TEACH_CHALK : TEACH_LIGHT;
@@ -2368,7 +2455,7 @@ function PracticeMode({ groups, gid: curGid, chalkboardMode, onPracticeStateChan
         onPracticeStateChange({
           type: null,
           title: "选择练习方式",
-          progressText: `${group?.name || ""} · ${group?.words?.length || 0} 个单词`,
+          progressText: `${group?.name || ""} · ${practiceWords.length} 个单词${hiddenCount ? ` · 已过滤 ${hiddenCount} 个隐藏词` : ""}`,
           setType,
         });
       } else {
@@ -2387,18 +2474,18 @@ function PracticeMode({ groups, gid: curGid, chalkboardMode, onPracticeStateChan
         });
       }
     }
-  }, [type, subPracticeState, group, onPracticeStateChange]);
+  }, [type, subPracticeState, group, practiceWords.length, hiddenCount, onPracticeStateChange]);
 
-  if (!group || group.words.length < 2) return (
+  if (!group || practiceWords.length < 2) return (
     <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%", overflow:"hidden", background:C.bg, color:C.muted, fontSize:16 }}>
-      请选择一个包含至少 2 个单词的单词组进行练习
+      请选择一个包含至少 2 个未隐藏单词的单词组进行练习
     </div>
   );
 
   if (!type) return (
     <div style={{ height:"100%", overflow:"hidden", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center" }}>
       <div style={{ textAlign:"center" }}>
-        <div style={{ fontSize:14, color:C.muted, marginBottom:10 }}>{group.name} · {group.words.length} 个单词</div>
+        <div style={{ fontSize:14, color:C.muted, marginBottom:10 }}>{group.name} · {practiceWords.length} 个单词{hiddenCount ? ` · 已过滤 ${hiddenCount} 个隐藏词` : ""}</div>
         <h2 style={{ color:C.text, fontSize:28, fontWeight:700, marginBottom:36, margin:"0 0 36px" }}>选择练习方式</h2>
         <div style={{ display:"flex", gap:18, flexWrap:"wrap", justifyContent:"center" }}>
           {[
@@ -2420,7 +2507,7 @@ function PracticeMode({ groups, gid: curGid, chalkboardMode, onPracticeStateChan
     </div>
   );
 
-  const pp = { words: group.words, onBack:()=>setType(null), C, onStateChange: setSubPracticeState };
+  const pp = { words: practiceWords, onBack:()=>setType(null), C, onStateChange: setSubPracticeState };
   return (
     <div style={{ height:"100%", overflow:"hidden", background:C.bg, display:"flex", flexDirection:"column" }}>
       <div style={{ padding:"10px 28px", flexShrink:0 }}>
@@ -2463,6 +2550,8 @@ function App() {
   const [triggerAddWord, setTriggerAddWord] = useState(0);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showAddMenu, setShowAddMenu] = useState(false);
+  const [showTeachGroupPopover, setShowTeachGroupPopover] = useState(false);
+  const [teachPopoverExpandedCats, setTeachPopoverExpandedCats] = useState(() => Object.fromEntries(DEFAULT_WORD_SET_CATEGORIES.map(cat => [cat, true])));
   const fileRef = useRef();
   const syncTimerRef = useRef(null);
   const groupsRef = useRef(groups);
@@ -2483,6 +2572,10 @@ function App() {
 
   const currentWordGroup = useMemo(() => groups.find(g => g.id === curGid) || groups[0] || null, [groups, curGid]);
   const importCategories = useMemo(() => buildCategoryList(groups, categories), [groups, categories]);
+  const teachGroupTree = useMemo(() => buildCategoryList(groups, categories).map(category => ({
+    category,
+    groups: groups.filter(g => inferWordSetCategory(g) === category),
+  })), [groups, categories]);
   const currentImportCategory = currentWordGroup ? inferWordSetCategory(currentWordGroup) : "未分类";
   const effectiveImportCategory = importCategories.includes(importCategory) ? importCategory : (importCategories.includes(currentImportCategory) ? currentImportCategory : "未分类");
   const updateImportCategory = (category) => {
@@ -2937,6 +3030,14 @@ function App() {
     { key:"practice", label:"🎯 练习", color:C.primary },
   ];
   const appC = teachChalkboardMode ? TEACH_CHALK : C;
+  const handleBottomModeClick = (key) => {
+    if (key === "teach" && mode === "teach") {
+      setShowTeachGroupPopover(v => !v);
+      return;
+    }
+    setShowTeachGroupPopover(false);
+    setMode(key);
+  };
 
   const renderMiddleControls = () => {
     if (mode === "edit") {
@@ -3033,6 +3134,9 @@ function App() {
         setIsPaused,
         countdownLeft,
         countdownTotal,
+        wordsCount,
+        hiddenCount,
+        restoreHiddenWords,
         enterKanaPhase,
         enterReversePhase,
         enterResultPhase
@@ -3215,7 +3319,7 @@ function App() {
 
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               {layoutOptions.map(opt => {
-                const disabled = (opt.count === 4 && (currentWordGroup?.words?.length || 0) < 4) || (opt.count === 6 && (currentWordGroup?.words?.length || 0) < 6);
+                const disabled = (opt.count === 4 && (wordsCount || 0) < 4) || (opt.count === 6 && (wordsCount || 0) < 6);
                 const active = effectiveCount === opt.count;
                 return (
                   <button
@@ -3258,6 +3362,12 @@ function App() {
             >
               {allMeaningShown ? "▶ 开始练习" : "👁 查看所有含义"}
             </button>
+            {hiddenCount > 0 && (
+              <div style={{ display:"flex", alignItems:"center", gap:8, fontSize:12, color:appC.muted }}>
+                <span>已过滤 {hiddenCount} 个隐藏词</span>
+                <button onClick={restoreHiddenWords} style={{ background:"transparent", border:"none", color:appC.primary, cursor:"pointer", fontSize:12, fontWeight:800, padding:0 }}>恢复全部</button>
+              </div>
+            )}
           </div>
         );
       } else {
@@ -3497,13 +3607,44 @@ function App() {
           userSelect: "none"
         }}
       >
-        <div style={{ display: "flex", background: teachChalkboardMode ? "#1E1E1E" : "#F7F3ED", borderRadius: 8, padding: 3, gap: 2, height: 32, alignItems: "center" }}>
+        <div style={{ display: "flex", background: teachChalkboardMode ? "#1E1E1E" : "#F7F3ED", borderRadius: 8, padding: 3, gap: 2, height: 32, alignItems: "center", position:"relative" }}>
+          {showTeachGroupPopover && mode === "teach" && (
+            <>
+              <div style={{ position:"fixed", top:0, right:0, bottom:48, left:0, zIndex:1090, background:"transparent" }} onClick={()=>setShowTeachGroupPopover(false)} />
+              <div className="pop-in" onClick={e=>e.stopPropagation()} style={{ position:"absolute", left:52, bottom:42, width:340, maxWidth:"calc(100vw - 32px)", maxHeight:320, overflowY:"auto", background:appC.card, color:appC.text, border:`1.5px solid ${appC.border}`, borderRadius:12, boxShadow:"0 -8px 32px rgba(0,0,0,0.25)", padding:10, zIndex:1100 }}>
+                <div style={{ fontSize:13, fontWeight:900, margin:"2px 4px 10px", color:appC.text }}>快速切换单词组</div>
+                {teachGroupTree.map(({category, groups: catGroups}) => {
+                  const open = teachPopoverExpandedCats[category] !== false;
+                  return (
+                  <div key={category} style={{ marginBottom:open&&catGroups.length?10:6 }}>
+                    <div onClick={()=>setTeachPopoverExpandedCats(prev => ({ ...prev, [category]: prev[category] === false }))}
+                      style={{ display:"flex", alignItems:"center", gap:6, color:appC.muted, fontSize:12, fontWeight:900, padding:"4px 5px", cursor:"pointer", borderRadius:6 }}
+                      onMouseEnter={e=>e.currentTarget.style.background=appC.borderLight}
+                      onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                      <span style={{ width:12, display:"inline-block" }}>{open ? "▾" : "▸"}</span><span>{category}</span><span style={{ color:appC.hint, fontSize:10 }}>({catGroups.length})</span>
+                    </div>
+                    {open && (catGroups.length ? catGroups.map(g => {
+                      const active = g.id === curGid;
+                      return (
+                        <button key={g.id} onClick={()=>{ setCurGid(g.id); setShowTeachGroupPopover(false); }}
+                          style={{ width:"100%", display:"flex", justifyContent:"space-between", alignItems:"center", gap:10, textAlign:"left", padding:"8px 9px 8px 22px", border:"none", borderRadius:8, background:active?appC.primaryLight:"transparent", color:active?appC.primary:appC.text, cursor:"pointer", fontSize:12, fontWeight:active?900:650 }}>
+                          <span style={{ overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{g.name}</span>
+                          <span style={{ flexShrink:0, color:active?appC.primary:appC.hint, fontSize:10 }}>{(g.words || []).filter(w => !w.hidden).length}/{(g.words || []).length}</span>
+                        </button>
+                      );
+                    }) : <div style={{ color:appC.hint, fontSize:11, padding:"4px 0 4px 22px" }}>暂无单词组</div>)}
+                  </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
           {modes.map(m => {
             const isActive = mode === m.key;
             return (
               <button
                 key={m.key}
-                onClick={() => setMode(m.key)}
+                onClick={() => handleBottomModeClick(m.key)}
                 style={{
                   padding: "0 12px",
                   height: "100%",
@@ -3761,6 +3902,7 @@ function App() {
         {mode === "teach" && <TeachMode
           groups={groups}
           gid={curGid}
+          setGroups={setGroupsFromUserAction}
           setGid={setCurGid}
           mode={mode}
           setMode={setMode}
