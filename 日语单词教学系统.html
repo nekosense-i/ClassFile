@@ -386,9 +386,10 @@ const syncUrlGroupId = (groupId) => {
   } catch (e) {}
 };
 const cloneGroups = (groups) => JSON.parse(JSON.stringify(Array.isArray(groups) ? groups : []));
-const makeDataSnapshot = (groups, categories) => JSON.stringify({
+const makeDataSnapshot = (groups, categories, tombstones) => JSON.stringify({
   categories: Array.isArray(categories) ? categories : [],
   groups: Array.isArray(groups) ? groups : [],
+  tombstones: tombstones || { groups: {}, words: {} },
 });
 const DEFAULT_WORD_SET_CATEGORIES = ["必修系列", "选择性必修", "高考专项", "未分类"];
 const LAST_IMPORT_CATEGORY_KEY = "classtango_last_import_category";
@@ -417,13 +418,17 @@ const normalizeSyncPayload = (payload, fallbackGroupId = DEFAULT_SYNC_GROUP_ID) 
   if (Array.isArray(payload)) {
     const now = Date.now();
     const groups = cloneGroups(payload);
-    return { group_id: sanitizeGroupId(fallbackGroupId), last_updated: now, synced_at: now, categories: buildCategoryList(groups, null), groups };
+    return { group_id: sanitizeGroupId(fallbackGroupId), last_updated: now, synced_at: now, categories: buildCategoryList(groups, null), groups, tombstones: { groups: {}, words: {} } };
   }
   if (payload && typeof payload === "object") {
     const groups = Array.isArray(payload.groups) ? payload.groups : Array.isArray(payload.data) ? payload.data : [];
     const lastUpdated = Number(payload.last_updated || payload.updated_at || payload.timestamp || Date.now()) || Date.now();
     const syncedAt = Number(payload.synced_at || payload.last_synced_at || payload.syncedAt || lastUpdated) || lastUpdated;
     const clonedGroups = cloneGroups(groups);
+    const tombstones = payload.tombstones && typeof payload.tombstones === "object" ? {
+      groups: payload.tombstones.groups && typeof payload.tombstones.groups === "object" ? { ...payload.tombstones.groups } : {},
+      words: payload.tombstones.words && typeof payload.tombstones.words === "object" ? { ...payload.tombstones.words } : {}
+    } : { groups: {}, words: {} };
     return {
       ...payload,
       group_id: sanitizeGroupId(payload.group_id || payload.groupId || fallbackGroupId),
@@ -431,10 +436,11 @@ const normalizeSyncPayload = (payload, fallbackGroupId = DEFAULT_SYNC_GROUP_ID) 
       synced_at: syncedAt,
       categories: buildCategoryList(clonedGroups, payload.categories),
       groups: clonedGroups,
+      tombstones
     };
   }
   const now = Date.now();
-  return { group_id: sanitizeGroupId(fallbackGroupId), last_updated: now, synced_at: now, categories: buildCategoryList([], null), groups: [] };
+  return { group_id: sanitizeGroupId(fallbackGroupId), last_updated: now, synced_at: now, categories: buildCategoryList([], null), groups: [], tombstones: { groups: {}, words: {} } };
 };
 const hasUnsyncedLocalChanges = (payload) => Number(payload?.last_updated || 0) > Number(payload?.synced_at || 0);
 const payloadStamp = (payload) => Number(payload?.last_updated || 0);
@@ -448,27 +454,89 @@ const formatSyncTime = (value) => {
   const pad = n => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
-const mergeGroups = (localGroups, remoteGroups) => {
-  const merged = cloneGroups(remoteGroups);
-  const index = new Map(merged.map(g => [g.id, g]));
-  cloneGroups(localGroups).forEach(group => {
-    const existing = index.get(group.id);
-    if (!existing) {
-      const nextGroup = { ...group, words: cloneGroups(group.words || []) };
-      merged.push(nextGroup);
-      index.set(nextGroup.id, nextGroup);
-      return;
-    }
-    const wordMap = new Map((existing.words || []).map(word => [word.id || word.kana, { ...word }]));
-    (group.words || []).forEach(word => {
-      const key = word.id || word.kana;
-      const prev = wordMap.get(key) || {};
-      wordMap.set(key, { ...prev, ...word });
-    });
-    existing.words = [...wordMap.values()];
-    existing.name = group.name || existing.name;
+const mergeGroups = (localGroups, remoteGroups, localTombstones, remoteTombstones, localTime, remoteTime) => {
+  const mergedTombstones = {
+    groups: {},
+    words: {}
+  };
+  const allGroupKeys = new Set([...Object.keys(localTombstones?.groups || {}), ...Object.keys(remoteTombstones?.groups || {})]);
+  allGroupKeys.forEach(id => {
+    mergedTombstones.groups[id] = Math.max(localTombstones?.groups?.[id] || 0, remoteTombstones?.groups?.[id] || 0);
   });
-  return merged;
+  const allWordKeys = new Set([...Object.keys(localTombstones?.words || {}), ...Object.keys(remoteTombstones?.words || {})]);
+  allWordKeys.forEach(id => {
+    mergedTombstones.words[id] = Math.max(localTombstones?.words?.[id] || 0, remoteTombstones?.words?.[id] || 0);
+  });
+
+  const merged = [];
+  const groupMap = new Map();
+
+  remoteGroups.forEach(g => {
+    groupMap.set(g.id, { ...g, words: cloneGroups(g.words || []), source: 'remote' });
+  });
+  localGroups.forEach(g => {
+    if (groupMap.has(g.id)) {
+      groupMap.set(g.id, { ...g, words: cloneGroups(g.words || []), source: 'both' });
+    } else {
+      groupMap.set(g.id, { ...g, words: cloneGroups(g.words || []), source: 'local' });
+    }
+  });
+
+  for (const [id, g] of groupMap.entries()) {
+    const delTime = mergedTombstones.groups[id];
+    if (delTime) {
+      if (g.source === 'local' && delTime >= localTime) continue;
+      if (g.source === 'remote' && delTime >= remoteTime) continue;
+      if (g.source === 'both') {
+        if (delTime >= Math.max(localTime, remoteTime)) continue;
+      }
+    }
+    
+    const remoteG = remoteGroups.find(x => x.id === g.id);
+    const localG = localGroups.find(x => x.id === g.id);
+    
+    if (remoteG && localG) {
+      const wordMap = new Map();
+      (remoteG.words || []).forEach(w => {
+        wordMap.set(w.id || w.kana, { ...w, source: 'remote' });
+      });
+      (localG.words || []).forEach(w => {
+        const key = w.id || w.kana;
+        if (wordMap.has(key)) {
+          wordMap.set(key, { ...w, source: 'both' });
+        } else {
+          wordMap.set(key, { ...w, source: 'local' });
+        }
+      });
+
+      const mergedWords = [];
+      for (const [wKey, w] of wordMap.entries()) {
+        const wDelTime = mergedTombstones.words[w.id || wKey];
+        if (wDelTime) {
+          if (w.source === 'local' && wDelTime >= localTime) continue;
+          if (w.source === 'remote' && wDelTime >= remoteTime) continue;
+          if (w.source === 'both' && wDelTime >= Math.max(localTime, remoteTime)) continue;
+        }
+        mergedWords.push(w);
+      }
+      g.words = mergedWords;
+    } else if (g.source === 'local') {
+      g.words = (g.words || []).filter(w => {
+        const wDelTime = mergedTombstones.words[w.id || w.kana];
+        return !wDelTime || wDelTime < localTime;
+      });
+    } else if (g.source === 'remote') {
+      g.words = (g.words || []).filter(w => {
+        const wDelTime = mergedTombstones.words[w.id || w.kana];
+        return !wDelTime || wDelTime < remoteTime;
+      });
+    }
+
+    delete g.source;
+    merged.push(g);
+  }
+
+  return { mergedGroups: merged, mergedTombstones };
 };
 const requestJson = async (url, options = {}, timeoutMs = 10000) => {
   const controller = new AbortController();
@@ -752,6 +820,12 @@ function EditMode({ groups, setGroups, categories, setCategories, gid: curGid, s
   const isDark = C.bg === TEACH_CHALK.bg;
   const categoryTextColor = isDark ? "rgba(255,255,255,0.72)" : C.muted;
   const displayCategories = buildCategoryList(groups, categories);
+  const currentHiddenCount = (group?.words || []).filter(w => w.hidden === true).length;
+
+  const restoreHiddenWordsInEdit = useCallback(() => {
+    if (!group || currentHiddenCount === 0) return;
+    setGroups(groups.map(g => g.id === group.id ? { ...g, words:(g.words || []).map(w => w.hidden ? { ...w, hidden:false } : w) } : g));
+  }, [group, groups, currentHiddenCount, setGroups]);
 
   useEffect(() => {
     if (triggerAddWord > 0) {
@@ -1050,9 +1124,17 @@ function EditMode({ groups, setGroups, categories, setCategories, gid: curGid, s
         {group ? (
           <div className="fade-in">
             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:22 }}>
-              <div>
+              <div style={{ minWidth:0 }}>
                 <div style={{ fontSize:12, color:C.muted, fontWeight:800, marginBottom:4 }}>{inferWordSetCategory(group)}</div>
-                <h2 style={{ margin:0, fontSize:21, fontWeight:800, color:C.text }}>{group.name}</h2>
+                <div style={{ display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
+                  <h2 style={{ margin:0, fontSize:21, fontWeight:800, color:C.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:"min(520px, 58vw)" }}>{group.name}</h2>
+                  {currentHiddenCount > 0 && (
+                    <div style={{ display:"flex", alignItems:"center", gap:8, padding:"5px 10px", borderRadius:999, background:C.card, border:`1px solid ${C.borderLight}`, color:C.muted, fontSize:12, fontWeight:800 }}>
+                      <span>已隐藏 {currentHiddenCount} 个单词</span>
+                      <button onClick={restoreHiddenWordsInEdit} style={{ background:"transparent", border:"none", color:C.primary, cursor:"pointer", fontSize:12, fontWeight:900, padding:0 }}>恢复全部</button>
+                    </div>
+                  )}
+                </div>
               </div>
               {group.words.length > 0 && (
                 <div style={{ display:"flex", alignItems:"center", gap:6, background:C.card, border:`1px solid ${C.borderLight}`, borderRadius:10, padding:4 }}>
@@ -2527,6 +2609,7 @@ function PracticeMode({ groups, gid: curGid, chalkboardMode, onPracticeStateChan
 function App() {
   const [groups, setGroups] = useState([]);
   const [categories, setCategories] = useState(DEFAULT_WORD_SET_CATEGORIES);
+  const [tombstones, setTombstones] = useState({ groups: {}, words: {} });
   const [curGid, setCurGid] = useState(null);
   const [groupId, setGroupId] = useState(() => parseGroupIdFromUrl());
   const [mode, setMode] = useState("edit");
@@ -2556,6 +2639,7 @@ function App() {
   const syncTimerRef = useRef(null);
   const groupsRef = useRef(groups);
   const categoriesRef = useRef(categories);
+  const tombstonesRef = useRef(tombstones);
   const groupIdRef = useRef(groupId);
   const curGidRef = useRef(curGid);
   const lastSyncRef = useRef(null);
@@ -2563,10 +2647,11 @@ function App() {
   const suppressAutoSyncRef = useRef(true);
   const pendingAutoSyncRef = useRef(false);
   const isDataReallyChangedRef = useRef(false);
-  const lastDataSnapshotRef = useRef(makeDataSnapshot([], DEFAULT_WORD_SET_CATEGORIES));
+  const lastDataSnapshotRef = useRef(makeDataSnapshot([], DEFAULT_WORD_SET_CATEGORIES, { groups: {}, words: {} }));
 
   useEffect(() => { groupsRef.current = groups; }, [groups]);
   useEffect(() => { categoriesRef.current = categories; }, [categories]);
+  useEffect(() => { tombstonesRef.current = tombstones; }, [tombstones]);
   useEffect(() => { groupIdRef.current = groupId; }, [groupId]);
   useEffect(() => { curGidRef.current = curGid; }, [curGid]);
 
@@ -2586,10 +2671,47 @@ function App() {
   const markDataReallyChanged = useCallback(() => {
     isDataReallyChangedRef.current = true;
   }, []);
+  const updateGroupsAndDetectDeletions = useCallback((next) => {
+    setGroups(prev => {
+      const oldGroups = prev;
+      const newGroups = typeof next === "function" ? next(oldGroups) : next;
+      if (ready) {
+        const deletedGroupIds = [];
+        const deletedWordIds = [];
+        const newGroupIds = new Set(newGroups.map(g => g.id));
+        oldGroups.forEach(g => {
+          if (!newGroupIds.has(g.id)) {
+            deletedGroupIds.push(g.id);
+          } else {
+            const newG = newGroups.find(x => x.id === g.id);
+            const newWordIds = new Set((newG?.words || []).map(w => w.id));
+            (g.words || []).forEach(w => {
+              if (!newWordIds.has(w.id)) {
+                deletedWordIds.push(w.id);
+              }
+            });
+          }
+        });
+        if (deletedGroupIds.length > 0 || deletedWordIds.length > 0) {
+          setTombstones(prevT => {
+            const nextT = {
+              groups: { ...prevT.groups },
+              words: { ...prevT.words }
+            };
+            const now = Date.now();
+            deletedGroupIds.forEach(id => { nextT.groups[id] = now; });
+            deletedWordIds.forEach(id => { nextT.words[id] = now; });
+            return nextT;
+          });
+        }
+      }
+      return newGroups;
+    });
+  }, [ready]);
   const setGroupsFromUserAction = useCallback((next) => {
     markDataReallyChanged();
-    setGroups(prev => typeof next === "function" ? next(prev) : next);
-  }, [markDataReallyChanged]);
+    updateGroupsAndDetectDeletions(next);
+  }, [markDataReallyChanged, updateGroupsAndDetectDeletions]);
   const setCategoriesFromUserAction = useCallback((next) => {
     markDataReallyChanged();
     setCategories(prev => typeof next === "function" ? next(prev) : next);
@@ -2597,7 +2719,7 @@ function App() {
   const persistSyncPayload = useCallback((groupIdValue, payload) => {
     const normalized = normalizeSyncPayload(payload, groupIdValue);
     storage.save(groupIdValue, normalized);
-    lastDataSnapshotRef.current = makeDataSnapshot(normalized.groups, normalized.categories);
+    lastDataSnapshotRef.current = makeDataSnapshot(normalized.groups, normalized.categories, normalized.tombstones);
     lastSyncRef.current = Number(normalized.synced_at || normalized.last_updated || Date.now());
     return normalized;
   }, []);
@@ -2606,6 +2728,7 @@ function App() {
     suppressAutoSyncRef.current = true;
     setGroups(normalized.groups);
     setCategories(normalized.categories);
+    setTombstones(normalized.tombstones);
     setCurGid(prev => normalized.groups.some(g => g.id === prev) ? prev : (normalized.groups[0]?.id || null));
     persistSyncPayload(groupIdValue, normalized);
     setSyncMeta({
@@ -2760,7 +2883,7 @@ function App() {
     try {
       if (choice === "local") {
         const now = Date.now();
-        const payloadToPush = normalizeSyncPayload({ group_id: conflictGroupId, last_updated: now, synced_at: now, categories: local.categories, groups: local.groups }, conflictGroupId);
+        const payloadToPush = normalizeSyncPayload({ group_id: conflictGroupId, last_updated: now, synced_at: now, categories: local.categories, groups: local.groups, tombstones: local.tombstones }, conflictGroupId);
         await pushToCloud(conflictGroupId, payloadToPush);
         applyPayloadToState(conflictGroupId, payloadToPush, { status:"synced", message:"已保留本地并同步到云端", loading:false, error:"" });
         return;
@@ -2770,9 +2893,23 @@ function App() {
         applyPayloadToState(conflictGroupId, payloadToApply, { status:"synced", message:"已使用云端最新数据", loading:false, error:"" });
         return;
       }
-      const mergedGroups = mergeGroups(local.groups, remote.groups);
+      const { mergedGroups, mergedTombstones } = mergeGroups(
+        local.groups,
+        remote.groups,
+        local.tombstones,
+        remote.tombstones,
+        local.last_updated,
+        remote.last_updated
+      );
       const now = Date.now();
-      const mergedPayload = normalizeSyncPayload({ group_id: conflictGroupId, last_updated: now, synced_at: now, categories: buildCategoryList(mergedGroups, [...(local.categories || []), ...(remote.categories || [])]), groups: mergedGroups }, conflictGroupId);
+      const mergedPayload = normalizeSyncPayload({
+        group_id: conflictGroupId,
+        last_updated: now,
+        synced_at: now,
+        categories: buildCategoryList(mergedGroups, [...(local.categories || []), ...(remote.categories || [])]),
+        groups: mergedGroups,
+        tombstones: mergedTombstones
+      }, conflictGroupId);
       await pushToCloud(conflictGroupId, mergedPayload);
       applyPayloadToState(conflictGroupId, mergedPayload, { status:"synced", message:"已智能合并并同步最新数据", loading:false, error:"" });
     } catch (error) {
@@ -2820,6 +2957,7 @@ function App() {
           lastSyncRef.current = hydrated.synced_at || hydrated.last_updated || Date.now();
           setGroups(hydrated.groups);
           setCategories(hydrated.categories);
+          setTombstones(hydrated.tombstones);
           setCurGid(hydrated.groups[0]?.id || null);
           setReady(true);
           setSyncMeta({
@@ -2841,6 +2979,7 @@ function App() {
         lastSyncRef.current = normalized.synced_at || normalized.last_updated;
         setGroups(normalized.groups);
         setCategories(normalized.categories);
+        setTombstones(normalized.tombstones);
         setCurGid(normalized.groups[0]?.id || null);
         setReady(true);
         storage.save(resolvedGroupId, normalized);
@@ -2860,6 +2999,7 @@ function App() {
         lastSyncRef.current = normalized.synced_at || normalized.last_updated;
         setGroups(normalized.groups);
         setCategories(normalized.categories);
+        setTombstones(normalized.tombstones);
         setCurGid(fallbackGroups[0]?.id || null);
         setReady(true);
         setSyncMeta({
@@ -2884,7 +3024,7 @@ function App() {
     categoriesRef.current = categories;
     const activeGroupId = sanitizeGroupId(groupIdRef.current);
     const isHydratedWrite = suppressAutoSyncRef.current;
-    const currentDataSnapshot = makeDataSnapshot(groups, categories);
+    const currentDataSnapshot = makeDataSnapshot(groups, categories, tombstones);
     if (!isHydratedWrite && currentDataSnapshot === lastDataSnapshotRef.current) {
       isDataReallyChangedRef.current = false;
       return;
@@ -2898,6 +3038,7 @@ function App() {
       synced_at: isHydratedWrite ? (lastSyncRef.current || Date.now()) : Number(lastSyncRef.current || Date.now()),
       categories,
       groups,
+      tombstones,
     }, activeGroupId);
     persistSyncPayload(activeGroupId, payload);
     if (suppressAutoSyncRef.current) {
@@ -3005,7 +3146,7 @@ function App() {
         }
       }
       markDataReallyChanged();
-      setGroups(nextGroups);
+      updateGroupsAndDetectDeletions(nextGroups);
       setCategories(buildCategoryList(nextGroups, categories));
       if (nextGroups.length && importMode === "replace") setCurGid(nextGroups[0].id);
       setImportResult({ added, updated, skipped, warnings:activeSheets.flatMap(s => s.warnings.map(w => ({...w, sheet:s.name}))) });
@@ -3362,12 +3503,6 @@ function App() {
             >
               {allMeaningShown ? "▶ 开始练习" : "👁 查看所有含义"}
             </button>
-            {hiddenCount > 0 && (
-              <div style={{ display:"flex", alignItems:"center", gap:8, fontSize:12, color:appC.muted }}>
-                <span>已过滤 {hiddenCount} 个隐藏词</span>
-                <button onClick={restoreHiddenWords} style={{ background:"transparent", border:"none", color:appC.primary, cursor:"pointer", fontSize:12, fontWeight:800, padding:0 }}>恢复全部</button>
-              </div>
-            )}
           </div>
         );
       } else {
