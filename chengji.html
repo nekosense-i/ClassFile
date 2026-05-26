@@ -2824,6 +2824,18 @@
         </div>
     </dialog>
 
+    <dialog id="student-import-preview-modal" aria-modal="true" aria-label="学生名单导入预览" class="dialog-shell dialog--lg">
+        <div class="dialog-header" style="margin-bottom:12px;">
+            <h3 class="dialog-title" style="font-size:16px;">📥 导入名单预览 - 匹配列头并确认导入</h3>
+            <div class="dialog-note">请确认字段映射关系。检测到重复的学生记录（姓名+校区+年级相同）将被自动跳过。</div>
+        </div>
+        <div id="student-import-preview-body" class="dialog-input-list" style="margin-bottom:12px;"></div>
+        <div class="dialog-footer" style="margin-top:16px; gap:8px;">
+            <button id="student-import-cancel" class="secondary">取消</button>
+            <button id="student-import-confirm" class="primary">确认导入名单</button>
+        </div>
+    </dialog>
+
     <script>
 
         const AppCore = (function() {
