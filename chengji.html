@@ -2408,6 +2408,7 @@
                 <div class="top-actions">
                     <button class="secondary btn--compact btn--soft-primary flex-row items-center gap-sm" id="undo-btn-students" onclick="window.app.store.undo()" title="撤销最后一次操作" disabled>↩️ 撤销</button>
                     <button class="secondary btn--soft-primary" onclick="window.app.ui.openAddStudentModal()">➕ 单个添加学生</button>
+                    <button class="secondary" onclick="window.app.ui.downloadBlankStudentTemplate()">📄 下载空白名单模板</button>
                     <button class="secondary" onmouseenter="window.app.ui.showImportFormatHint(event, 'students')" onfocus="window.app.ui.showImportFormatHint(event, 'students')" onmouseleave="window.app.ui.hideImportFormatHint()" onblur="window.app.ui.hideImportFormatHint()" onclick="document.getElementById('file-import').click()">📥 从 Excel 导入名单</button>
                     <input type="file" id="file-import" class="is-hidden" accept=".xlsx, .xls" onchange="window.app.ui.handleImport(event)">
                     <button class="danger btn--soft-danger" onclick="window.app.ui.bulkDeleteStudents()">🗑️ 删除选中的学生</button>
@@ -6280,7 +6281,22 @@
                             trHtml += `<td style="font-weight:800; color:var(--primary); font-size:16px;"><span id="t-${stu.id}">${isExamAbsent ? '<span class="exam-absent-pill">缺考</span>' : Number(rec.total || 0).toFixed(1)}</span><span id="delta-${stu.id}">${deltaHtml}</span></td></tr>`;
                             rowHtmlArr.push(trHtml);
                         });
-                        let statsHtml = `<tfoot><tr><td colspan="4" class="table-side-note" style="font-weight:700;">录入进度</td>`;
+                        let statsHtml = `<tfoot><tr><td colspan="3" class="table-side-note" style="font-weight:700;">录入进度与均分</td>`;
+                        
+                        // 计算预估分均分与录入进度
+                        const estVals = students.map(stu => {
+                            const rec = this.store.getScore(stu.id, eid);
+                            if (rec && rec.examAbsent) return null;
+                            const v = rec ? parseFloat(rec.estimatedTotal) : NaN;
+                            return isNaN(v) ? null : v;
+                        }).filter(v => v !== null);
+                        const estEffective = students.filter(stu => {
+                            const rec = this.store.getScore(stu.id, eid);
+                            return !(rec && rec.examAbsent);
+                        }).length;
+                        const estAvg = estVals.length ? (estVals.reduce((a,b)=>a+b,0) / estVals.length).toFixed(1) : '-';
+                        statsHtml += `<td class="table-side-note" style="background: var(--warning-soft); font-weight:700; color:#b45309;">已填 ${estVals.length}/${estEffective}<br>均分 ${estAvg}</td>`;
+
                         (exam.types || []).forEach(t => {
                             const vals = students.map(stu => {
                                 const rec = this.store.getScore(stu.id, eid);
@@ -6307,7 +6323,7 @@
                             return !(rec && rec.examAbsent);
                         }).length;
                         const totalAvg = totalVals.length ? (totalVals.reduce((a,b)=>a+b,0) / totalVals.length).toFixed(1) : '-';
-                        statsHtml += `<td class="table-side-note">已填 ${totalVals.length}/${totalEffective}<br>均分 ${totalAvg}</td></tr></tfoot>`;
+                        statsHtml += `<td class="table-side-note" style="font-weight:700; color:var(--primary);">已填 ${totalVals.length}/${totalEffective}<br>均分 ${totalAvg}</td></tr></tfoot>`;
                         html += rowHtmlArr.join('') + `</tbody>${statsHtml}</table></div></details>`;
                     });
                     
@@ -8155,6 +8171,34 @@
                     });
 
                     XLSX.writeFile(wb, `${examName}_成绩详情报表.xlsx`);
+                }
+
+                downloadBlankStudentTemplate() {
+                    if (typeof XLSX === 'undefined') {
+                        alert('Excel 库未加载完成，请稍后再试');
+                        return;
+                    }
+                    const headers = ['姓名', '校区', '年级', '日语班', '行政班'];
+                    const sampleRows = [
+                        ['张三', '主校区', '2024级', '24A', '高二1班'],
+                        ['李四', '西校区', '2024级', '24B', '高二2班']
+                    ];
+                    const data = [headers].concat(sampleRows);
+                    const ws = XLSX.utils.aoa_to_sheet(data);
+                    
+                    // 设置列宽
+                    ws['!cols'] = [
+                        { wch: 12 }, // 姓名
+                        { wch: 15 }, // 校区
+                        { wch: 15 }, // 年级
+                        { wch: 15 }, // 日语班
+                        { wch: 15 }  // 行政班
+                    ];
+
+                    const wb = XLSX.utils.book_new();
+                    XLSX.utils.book_append_sheet(wb, ws, "学生名单模板");
+                    XLSX.writeFile(wb, "学生名单导入模板.xlsx");
+                    Utils.msg('空白学生名单模板下载成功！', 'success');
                 }
 
                 handleExamChange() {
