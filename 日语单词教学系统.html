@@ -406,12 +406,17 @@ const buildCategoryList = (groups, savedCategories) => {
   const list = [];
   const add = (name) => {
     const normalized = normalizeCategoryName(name);
+    if (normalized === "未分类") return;
     if (!list.includes(normalized)) list.push(normalized);
   };
   if (Array.isArray(savedCategories) && savedCategories.length) savedCategories.forEach(add);
   cloneGroups(groups).forEach(g => add(inferWordSetCategory(g)));
-  if (!list.length) DEFAULT_WORD_SET_CATEGORIES.forEach(add);
-  if (!list.includes("未分类")) list.push("未分类");
+  if (!list.length) {
+    DEFAULT_WORD_SET_CATEGORIES.forEach(name => {
+      if (name !== "未分类") add(name);
+    });
+  }
+  list.push("未分类");
   return list;
 };
 const normalizeSyncPayload = (payload, fallbackGroupId = DEFAULT_SYNC_GROUP_ID) => {
@@ -815,6 +820,8 @@ function EditMode({ groups, setGroups, categories, setCategories, gid: curGid, s
   const [dragOverCategory, setDragOverCategory] = useState(null);
   const [draggingWordId, setDraggingWordId] = useState(null);
   const [dragOverWordId, setDragOverWordId] = useState(null);
+  const [draggingCategory, setDraggingCategory] = useState(null);
+  const [dragOverCategoryTarget, setDragOverCategoryTarget] = useState(null);
   const group = groups.find(g => g.id === curGid);
   const activeCategory = inferWordSetCategory(group);
   const isDark = C.bg === TEACH_CHALK.bg;
@@ -886,17 +893,70 @@ function EditMode({ groups, setGroups, categories, setCategories, gid: curGid, s
       return;
     }
     const count = groups.filter(g => inferWordSetCategory(g) === category).length;
-    const message = count ? `确定删除“${category}”分类吗？其中 ${count} 个单词组会移动到“未分类”，单词不会被删除。` : `确定删除“${category}”分类吗？`;
-    if (!confirm(message)) return;
-    const nextCategories = displayCategories.filter(cat => cat !== category);
-    if (!nextCategories.includes("未分类")) nextCategories.push("未分类");
-    setCategories(nextCategories);
-    if (count) setGroups(groups.map(g => inferWordSetCategory(g) === category ? { ...g, category:"未分类" } : g));
+    let shouldDeleteCategory = false;
+    let shouldDeleteGroups = false;
+    let shouldMoveGroupsToUncategorized = false;
+    
+    if (count > 0) {
+      const confirmAllDelete = confirm(`确定删除“${category}”分类及其中 ${count} 个单词组吗？\n点击确定将删除分类和所有单词组，点击取消可保留单词组。`);
+      if (confirmAllDelete) {
+        shouldDeleteCategory = true;
+        shouldDeleteGroups = true;
+      } else {
+        const confirmMove = confirm(`是否将单词组移至“未分类”并删除“${category}”分类？`);
+        if (confirmMove) {
+          shouldDeleteCategory = true;
+          shouldMoveGroupsToUncategorized = true;
+        } else {
+          return;
+        }
+      }
+    } else {
+      const confirmSimpleDelete = confirm(`确定删除“${category}”分类吗？`);
+      if (confirmSimpleDelete) {
+        shouldDeleteCategory = true;
+      } else {
+        return;
+      }
+    }
+    
+    if (shouldDeleteCategory) {
+      const nextCategories = displayCategories.filter(cat => cat !== category);
+      if (!nextCategories.includes("未分类")) nextCategories.push("未分类");
+      setCategories(nextCategories);
+    }
+    
+    if (shouldDeleteGroups) {
+      const deletedGroupIds = new Set(groups.filter(g => inferWordSetCategory(g) === category).map(g => g.id));
+      const nextGroups = groups.filter(g => !deletedGroupIds.has(g.id));
+      setGroups(nextGroups);
+      if (curGid && deletedGroupIds.has(curGid)) {
+        setCurGid(nextGroups[0]?.id || null);
+      }
+    } else if (shouldMoveGroupsToUncategorized) {
+      setGroups(groups.map(g => inferWordSetCategory(g) === category ? { ...g, category: "未分类" } : g));
+    }
+    
     setExpandedCats(prev => {
-      const next = { ...prev, "未分类": true };
+      const next = { ...prev };
+      if (shouldMoveGroupsToUncategorized) {
+        next["未分类"] = true;
+      }
       delete next[category];
       return next;
     });
+  };
+
+  const moveCategory = (sourceCat, targetCat) => {
+    if (!sourceCat || !targetCat || sourceCat === targetCat || sourceCat === "未分类" || targetCat === "未分类") return;
+    const list = displayCategories.filter(cat => cat !== "未分类");
+    const from = list.indexOf(sourceCat);
+    const to = list.indexOf(targetCat);
+    if (from < 0 || to < 0) return;
+    const newList = [...list];
+    const [moved] = newList.splice(from, 1);
+    newList.splice(to, 0, moved);
+    setCategories(newList);
   };
 
   const addGroup = (category) => {
@@ -1068,21 +1128,63 @@ function EditMode({ groups, setGroups, categories, setCategories, gid: curGid, s
           {groupedWordSets.map(({category, groups: catGroups}) => {
             const open = !!expandedCats[category];
             const isDropTarget = dragOverCategory === category && !!draggingGroupId;
+            const isCatDragOver = dragOverCategoryTarget === category && !!draggingCategory;
             return (
               <div key={category}
+                draggable={category !== "未分类" && renamingCat !== category}
+                onDragStart={e=>{
+                  if (draggingGroupId) return;
+                  setDraggingCategory(category);
+                  e.dataTransfer.effectAllowed = "move";
+                  e.dataTransfer.setData("category", category);
+                }}
                 onDragOver={e=>{
-                  if (!draggingGroupId) return;
-                  e.preventDefault();
-                  e.dataTransfer.dropEffect = "move";
-                  setDragOverCategory(category);
+                  if (draggingGroupId) {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = "move";
+                    setDragOverCategory(category);
+                  } else if (draggingCategory && draggingCategory !== category && category !== "未分类") {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = "move";
+                    setDragOverCategoryTarget(category);
+                  }
                 }}
                 onDragLeave={e=>{
-                  if (!e.currentTarget.contains(e.relatedTarget)) setDragOverCategory(null);
+                  if (!e.currentTarget.contains(e.relatedTarget)) {
+                    setDragOverCategory(null);
+                    setDragOverCategoryTarget(null);
+                  }
                 }}
-                onDrop={e=>handleCategoryDrop(e, category)}
-                style={{ marginBottom:6, borderRadius:10, background:isDropTarget ? (isDark ? "rgba(255,255,255,0.08)" : C.primaryLight) : "transparent", boxShadow:isDropTarget ? `inset 0 0 0 1.5px ${C.primary}` : "none", transition:"background 0.15s, box-shadow 0.15s" }}>
+                onDrop={e=>{
+                  e.preventDefault();
+                  if (draggingGroupId) {
+                    const groupId = e.dataTransfer.getData("text/plain") || draggingGroupId;
+                    if (groupId) moveGroupToCategory(groupId, category);
+                    setDraggingGroupId(null);
+                    setDragOverCategory(null);
+                  } else {
+                    const sourceCat = e.dataTransfer.getData("category") || draggingCategory;
+                    if (sourceCat) moveCategory(sourceCat, category);
+                    setDraggingCategory(null);
+                    setDragOverCategoryTarget(null);
+                  }
+                }}
+                onDragEnd={()=>{
+                  setDraggingGroupId(null);
+                  setDragOverCategory(null);
+                  setDraggingCategory(null);
+                  setDragOverCategoryTarget(null);
+                }}
+                style={{
+                  marginBottom:6,
+                  borderRadius:10,
+                  background:isDropTarget ? (isDark ? "rgba(255,255,255,0.08)" : C.primaryLight) : "transparent",
+                  boxShadow:isCatDragOver ? `0 0 0 2px ${C.primary}` : (isDropTarget ? `inset 0 0 0 1.5px ${C.primary}` : "none"),
+                  transition:"background 0.15s, box-shadow 0.15s",
+                  opacity: draggingCategory === category ? 0.4 : 1
+                }}>
                 <div onClick={() => setExpandedCats(prev => ({ ...prev, [category]: !prev[category] }))}
-                  style={{ height:34, display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, padding:"0 8px", borderRadius:8, cursor:"pointer", color:categoryTextColor }}>
+                  style={{ height:34, display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, padding:"0 8px", borderRadius:8, cursor:category !== "未分类" ? "grab" : "pointer", color:categoryTextColor }}>
                   <div style={{ display:"flex", alignItems:"center", gap:7, minWidth:0 }}>
                     <span style={{ display:"inline-block", width:14, fontSize:12, color:categoryTextColor }}>{open ? "▼" : "▶"}</span>
                     {renamingCat === category ? (
@@ -2725,6 +2827,35 @@ function App() {
   }, []);
   const applyPayloadToState = useCallback((groupIdValue, payload, { message, status = "synced", loading = false, error = "" } = {}) => {
     const normalized = normalizeSyncPayload(payload, groupIdValue);
+    
+    // Merge local and remote tombstones to prevent overwriting deletions
+    const localT = tombstonesRef.current || { groups: {}, words: {} };
+    const remoteT = normalized.tombstones || { groups: {}, words: {} };
+    const mergedT = {
+      groups: {},
+      words: {}
+    };
+    const allGroupKeys = new Set([...Object.keys(localT.groups || {}), ...Object.keys(remoteT.groups || {})]);
+    allGroupKeys.forEach(id => {
+      mergedT.groups[id] = Math.max(localT.groups?.[id] || 0, remoteT.groups?.[id] || 0);
+    });
+    const allWordKeys = new Set([...Object.keys(localT.words || {}), ...Object.keys(remoteT.words || {})]);
+    allWordKeys.forEach(id => {
+      mergedT.words[id] = Math.max(localT.words?.[id] || 0, remoteT.words?.[id] || 0);
+    });
+
+    const filteredGroups = (normalized.groups || []).filter(g => {
+      return !mergedT.groups[g.id];
+    }).map(g => {
+      const filteredWords = (g.words || []).filter(w => {
+        return !mergedT.words[w.id] && !mergedT.words[w.kana];
+      });
+      return { ...g, words: filteredWords };
+    });
+
+    normalized.tombstones = mergedT;
+    normalized.groups = filteredGroups;
+
     suppressAutoSyncRef.current = true;
     setGroups(normalized.groups);
     setCategories(normalized.categories);
@@ -2852,11 +2983,12 @@ function App() {
         return pushed;
       }
       const syncedAt = Number(pushed.last_updated || payloadToPush.last_updated || Date.now());
-      const finalPayload = normalizeSyncPayload({ group_id: activeGroupId, last_updated: payloadToPush.last_updated || syncedAt, synced_at: syncedAt, categories: payloadToPush.categories, groups: cloneGroups(payloadToPush.groups) }, activeGroupId);
+      const finalPayload = normalizeSyncPayload({ group_id: activeGroupId, last_updated: payloadToPush.last_updated || syncedAt, synced_at: syncedAt, categories: payloadToPush.categories, groups: cloneGroups(payloadToPush.groups), tombstones: payloadToPush.tombstones }, activeGroupId);
       persistSyncPayload(activeGroupId, finalPayload);
       suppressAutoSyncRef.current = true;
       setGroups(finalPayload.groups);
       setCategories(finalPayload.categories);
+      setTombstones(finalPayload.tombstones);
       setCurGid(prev => finalPayload.groups.some(g => g.id === prev) ? prev : (finalPayload.groups[0]?.id || null));
       setSyncMeta({ loading:false, status:"synced", message:`同步成功 · ${formatSyncTime(syncedAt)}`, lastSyncedAt:syncedAt, error:"" });
       return pushed;
