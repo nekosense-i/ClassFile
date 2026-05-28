@@ -135,8 +135,12 @@
     transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
   }
   
+  .flip-card-front {
+    transform: translateZ(1px);
+  }
+
   .flip-card-back {
-    transform: rotateY(180deg);
+    transform: rotateY(180deg) translateZ(1px);
     z-index: 2;
   }
   
@@ -157,8 +161,8 @@
   }
 
   /* Hover glow effect for visible card faces using a gorgeous, tight, multi-layered red/orange shadow */
-  .perspective-container:hover .flip-card-front,
-  .perspective-container:hover .flip-card-back {
+  .perspective-container:not(.paint-mode-active-card):hover .flip-card-front,
+  .perspective-container:not(.paint-mode-active-card):hover .flip-card-back {
     box-shadow: 0 0 8px 0px rgba(200, 64, 45, 0.3), 0 0 3px 0px rgba(200, 64, 45, 0.2);
   }
 
@@ -176,6 +180,13 @@
   .active-card .flip-card-front,
   .active-card .flip-card-back {
     animation: activeGlowBreathe 2s ease-in-out infinite;
+  }
+
+  /* Selected card style in normal teach mode - gorgeous and subtle */
+  .selected-teach-card .flip-card-front,
+  .selected-teach-card .flip-card-back {
+    border-color: var(--primary-color, #C8402D) !important;
+    box-shadow: 0 0 12px 0px rgba(200, 64, 45, 0.25), 0 0 4px 0px rgba(200, 64, 45, 0.15) !important;
   }
 
   /* Smooth blur/reveal transitions */
@@ -1377,6 +1388,245 @@ function VisualAccentCurve({
   );
 }
 
+/* ===== PERFORMANCE INK DRAWING COMPONENT ===== */
+function CanvasPaint({ wordId, face, active, color, thickness, tool, strokes, onStrokesChange, onCardClick, themeC }) {
+  const canvasRef = useRef(null);
+  const isDrawingRef = useRef(false);
+  const currentStrokeRef = useRef(null);
+  const pointerStartRef = useRef({ x: 0, y: 0, time: 0 });
+
+  const drawStrokes = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const allStrokes = [...(strokes || [])];
+    if (isDrawingRef.current && currentStrokeRef.current) {
+      allStrokes.push(currentStrokeRef.current);
+    }
+
+    allStrokes.forEach(stroke => {
+      if (!stroke.points || stroke.points.length === 0) return;
+      
+      const baseWidth = stroke.width * (canvas.width / (400 * window.devicePixelRatio));
+      ctx.strokeStyle = stroke.color;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
+      if (stroke.type === 'highlighter') {
+        ctx.globalAlpha = 0.35;
+        ctx.globalCompositeOperation = 'multiply';
+      } else if (stroke.type === 'eraser') {
+        ctx.globalAlpha = 1.0;
+        ctx.globalCompositeOperation = 'destination-out';
+      } else {
+        ctx.globalAlpha = 1.0;
+        ctx.globalCompositeOperation = 'source-over';
+      }
+
+      // Check if calligraphy brush effect is applicable (has timestamps, and is standard pen)
+      const hasTime = stroke.points[0] && typeof stroke.points[0].t === 'number' && stroke.type !== 'eraser' && stroke.type !== 'highlighter';
+
+      if (hasTime && stroke.points.length > 1) {
+        const widths = new Array(stroke.points.length);
+        widths[0] = baseWidth * 0.65; // Tapered start
+        
+        for (let i = 1; i < stroke.points.length; i++) {
+          const pPrev = stroke.points[i - 1];
+          const pCurr = stroke.points[i];
+          
+          const pxPrevX = pPrev.x * (canvas.width / window.devicePixelRatio);
+          const pxPrevY = pPrev.y * (canvas.height / window.devicePixelRatio);
+          const pxCurrX = pCurr.x * (canvas.width / window.devicePixelRatio);
+          const pxCurrY = pCurr.y * (canvas.height / window.devicePixelRatio);
+          
+          const dist = Math.hypot(pxCurrX - pxPrevX, pxCurrY - pxPrevY);
+          const dt = Math.max(1, pCurr.t - pPrev.t);
+          const v = dist / dt; // pixels per millisecond
+          
+          // Map speed to thickness: base range [0.4x, 1.4x]
+          const factor = Math.max(0.4, Math.min(1.4, 1.4 - v * 0.45));
+          
+          // Low-pass filter for smooth width transitions
+          widths[i] = widths[i - 1] * 0.72 + (baseWidth * factor) * 0.28;
+        }
+
+        // Draw segment by segment with varying line widths
+        for (let i = 1; i < stroke.points.length; i++) {
+          const pPrev = stroke.points[i - 1];
+          const pCurr = stroke.points[i];
+          
+          ctx.beginPath();
+          ctx.lineWidth = widths[i];
+          ctx.moveTo(pPrev.x * (canvas.width / window.devicePixelRatio), pPrev.y * (canvas.height / window.devicePixelRatio));
+          ctx.lineTo(pCurr.x * (canvas.width / window.devicePixelRatio), pCurr.y * (canvas.height / window.devicePixelRatio));
+          ctx.stroke();
+        }
+      } else {
+        // Fallback for uniform thickness line (eraser, highlighter, or legacy strokes without timestamps)
+        ctx.beginPath();
+        ctx.lineWidth = baseWidth;
+        const p0 = stroke.points[0];
+        ctx.moveTo(p0.x * (canvas.width / window.devicePixelRatio), p0.y * (canvas.height / window.devicePixelRatio));
+        
+        if (stroke.points.length === 1) {
+          ctx.lineTo(p0.x * (canvas.width / window.devicePixelRatio) + 0.1, p0.y * (canvas.height / window.devicePixelRatio));
+        } else {
+          for (let i = 1; i < stroke.points.length; i++) {
+            const p = stroke.points[i];
+            ctx.lineTo(p.x * (canvas.width / window.devicePixelRatio), p.y * (canvas.height / window.devicePixelRatio));
+          }
+        }
+        ctx.stroke();
+      }
+    });
+
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 1.0;
+  }, [strokes]);
+
+  const drawStrokesRef = useRef(drawStrokes);
+  useEffect(() => {
+    drawStrokesRef.current = drawStrokes;
+  }, [drawStrokes]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const resizeObserver = new ResizeObserver(entries => {
+      for (let entry of entries) {
+        const { width, height } = entry.contentRect;
+        const targetWidth = Math.floor(width * window.devicePixelRatio);
+        const targetHeight = Math.floor(height * window.devicePixelRatio);
+        if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
+          canvas.width = targetWidth;
+          canvas.height = targetHeight;
+          const ctx = canvas.getContext('2d');
+          ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+          canvas.style.width = `${width}px`;
+          canvas.style.height = `${height}px`;
+        }
+        if (drawStrokesRef.current) {
+          drawStrokesRef.current();
+        }
+      }
+    });
+    resizeObserver.observe(canvas.parentElement);
+    return () => resizeObserver.disconnect();
+  }, []);
+
+  useEffect(() => {
+    drawStrokes();
+  }, [strokes, drawStrokes]);
+
+  const getCoords = (e) => {
+    const canvas = canvasRef.current;
+    const rect = canvas.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    return {
+      x: (clientX - rect.left) / rect.width,
+      y: (clientY - rect.top) / rect.height,
+      clientX,
+      clientY
+    };
+  };
+
+  const handlePointerDown = (e) => {
+    if (!active) return;
+    if (e.stopPropagation) e.stopPropagation();
+    const { x, y, clientX, clientY } = getCoords(e);
+    pointerStartRef.current = { x: clientX, y: clientY, time: Date.now() };
+
+    isDrawingRef.current = true;
+    if (tool === 'eraser') {
+      eraseAt(x, y);
+    } else {
+      currentStrokeRef.current = {
+        color: color,
+        width: thickness,
+        type: tool,
+        points: [{ x, y, t: Date.now() }]
+      };
+      drawStrokes();
+    }
+  };
+
+  const handlePointerMove = (e) => {
+    if (!isDrawingRef.current || !active) return;
+    if (e.stopPropagation) e.stopPropagation();
+    const { x, y } = getCoords(e);
+
+    if (tool === 'eraser') {
+      eraseAt(x, y);
+    } else if (currentStrokeRef.current) {
+      currentStrokeRef.current.points.push({ x, y, t: Date.now() });
+      drawStrokes();
+    }
+  };
+
+  const handlePointerUp = (e) => {
+    if (active && e.stopPropagation) e.stopPropagation();
+    if (!isDrawingRef.current) return;
+    isDrawingRef.current = false;
+
+    const timeDiff = Date.now() - pointerStartRef.current.time;
+    const clientX = e.changedTouches ? e.changedTouches[0].clientX : e.clientX;
+    const clientY = e.changedTouches ? e.changedTouches[0].clientY : e.clientY;
+    const dist = Math.hypot(clientX - pointerStartRef.current.x, clientY - pointerStartRef.current.y);
+
+    if (dist < 6 && timeDiff < 250) {
+      currentStrokeRef.current = null;
+      if (!active && onCardClick) onCardClick();
+      drawStrokes();
+      return;
+    }
+
+    if (currentStrokeRef.current && currentStrokeRef.current.points.length > 1) {
+      const updatedStrokes = [...(strokes || []), currentStrokeRef.current];
+      onStrokesChange(updatedStrokes);
+    }
+    currentStrokeRef.current = null;
+    drawStrokes();
+  };
+
+  const eraseAt = (x, y) => {
+    const threshold = 0.04;
+    const filteredStrokes = (strokes || []).filter(stroke => {
+      return !stroke.points.some(p => Math.hypot(p.x - x, p.y - y) < threshold);
+    });
+    if (filteredStrokes.length !== (strokes || []).length) {
+      onStrokesChange(filteredStrokes);
+    }
+  };
+
+  return (
+    <canvas
+      ref={canvasRef}
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        width: '100%',
+        height: '100%',
+        zIndex: 10,
+        pointerEvents: active ? 'auto' : 'none',
+        cursor: active ? (tool === 'eraser' ? 'cell' : 'crosshair') : 'default'
+      }}
+      onMouseDown={handlePointerDown}
+      onMouseMove={handlePointerMove}
+      onMouseUp={handlePointerUp}
+      onMouseLeave={handlePointerUp}
+      onTouchStart={handlePointerDown}
+      onTouchMove={handlePointerMove}
+      onTouchEnd={handlePointerUp}
+      onClick={(e) => { if (active) e.stopPropagation(); }}
+      onDoubleClick={(e) => { if (active) e.stopPropagation(); }}
+    />
+  );
+}
+
 function TeachMode({
   groups,
   gid: curGid,
@@ -1417,6 +1667,32 @@ function TeachMode({
   const [quizWords, setQuizWords] = useState([]);
   const [isPaused, setIsPaused] = useState(false);
   const [showShortcutHelp, setShowShortcutHelp] = useState(false);
+
+  // Selected word in normal teaching mode to keep track of user focus when switching view layouts
+  const [selectedWordId, setSelectedWordId] = useState(null);
+
+  // Paint Tool States
+  const [paintActive, setPaintActive] = useState(false);
+  const [paintColor, setPaintColor] = useState("#FF3B30");
+  const [paintThickness, setPaintThickness] = useState(1);
+  const [paintTool, setPaintTool] = useState("pen");
+  const [strokesRegistry, setStrokesRegistry] = useState({});
+
+  const clearCurrentPageStrokes = () => {
+    if (!currentWords.length) return;
+    setStrokesRegistry(prev => {
+      const next = { ...prev };
+      currentWords.forEach(w => {
+        next[w.id] = { front: [], back: [] };
+      });
+      return next;
+    });
+  };
+
+  const clearAllStrokes = () => {
+    if (!window.confirm("确定清除所有单词卡片的笔迹标注吗？")) return;
+    setStrokesRegistry({});
+  };
 
   // Guard refs to prevent race conditions during 3D flip card animations
   const isFlippingRef = useRef(false);
@@ -1461,8 +1737,8 @@ function TeachMode({
   };
   const pct = ((safePage + 1) / totalPages) * 100;
   const pageHasExamples = currentWords.some(w => (w.examples || []).some(e => e.ja));
-  const allMeaningShown = currentWords.length > 0 && currentWords.every((w, i) => !(w.meaning || (cfg.showUsage && w.usage)) || showMeaningMap[i]);
-  const allExamplesShown = !cfg.showExamples || !pageHasExamples || currentWords.every((w, i) => !(w.examples || []).some(e => e.ja) || showExamplesMap[i]);
+  const allMeaningShown = currentWords.length > 0 && currentWords.every((w) => !(w.meaning || (cfg.showUsage && w.usage)) || showMeaningMap[w.id]);
+  const allExamplesShown = !cfg.showExamples || !pageHasExamples || currentWords.every((w) => !(w.examples || []).some(e => e.ja) || showExamplesMap[w.id]);
   const revealLabel = !allMeaningShown ? "👁 揭示释义" : (cfg.showExamples && !allExamplesShown ? "📖 揭示例句" : "✓ 已全部揭示");
 
   useEffect(() => {
@@ -1496,19 +1772,33 @@ function TeachMode({
         enterReversePhase,
         enterResultPhase,
         pickRandomCard,
-        exitAndNextPage,
         setIsPaused,
         setShowShortcutHelp,
+
+        // Paint Tools
+        paintActive,
+        setPaintActive,
+        paintColor,
+        setPaintColor,
+        paintThickness,
+        setPaintThickness,
+        paintTool,
+        setPaintTool,
+        clearCurrentPageStrokes,
+        clearAllStrokes,
       });
     }
-  }, [safePage, totalPages, quizPhase, effectiveCount, pct, countdownLeft, countdownTotal, words.length, hiddenCount, restoreHiddenWords, allMeaningShown, chalkboardMode, showShortcutHelp, isPaused, currentWords, selectedCard, cardStatus, enterKanaPhase]);
+  }, [
+    safePage, totalPages, quizPhase, effectiveCount, pct, countdownLeft, countdownTotal, words.length, hiddenCount, restoreHiddenWords, allMeaningShown, chalkboardMode, showShortcutHelp, isPaused, currentWords, selectedCard, cardStatus, enterKanaPhase,
+    paintActive, paintColor, paintThickness, paintTool, strokesRegistry
+  ]);
   const countdownRatio = countdownTotal ? countdownLeft / countdownTotal : 0;
   const countdownColor = countdownRatio > 0.5 ? C.green : countdownRatio > 0.2 ? "#E8A040" : C.primary;
   const wordExamples = (word) => (word?.examples || []).filter(e => e.ja || e.cn).slice(0, cfg.maxExamples);
   const hasMeaningContent = (word) => !!(word?.meaning && String(word.meaning).trim());
   const hasUsageContent = (word) => !!(cfg.showUsage && word?.usage && String(word.usage).trim());
   const hasFrontRevealContent = (word) => hasMeaningContent(word) || hasUsageContent(word);
-  const getTranslationKey = (cardIdx, exampleIdx) => `${cardIdx}-${exampleIdx}`;
+  const getTranslationKey = (wordId, exampleIdx) => `${wordId}-${exampleIdx}`;
   const buildFullRevealState = (targetWords) => {
     const meanings = {};
     const usages = {};
@@ -1516,18 +1806,18 @@ function TeachMode({
     const flipped = {};
     const translations = {};
 
-    targetWords.forEach((word, cardIdx) => {
+    targetWords.forEach((word) => {
       const examples = wordExamples(word);
       if (hasFrontRevealContent(word)) {
-        meanings[cardIdx] = true;
-        usages[cardIdx] = true;
+        meanings[word.id] = true;
+        usages[word.id] = true;
       }
       if (examples.length > 0) {
-        examplesMap[cardIdx] = true;
-        flipped[cardIdx] = true;
+        examplesMap[word.id] = true;
+        flipped[word.id] = true;
       }
       examples.forEach((example, exampleIdx) => {
-        if (example.cn) translations[getTranslationKey(cardIdx, exampleIdx)] = true;
+        if (example.cn) translations[getTranslationKey(word.id, exampleIdx)] = true;
       });
     });
 
@@ -1535,17 +1825,17 @@ function TeachMode({
   };
   const revealWordsFully = (targetWords) => {
     const state = buildFullRevealState(targetWords);
-    setShowMeaningMap(state.meanings);
-    setShowUsageMap(state.usages);
-    setShowExamplesMap(state.examplesMap);
-    setFlippedCardMap(state.flipped);
-    setExampleTranslationMap(state.translations);
+    setShowMeaningMap(prev => ({ ...prev, ...state.meanings }));
+    setShowUsageMap(prev => ({ ...prev, ...state.usages }));
+    setShowExamplesMap(prev => ({ ...prev, ...state.examplesMap }));
+    setFlippedCardMap(prev => ({ ...prev, ...state.flipped }));
+    setExampleTranslationMap(prev => ({ ...prev, ...state.translations }));
   };
   const pageHasExampleCards = currentWords.some(w => wordExamples(w).length > 0);
   const pageHasTranslations = currentWords.some(w => wordExamples(w).some(e => e.cn));
-  const allExampleCardsFlipped = pageHasExampleCards && currentWords.every((w, i) => wordExamples(w).length === 0 || flippedCardMap[i]);
-  const allTranslationsShown = pageHasTranslations && currentWords.every((w, i) =>
-    wordExamples(w).every((ex, exIdx) => !ex.cn || exampleTranslationMap[`${i}-${exIdx}`])
+  const allExampleCardsFlipped = pageHasExampleCards && currentWords.every((w) => wordExamples(w).length === 0 || flippedCardMap[w.id]);
+  const allTranslationsShown = pageHasTranslations && currentWords.every((w) =>
+    wordExamples(w).every((ex, exIdx) => !ex.cn || exampleTranslationMap[`${w.id}-${exIdx}`])
   );
   const revealLayer = !allMeaningShown ? 0
     : pageHasExampleCards && !allExampleCardsFlipped ? 1
@@ -1555,9 +1845,9 @@ function TeachMode({
     : 1;
 
   const revealMeaningsForCurrentPage = () => {
-    const frontState = Object.fromEntries(currentWords.map((w, i) => [i, hasFrontRevealContent(w)]));
-    setShowMeaningMap(frontState);
-    setShowUsageMap(frontState);
+    const frontState = Object.fromEntries(currentWords.map((w) => [w.id, hasFrontRevealContent(w)]));
+    setShowMeaningMap(prev => ({ ...prev, ...frontState }));
+    setShowUsageMap(prev => ({ ...prev, ...frontState }));
   };
   const progressiveForward = () => {
     if (!currentWords.length) return;
@@ -1565,18 +1855,20 @@ function TeachMode({
       const word = currentWords[cardIdx];
       const examples = wordExamples(word);
 
-      if (hasFrontRevealContent(word) && !showMeaningMap[cardIdx]) {
-        setShowMeaningMap(prev => ({ ...prev, [cardIdx]: true }));
-        setShowUsageMap(prev => ({ ...prev, [cardIdx]: true }));
+      if (hasFrontRevealContent(word) && !showMeaningMap[word.id]) {
+        setShowMeaningMap(prev => ({ ...prev, [word.id]: true }));
+        setShowUsageMap(prev => ({ ...prev, [word.id]: true }));
+        setSelectedWordId(word.id);
         return;
       }
 
-      if (examples.length > 0 && !flippedCardMap[cardIdx]) {
-        setShowExamplesMap(prev => ({ ...prev, [cardIdx]: true }));
-        setFlippedCardMap(prev => ({ ...prev, [cardIdx]: true }));
+      if (examples.length > 0 && !flippedCardMap[word.id]) {
+        setShowExamplesMap(prev => ({ ...prev, [word.id]: true }));
+        setFlippedCardMap(prev => ({ ...prev, [word.id]: true }));
+        setSelectedWordId(word.id);
         setExampleTranslationMap(prev => {
           const next = { ...prev };
-          examples.forEach((_, exampleIdx) => delete next[getTranslationKey(cardIdx, exampleIdx)]);
+          examples.forEach((_, exampleIdx) => delete next[getTranslationKey(word.id, exampleIdx)]);
           return next;
         });
         return;
@@ -1584,9 +1876,10 @@ function TeachMode({
 
       for (let exampleIdx = 0; exampleIdx < examples.length; exampleIdx += 1) {
         const example = examples[exampleIdx];
-        const key = getTranslationKey(cardIdx, exampleIdx);
+        const key = getTranslationKey(word.id, exampleIdx);
         if (example.cn && !exampleTranslationMap[key]) {
           setExampleTranslationMap(prev => ({ ...prev, [key]: true }));
+          setSelectedWordId(word.id);
           return;
         }
       }
@@ -1602,47 +1895,50 @@ function TeachMode({
 
       for (let exampleIdx = examples.length - 1; exampleIdx >= 0; exampleIdx -= 1) {
         const example = examples[exampleIdx];
-        const key = getTranslationKey(cardIdx, exampleIdx);
+        const key = getTranslationKey(word.id, exampleIdx);
         if (example.cn && exampleTranslationMap[key]) {
           setExampleTranslationMap(prev => {
             const next = { ...prev };
             delete next[key];
             return next;
           });
+          setSelectedWordId(word.id);
           return;
         }
       }
 
-      if (examples.length > 0 && flippedCardMap[cardIdx]) {
+      if (examples.length > 0 && flippedCardMap[word.id]) {
         setFlippedCardMap(prev => {
           const next = { ...prev };
-          delete next[cardIdx];
+          delete next[word.id];
           return next;
         });
         setShowExamplesMap(prev => {
           const next = { ...prev };
-          delete next[cardIdx];
+          delete next[word.id];
           return next;
         });
         setExampleTranslationMap(prev => {
           const next = { ...prev };
-          examples.forEach((_, exampleIdx) => delete next[getTranslationKey(cardIdx, exampleIdx)]);
+          examples.forEach((_, exampleIdx) => delete next[getTranslationKey(word.id, exampleIdx)]);
           return next;
         });
+        setSelectedWordId(word.id);
         return;
       }
 
-      if (hasFrontRevealContent(word) && showMeaningMap[cardIdx]) {
+      if (hasFrontRevealContent(word) && showMeaningMap[word.id]) {
         setShowMeaningMap(prev => {
           const next = { ...prev };
-          delete next[cardIdx];
+          delete next[word.id];
           return next;
         });
         setShowUsageMap(prev => {
           const next = { ...prev };
-          delete next[cardIdx];
+          delete next[word.id];
           return next;
         });
+        setSelectedWordId(word.id);
         return;
       }
     }
@@ -1685,8 +1981,17 @@ function TeachMode({
     if ((n === 4 && words.length < 4) || (n === 6 && words.length < 6)) return;
     resetQuizState();
     setCardCount(n);
-    setPage(0);
-    resetReveal();
+    
+    // Find the index of the currently selected card/word to keep it visible
+    let targetWordIndex = safePage * effectiveCount;
+    if (selectedWordId) {
+      const foundIdx = words.findIndex(w => w.id === selectedWordId);
+      if (foundIdx !== -1) {
+        targetWordIndex = foundIdx;
+      }
+    }
+    const newPage = Math.floor(targetWordIndex / n);
+    setPage(newPage);
   };
   const startCountdown = (seconds) => {
     clearCountdownTimer();
@@ -1751,6 +2056,12 @@ function TeachMode({
       return;
     }
 
+    // Set the selected word ID in normal teaching mode
+    const clickedWord = currentWords[i];
+    if (clickedWord) {
+      setSelectedWordId(clickedWord.id);
+    }
+
     // 2. Prevent fast clicks/transition overlap
     if (isFlippingRef.current) return;
     
@@ -1761,13 +2072,14 @@ function TeachMode({
     }
 
     // 4. Back-side click: blank areas flip the card back to front; text areas stop propagation.
-    if (flippedCardMap[i]) {
+    const wId = clickedWord.id;
+    if (flippedCardMap[wId]) {
       isFlippingRef.current = true;
-      setFlippedCardMap(p => ({ ...p, [i]: false }));
+      setFlippedCardMap(p => ({ ...p, [wId]: false }));
       setExampleTranslationMap(p => {
         const next = { ...p };
         // Clean translations
-        Object.keys(next).forEach(key => { if (key.startsWith(`${i}-`)) delete next[key]; });
+        Object.keys(next).forEach(key => { if (key.startsWith(`${wId}-`)) delete next[key]; });
         return next;
       });
       setTimeout(() => { isFlippingRef.current = false; }, 680);
@@ -1775,32 +2087,45 @@ function TeachMode({
     }
 
     // 5. Front-side click: toggle meaning display
-    const isMeaningShown = !!showMeaningMap[i];
+    const isMeaningShown = !!showMeaningMap[wId];
     if (!isMeaningShown) {
-      setShowMeaningMap(p => ({ ...p, [i]: true }));
-      setShowUsageMap(p => ({ ...p, [i]: true }));
+      setShowMeaningMap(p => ({ ...p, [wId]: true }));
+      setShowUsageMap(p => ({ ...p, [wId]: true }));
     } else {
-      setShowMeaningMap(p => { const next = { ...p }; delete next[i]; return next; });
-      setShowUsageMap(p => { const next = { ...p }; delete next[i]; return next; });
-      setShowExamplesMap(p => { const next = { ...p }; delete next[i]; return next; });
+      setShowMeaningMap(p => { const next = { ...p }; delete next[wId]; return next; });
+      setShowUsageMap(p => { const next = { ...p }; delete next[wId]; return next; });
+      setShowExamplesMap(p => { const next = { ...p }; delete next[wId]; return next; });
     }
   };
   const revealAll = useCallback(() => {
     if (!currentWords.length) return;
-    if (!currentWords.every((w, i) => !hasFrontRevealContent(w) || showMeaningMap[i])) {
-      const frontState = Object.fromEntries(currentWords.map((w, i) => [i, hasFrontRevealContent(w)]));
-      setShowMeaningMap(frontState);
-      setShowUsageMap(frontState);
+    if (!currentWords.every((w) => !hasFrontRevealContent(w) || showMeaningMap[w.id])) {
+      const frontState = Object.fromEntries(currentWords.map((w) => [w.id, hasFrontRevealContent(w)]));
+      setShowMeaningMap(prev => ({ ...prev, ...frontState }));
+      setShowUsageMap(prev => ({ ...prev, ...frontState }));
       return;
     }
-    if (cfg.showExamples && currentWords.some((w, i) => (w.examples || []).some(e => e.ja) && !showExamplesMap[i])) {
-      setShowExamplesMap(Object.fromEntries(currentWords.map((w, i) => [i, (w.examples || []).some(e => e.ja)])));
-      setFlippedCardMap(Object.fromEntries(currentWords.map((w, i) => [i, (w.examples || []).some(e => e.ja)])));
+    if (cfg.showExamples && currentWords.some((w) => (w.examples || []).some(e => e.ja) && !showExamplesMap[w.id])) {
+      const exState = Object.fromEntries(currentWords.map((w) => [w.id, (w.examples || []).some(e => e.ja)]));
+      setShowExamplesMap(prev => ({ ...prev, ...exState }));
+      setFlippedCardMap(prev => ({ ...prev, ...exState }));
       setExampleTranslationMap({});
     }
   }, [currentWords, showMeaningMap, showExamplesMap, cfg.showExamples]);
 
-  useEffect(() => { setPage(0); setCardCount(getDefaultCount(words.length)); resetReveal(); }, [curGid]);
+  useEffect(() => { setPage(0); setCardCount(getDefaultCount(words.length)); resetReveal(); setSelectedWordId(null); }, [curGid]);
+  useEffect(() => {
+    if (pageWords.length > 0) {
+      const hasSelectedOnPage = pageWords.some(w => w.id === selectedWordId);
+      if (!hasSelectedOnPage) {
+        setSelectedWordId(pageWords[0].id);
+      }
+    } else {
+      setSelectedWordId(null);
+    }
+  }, [safePage, effectiveCount, words, selectedWordId, pageWords]);
+
+
   useEffect(() => {
     if (words.length > 0 && ((cardCount === 4 && words.length < 4) || (cardCount === 6 && words.length < 6))) { setCardCount(getDefaultCount(words.length)); setPage(0); resetReveal(); }
     else if (page > totalPages - 1) { setPage(totalPages - 1); resetReveal(); }
@@ -1896,8 +2221,8 @@ function TeachMode({
 
   const renderCard = (w, localIdx) => {
     const pos = getCellPosition(localIdx);
-    const showMeaning = !!showMeaningMap[localIdx];
-    const showExamples = !!showExamplesMap[localIdx];
+    const showMeaning = !!showMeaningMap[w.id];
+    const showExamples = !!showExamplesMap[w.id];
     const examples = (w.examples || []).filter(e => e.ja || e.cn).slice(0, cfg.maxExamples);
     const hasImage = cfg.showImg && w.imageUrl;
     const noImageSingle = effectiveCount === 1 && !hasImage;
@@ -1921,8 +2246,8 @@ function TeachMode({
     const usageRevealed = meaningRevealed;
     const exampleButtonReady = meaningRevealed;
     const examplesRevealed = !!(quizPhase || showExamples);
-    const isBackShown = !isQuizCard && cfg.showExamples && examples.length > 0 && !!flippedCardMap[localIdx];
-    const isTranslationRevealed = (exampleIdx) => !!exampleTranslationMap[`${localIdx}-${exampleIdx}`];
+    const isBackShown = !isQuizCard && cfg.showExamples && examples.length > 0 && !!flippedCardMap[w.id];
+    const isTranslationRevealed = (exampleIdx) => !!exampleTranslationMap[`${w.id}-${exampleIdx}`];
 
     const isSmallGrid = effectiveCount > 1;
     const dynamicBackPadding = isSmallGrid && examples.length >= 3 ? (effectiveCount === 6 ? "6px 8px" : "12px 18px") : cfg.backPadding;
@@ -1937,7 +2262,7 @@ function TeachMode({
     };
 
     return (
-      <div className={`perspective-container fade-in ${!isBackShown ? "tactile-card" : ""} ${isSelected ? "active-card" : ""}`} key={w.id} onClick={() => handleCardClick(localIdx)} style={{
+      <div className={`perspective-container fade-in ${paintActive ? "paint-mode-active-card" : ""} ${!isBackShown && !paintActive ? "tactile-card" : ""} ${isSelected ? "active-card" : ""} ${!isQuizCard && selectedWordId === w.id ? "selected-teach-card" : ""}`} key={w.id} onClick={() => handleCardClick(localIdx)} style={{
         opacity: dimCard ? 0.45 : 1,
         zIndex: isSelected ? 5 : 1,
         transition: "opacity 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)"
@@ -2041,11 +2366,11 @@ function TeachMode({
                       lastClickedBtnRef.current = true;
 
                       // Execute flip
-                      setShowExamplesMap(p => ({ ...p, [localIdx]: true }));
-                      setFlippedCardMap(p => ({ ...p, [localIdx]: true }));
+                      setShowExamplesMap(p => ({ ...p, [w.id]: true }));
+                      setFlippedCardMap(p => ({ ...p, [w.id]: true }));
                       setExampleTranslationMap(p => {
                         const next = { ...p };
-                        examples.forEach((_, idx) => delete next[`${localIdx}-${idx}`]);
+                        examples.forEach((_, idx) => delete next[`${w.id}-${idx}`]);
                         return next;
                       });
 
@@ -2054,7 +2379,7 @@ function TeachMode({
                         lastClickedBtnRef.current = false;
                       }, 680);
                     }}
-                      style={{ alignSelf: "center", marginTop: 8, padding: effectiveCount === 1 ? "7px 18px" : "5px 16px", borderRadius: 20, border: "none", background: C.primary, color: "#fff", fontSize: Math.max(13, cfg.tagSize), fontWeight: 800, cursor: exampleButtonReady ? "pointer" : "default", boxShadow: "0 3px 12px rgba(200,64,45,0.2)", visibility: exampleButtonReady ? "visible" : "hidden", pointerEvents: exampleButtonReady ? "auto" : "none", letterSpacing: 0 }}>
+                      style={{ alignSelf: "center", marginTop: 8, padding: effectiveCount === 1 ? "10px 24px" : "8px 20px", borderRadius: 24, border: "none", background: C.primary, color: "#fff", fontSize: Math.max(15, cfg.tagSize + 2), fontWeight: 800, cursor: exampleButtonReady ? "pointer" : "default", boxShadow: "0 4px 16px rgba(200,64,45,0.25)", visibility: exampleButtonReady ? "visible" : "hidden", pointerEvents: exampleButtonReady ? "auto" : "none", letterSpacing: 0, transform: "translateY(50%)" }}>
                       📖 例句
                     </button>
                   )}
@@ -2081,7 +2406,26 @@ function TeachMode({
                 )}
               </div>
             </div>
-
+            <CanvasPaint
+              wordId={w.id}
+              face="front"
+              active={paintActive}
+              color={paintColor}
+              thickness={paintThickness}
+              tool={paintTool}
+              strokes={strokesRegistry[w.id]?.front || []}
+              onStrokesChange={(newStrokes) => {
+                setStrokesRegistry(prev => ({
+                  ...prev,
+                  [w.id]: {
+                    front: newStrokes,
+                    back: prev[w.id]?.back || []
+                  }
+                }));
+              }}
+              onCardClick={() => handleCardClick(localIdx)}
+              themeC={C}
+            />
           </div>
 
           {/* BACK FACE */}
@@ -2120,7 +2464,7 @@ function TeachMode({
                   {ex.cn && (
                     <div onClick={(e) => {
                       e.stopPropagation();
-                      setExampleTranslationMap(p => ({ ...p, [`${localIdx}-${i}`]: !p[`${localIdx}-${i}`] }));
+                      setExampleTranslationMap(p => ({ ...p, [`${w.id}-${i}`]: !p[`${w.id}-${i}`] }));
                     }}
                       style={{
                         position: "relative",
@@ -2154,6 +2498,26 @@ function TeachMode({
                 </div>
               ))}
             </div>
+            <CanvasPaint
+              wordId={w.id}
+              face="back"
+              active={paintActive}
+              color={paintColor}
+              thickness={paintThickness}
+              tool={paintTool}
+              strokes={strokesRegistry[w.id]?.back || []}
+              onStrokesChange={(newStrokes) => {
+                setStrokesRegistry(prev => ({
+                  ...prev,
+                  [w.id]: {
+                    front: prev[w.id]?.front || [],
+                    back: newStrokes
+                  }
+                }));
+              }}
+              onCardClick={() => handleCardClick(localIdx)}
+              themeC={C}
+            />
           </div>
 
         </div>
@@ -2244,6 +2608,8 @@ function TeachMode({
       position:"relative",
       "--card-bg":C.card,
       "--border-color":C.border,
+      "--primary-color":C.primary,
+      "--primary-light":C.primaryLight,
       "--teach-shadow":chalkboardMode ? "0 18px 44px rgba(0,0,0,0.34), inset 0 0 0 1px rgba(255,255,255,0.035)" : "0 4px 18px rgba(0,0,0,0.02)"
     }}>
       {quizPhase && renderStageBar()}
@@ -2757,6 +3123,14 @@ function App() {
   useEffect(() => { groupIdRef.current = groupId; }, [groupId]);
   useEffect(() => { curGidRef.current = curGid; }, [curGid]);
 
+  useEffect(() => {
+    if (curGid && ready) {
+      try {
+        localStorage.setItem("classtango_last_uploaded_" + sanitizeGroupId(groupId), curGid);
+      } catch (e) {}
+    }
+  }, [curGid, groupId, ready]);
+
   const currentWordGroup = useMemo(() => groups.find(g => g.id === curGid) || groups[0] || null, [groups, curGid]);
   const importCategories = useMemo(() => buildCategoryList(groups, categories), [groups, categories]);
   const teachGroupTree = useMemo(() => buildCategoryList(groups, categories).map(category => ({
@@ -3090,7 +3464,11 @@ function App() {
           setGroups(hydrated.groups);
           setCategories(hydrated.categories);
           setTombstones(hydrated.tombstones);
-          setCurGid(hydrated.groups[0]?.id || null);
+          
+          const savedLastGid = localStorage.getItem("classtango_last_uploaded_" + resolvedGroupId);
+          const hasSavedGroup = savedLastGid && hydrated.groups.some(g => g.id === savedLastGid);
+          setCurGid(hasSavedGroup ? savedLastGid : (hydrated.groups[0]?.id || null));
+          
           setReady(true);
           setSyncMeta({
             loading:true,
@@ -3112,7 +3490,11 @@ function App() {
         setGroups(normalized.groups);
         setCategories(normalized.categories);
         setTombstones(normalized.tombstones);
-        setCurGid(normalized.groups[0]?.id || null);
+        
+        const savedLastGid = localStorage.getItem("classtango_last_uploaded_" + resolvedGroupId);
+        const hasSavedGroup = savedLastGid && normalized.groups.some(g => g.id === savedLastGid);
+        setCurGid(hasSavedGroup ? savedLastGid : (normalized.groups[0]?.id || null));
+        
         setReady(true);
         storage.save(resolvedGroupId, normalized);
         setSyncMeta({
@@ -3132,7 +3514,11 @@ function App() {
         setGroups(normalized.groups);
         setCategories(normalized.categories);
         setTombstones(normalized.tombstones);
-        setCurGid(fallbackGroups[0]?.id || null);
+        
+        const savedLastGid = localStorage.getItem("classtango_last_uploaded_" + resolvedGroupId);
+        const hasSavedGroup = savedLastGid && fallbackGroups.some(g => g.id === savedLastGid);
+        setCurGid(hasSavedGroup ? savedLastGid : (fallbackGroups[0]?.id || null));
+        
         setReady(true);
         setSyncMeta({
           loading:false,
@@ -3310,6 +3696,10 @@ function App() {
     }
     setShowTeachGroupPopover(false);
     setMode(key);
+  };
+
+  const renderPaintToolbar = () => {
+    return null;
   };
 
   const renderMiddleControls = () => {
@@ -3936,6 +4326,186 @@ function App() {
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 8, height: 32 }}>
+          {mode === "teach" && teachState && (
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              height: 32,
+              background: teachChalkboardMode ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.03)",
+              border: `${teachState.paintActive ? 1 : 0}px solid ${appC.border}`,
+              borderRadius: 8,
+              padding: teachState.paintActive ? "0 10px" : "0 0",
+              marginRight: teachState.paintActive ? 4 : 0,
+              maxWidth: teachState.paintActive ? 450 : 0,
+              opacity: teachState.paintActive ? 1 : 0,
+              overflow: "hidden",
+              transition: "max-width 0.4s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1), padding 0.4s cubic-bezier(0.4, 0, 0.2, 1), margin 0.4s cubic-bezier(0.4, 0, 0.2, 1), border-width 0.4s cubic-bezier(0.4, 0, 0.2, 1)"
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: "max-content" }}>
+                {/* 1. Colors */}
+                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  {[
+                    { hex: "#FF3B30", label: "红", rgb: "255,59,48" },
+                    { hex: teachChalkboardMode ? "#FFFFFF" : "#1E1E1E", label: teachChalkboardMode ? "白" : "黑", rgb: teachChalkboardMode ? "255,255,255" : "30,30,30" },
+                    { hex: "#FFCC00", label: "黄", rgb: "255,204,0" }
+                  ].map(c => {
+                    const active = teachState.paintColor === c.hex;
+                    return (
+                      <button
+                        key={c.hex}
+                        onClick={() => teachState.setPaintColor(c.hex)}
+                        title={c.label}
+                        style={{
+                          width: 16,
+                          height: 16,
+                          borderRadius: "50%",
+                          border: active ? `2px solid ${appC.text}` : `1px solid ${appC.border}`,
+                          background: c.hex,
+                          cursor: "pointer",
+                          boxShadow: active ? `0 0 5px rgba(${c.rgb}, 0.6)` : "none",
+                          transition: "all 0.15s",
+                          transform: active ? "scale(1.1)" : "none"
+                        }}
+                      />
+                    );
+                  })}
+                </div>
+
+                <div style={{ width: 1, height: 14, background: appC.border }} />
+
+                {/* 2. Tools */}
+                <div style={{ display: "flex", alignItems: "center", gap: 3 }}>
+                  {[
+                    { key: "pen", label: "✒️" },
+                    { key: "highlighter", label: "🖍️" },
+                    { key: "eraser", label: "🧽" }
+                  ].map(t => {
+                    const active = teachState.paintTool === t.key;
+                    return (
+                      <button
+                        key={t.key}
+                        onClick={() => teachState.setPaintTool(t.key)}
+                        style={{
+                          border: "none",
+                          borderRadius: 6,
+                          width: 22,
+                          height: 22,
+                          fontSize: 12,
+                          cursor: "pointer",
+                          background: active ? appC.primaryLight : "transparent",
+                          color: active ? appC.primary : appC.muted,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          transition: "all 0.15s"
+                        }}
+                      >
+                        {t.label}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div style={{ width: 1, height: 14, background: appC.border }} />
+
+                {/* 3. Thickness */}
+                <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+                  {[
+                    { val: 1, label: "细" },
+                    { val: 2, label: "中" },
+                    { val: 4, label: "粗" }
+                  ].map(th => {
+                    const active = teachState.paintThickness === th.val;
+                    return (
+                      <button
+                        key={th.val}
+                        onClick={() => teachState.setPaintThickness(th.val)}
+                        style={{
+                          border: "none",
+                          borderRadius: 6,
+                          padding: "2px 5px",
+                          fontSize: 10,
+                          fontWeight: 900,
+                          cursor: "pointer",
+                          background: active ? appC.primaryLight : "transparent",
+                          color: active ? appC.primary : appC.muted,
+                          transition: "all 0.15s"
+                        }}
+                      >
+                        {th.label}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div style={{ width: 1, height: 14, background: appC.border }} />
+
+                {/* 4. Actions */}
+                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <button
+                    onClick={teachState.clearCurrentPageStrokes}
+                    title="清空本页"
+                    style={{
+                      border: `1px solid rgba(255,82,82,0.25)`,
+                      borderRadius: 6,
+                      padding: "2px 6px",
+                      fontSize: 10,
+                      fontWeight: 900,
+                      cursor: "pointer",
+                      background: "transparent",
+                      color: appC.wrong,
+                      transition: "all 0.15s"
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = "rgba(255,82,82,0.06)"}
+                    onMouseLeave={e => e.currentTarget.style.background = "transparent"}
+                  >
+                    🧹本页
+                  </button>
+                  <button
+                    onClick={teachState.clearAllStrokes}
+                    title="清空全部"
+                    style={{
+                      border: `1px solid rgba(255,82,82,0.3)`,
+                      borderRadius: 6,
+                      padding: "2px 6px",
+                      fontSize: 10,
+                      fontWeight: 900,
+                      cursor: "pointer",
+                      background: "rgba(255,82,82,0.06)",
+                      color: appC.wrong,
+                      transition: "all 0.15s"
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = "rgba(255,82,82,0.1)"}
+                    onMouseLeave={e => e.currentTarget.style.background = "rgba(255,82,82,0.06)"}
+                  >
+                    💥全部
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {mode === "teach" && teachState && (
+            <button
+              onClick={() => teachState.setPaintActive(!teachState.paintActive)}
+              style={sBtnSm(teachState.paintActive ? appC.primary : appC.bg, teachState.paintActive ? "#fff" : appC.text, {
+                border: `1.5px solid ${teachState.paintActive ? "transparent" : appC.border}`,
+                borderRadius: 8,
+                fontWeight: 800,
+                fontSize: 12,
+                height: 32,
+                padding: "0 8px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 4,
+                width: 80
+              })}
+            >
+              <span>✏️ 标注</span>
+            </button>
+          )}
+
           {true && (
             <button
               onClick={() => setTeachChalkboardMode(!teachChalkboardMode)}
