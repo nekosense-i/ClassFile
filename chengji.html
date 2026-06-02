@@ -2489,7 +2489,11 @@
                         <span class="toolbar-label toolbar-toggle toolbar-label--danger" title="选择多次考试，用来观察同一批学生或班级随时间的变化。">用哪些考试？</span>
                         <div class="multi-select toolbar-ms" id="ms-compare-exams-wrap" style="min-width:200px;">
                             <div class="ms-header" id="ms-compare-exams-header" onclick="window.app.ui.toggleDropdown(this)">勾选考试...</div>
-                            <div class="ms-panel" id="ms-compare-exams-panel"></div>
+                            <div class="ms-panel" id="ms-compare-exams-panel">
+                                <div class="ms-search-wrap" style="padding: 6px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: #ffffff; z-index: 10;">
+                                    <input type="text" id="a-compare-exam-search" class="toolbar-select" style="width: 100%; border-radius: 6px; border: 1px solid var(--border); padding: 4px 8px; font-size: 11px; box-sizing: border-box;" placeholder="🔍 输入关键字快速筛选考试..." oninput="window.app.ui.filterCompareExams(this.value)" onclick="event.stopPropagation()">
+                                </div>
+                            </div>
                         </div>
                     </div>
                     
@@ -2507,11 +2511,26 @@
                         <div id="compare-advanced-panel" class="compare-advanced-panel" style="display:none;"></div>
                     </div>
 
+                    <div id="compare-tracking-wrap" class="toolbar-group is-hidden">
+                        <span class="toolbar-label" title="决定在跨考次对比中，如何统计学生的班级归属：是按当时考试的历史班级，还是按学生当前的最新班级。">班级追踪口径</span>
+                        <select id="a-compare-tracking" class="toolbar-select" onchange="window.app.ui.runAnalysis()">
+                            <option value="current">当前最新班级 (追踪现有班级成绩轨迹)</option>
+                            <option value="history">当时历史班级 (还原历史场景)</option>
+                        </select>
+                    </div>
+
+                    <div id="compare-alias-wrap" class="toolbar-group is-hidden" style="flex-direction:column; align-items:flex-start; min-width:240px;">
+                        <span class="toolbar-label" title="若两场考试名称归一化后仍无法对齐（如2024届叫‘半期’而2025届叫‘期中’），在此处填入对齐映射。格式为：源名称=>目标名称，每行一个。">别名对齐 (源=>标准)</span>
+                        <textarea id="a-compare-alias" class="toolbar-select" style="min-height:54px; font-family:monospace; font-size:11px; resize:vertical; width:100%; border-radius:8px; border:1px solid var(--border); padding:4px 6px;" placeholder="例：&#10;半期=>期中&#10;段考2=>期末" oninput="window.app.ui.runAnalysis()"></textarea>
+                    </div>
+
                     <div id="compare-chart-type-wrap" class="toolbar-group is-hidden">
-                        <span class="toolbar-label" title="折线适合看趋势，柱状图适合比较某次考试的分差。">怎么看？</span>
+                        <span class="toolbar-label" title="选择想要对比的具体图表形式。">怎么看？</span>
                         <select id="a-compare-chart-type" class="toolbar-select" onchange="window.app.ui.runAnalysis()">
-                            <option value="line">折线图 (看长期趋势)</option>
-                            <option value="bar">分组柱状图 (看绝对分差)</option>
+                            <option value="line">📈 折线图 (总均分趋势)</option>
+                            <option value="bar">📊 分组柱状图 (绝对分差)</option>
+                            <option value="heatmap">🔥 题型得分率热力图 (能力结构对比)</option>
+                            <option value="cumulative">🎯 成绩累计分布曲线 (分段覆盖对比)</option>
                         </select>
                     </div>
 
@@ -2888,6 +2907,16 @@
                 debounce: (func, wait) => {
                     let timeout;
                     return function(...args) { clearTimeout(timeout); timeout = setTimeout(() => func.apply(this, args), wait); };
+                },
+                throttle: (func, limit) => {
+                    let inThrottle;
+                    return function(...args) {
+                        if (!inThrottle) {
+                            func.apply(this, args);
+                            inThrottle = true;
+                            setTimeout(() => inThrottle = false, limit);
+                        }
+                    };
                 },
                 calculatePhase: (gradeStr, examDateStr) => {
                     if (!gradeStr || !examDateStr || gradeStr.includes('未设')) return "未知学段";
@@ -3704,6 +3733,10 @@
                         this.hasUnsavedChanges = true;
                         this.updateSaveIndicator();
                     }
+                    // 1. 立即写入本地物理存储，确保浏览器刷新也绝对不丢分
+                    this.silentSave();
+                    
+                    // 2. 仅对网络同步推送保持 3 秒防抖保护
                     if (this.saveTimeout) clearTimeout(this.saveTimeout);
                     this.saveTimeout = setTimeout(() => {
                         this.save();
@@ -3809,33 +3842,89 @@
 	                constructor(store) {
 	                    this.store = store;
 	                    this.api = 'https://sync.nekosensei.cn/gakuten-all';
-	                    this.groupId = 'gakuten_prod_stable_v1'; 
+	                    this.groupId = 'gakuten_prod_stable_v1';
 	                    this.debouncedPush = Utils.debounce(this._push.bind(this), 3000);
 	                    this.isPulling = false;
 	                    this.isPushing = false;
 	                    this.pendingPush = false;
-	                    this.pollIntervalMs = 15000;
+	                    
+	                    // 智能热度与指数退避轮询策略
+	                    this.currentInterval = 5000;
+	                    this.minInterval = 5000;
+	                    this.maxInterval = 60000;
+	                    this.lastUserActiveTime = Date.now();
+	                    
+	                    this.bindUserActivity();
 	                    this.startAutoSync();
+	                    this.initNetworkEvents();
 	                }
 	                setDot(status, title) {
 	                    const dot = document.getElementById('sync-dot');
 	                    if (dot) { dot.className = `sync-dot ${status}`; dot.title = title; }
 	                }
+	                bindUserActivity() {
+	                    const activeEvents = ['mousedown', 'keydown', 'scroll', 'touchstart'];
+	                    activeEvents.forEach(evt => {
+	                        window.addEventListener(evt, Utils.throttle(() => {
+	                            this.lastUserActiveTime = Date.now();
+	                            if (this.currentInterval > this.minInterval) {
+	                                this.currentInterval = this.minInterval;
+	                                this.startAutoSync();
+	                            }
+	                        }, 2000));
+	                    });
+	                }
 	                startAutoSync() {
-	                    if (this.pollTimer) clearInterval(this.pollTimer);
-	                    this.pollTimer = setInterval(() => {
-	                        // 禁用在分析或对比页面自动刷新，防止图表等状态被重置打断分析
+	                    if (this.pollTimer) clearTimeout(this.pollTimer);
+	                    
+	                    const tick = async () => {
 	                        if (window.app && window.app.ui && window.app.ui.cur === 'analysis') return;
 	                        if (document.hidden || this.store.hasUnsavedChanges || this.isPushing) return;
-	                        this.pull({ silent: true }).catch(()=>{});
-	                    }, this.pollIntervalMs);
+	                        
+	                        const idleTime = Date.now() - this.lastUserActiveTime;
+	                        if (idleTime > 60000) {
+	                            this.currentInterval = this.maxInterval;
+	                            this.startAutoSync();
+	                            return;
+	                        }
+	                        
+	                        try {
+	                            const changed = await this.pull({ silent: true });
+	                            if (changed) {
+	                                this.currentInterval = this.minInterval;
+	                            } else {
+	                                this.currentInterval = Math.min(this.maxInterval, this.currentInterval * 1.5);
+	                            }
+	                        } catch(e) {}
+	                        
+	                        this.startAutoSync();
+	                    };
+	                    
+	                    this.pollTimer = setTimeout(tick, this.currentInterval);
+	                }
+	                // 挂接 online 与 visibilitychange 事件的增强安全防护
+	                initNetworkEvents() {
+	                    if (this._eventsBound) return;
+	                    this._eventsBound = true;
+	                    
 	                    window.addEventListener('online', () => {
 	                        if (window.app && window.app.ui && window.app.ui.cur === 'analysis') return;
-	                        this.pull({ silent: true }).catch(()=>{});
+	                        if (this.store.hasUnsavedChanges) {
+	                            this.push();
+	                        } else {
+	                            this.pull({ silent: true }).catch(()=>{});
+	                        }
 	                    });
+	                    
 	                    document.addEventListener('visibilitychange', () => {
 	                        if (window.app && window.app.ui && window.app.ui.cur === 'analysis') return;
-	                        if (!document.hidden) this.pull({ silent: true }).catch(()=>{});
+	                        if (!document.hidden) {
+	                            if (this.store.hasUnsavedChanges) {
+	                                this.push();
+	                            } else {
+	                                this.pull({ silent: true }).catch(()=>{});
+	                            }
+	                        }
 	                    });
 	                }
 	                normalizeCloud(cloud) {
@@ -3923,7 +4012,15 @@
 	                        this.store.state.syncMeta.lastError = '';
 	                        this.store.silentSave();
 	                        if (!this.store.hasPendingDelta()) this.store.resetDeltaTracking();
-	                        if (changed && window.app && window.app.ui) window.app.ui.refresh();
+	                        if (changed && window.app && window.app.ui) {
+	                            // 无冲突焦点保护：如果登分老师正在专注输入分数，仅静默更新底层数据状态，不刷新整张表格 DOM，防止焦点丢失
+	                            const hasActiveInput = document.activeElement && document.activeElement.classList.contains('score-input');
+	                            if (hasActiveInput && window.app.ui.cur === 'exams') {
+	                                console.log("检测到教师正在录入分数，已合并云端数据，暂缓重绘表格以保护焦点。");
+	                            } else {
+	                                window.app.ui.refresh();
+	                            }
+	                        }
 	                        this.setDot('synced', `云端数据已同步（${new Date().toLocaleTimeString()}）`);
 	                        return changed;
 	                    } catch(e) { 
@@ -8032,6 +8129,8 @@
                     const compPhaseWrap = document.getElementById('compare-phase-wrap');
                     const compDimWrap = document.getElementById('compare-dimension-wrap');
                     const compAdvancedWrap = document.getElementById('compare-advanced-wrap');
+                    const compTrackingWrap = document.getElementById('compare-tracking-wrap');
+                    const compAliasWrap = document.getElementById('compare-alias-wrap');
                     const clsWrap = document.getElementById('ms-analysis-container');
                     const stuWrap = document.getElementById('student-selector-wrap');
                     const trendPhaWrap = document.getElementById('trend-phase-wrap');
@@ -8048,6 +8147,8 @@
                     compDimWrap.style.display = 'none';
                     compAdvancedWrap.style.display = 'none';
                     compChartTypeWrap.style.display = 'none';
+                    if (compTrackingWrap) compTrackingWrap.style.display = 'none';
+                    if (compAliasWrap) compAliasWrap.style.display = 'none';
                     clsWrap.style.display = 'none';
                     stuWrap.style.display = 'none';
                     trendPhaWrap.style.display = 'none';
@@ -8315,13 +8416,23 @@
                 _decorateCompareExamPanel(validExams = []) {
                     const panel = document.getElementById('ms-compare-exams-panel');
                     if (!panel) return;
-                    panel.querySelectorAll('.compare-phase-shortcut, .compare-exam-group-title').forEach(el => el.remove());
+                    panel.querySelectorAll('.compare-phase-shortcut, .compare-exam-group-title, .ms-search-wrap').forEach(el => el.remove());
+                    
+                    // 1. 动态挂载检索输入框，确保 build 之后不会丢失
+                    const searchWrap = document.createElement('div');
+                    searchWrap.className = 'ms-search-wrap';
+                    searchWrap.style.cssText = 'padding: 6px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: #ffffff; z-index: 10;';
+                    searchWrap.innerHTML = `
+                        <input type="text" id="a-compare-exam-search" class="toolbar-select" style="width: 100%; border-radius: 6px; border: 1px solid var(--border); padding: 4px 8px; font-size: 11px; box-sizing: border-box;" placeholder="🔍 输入关键字快速筛选考试..." oninput="window.app.ui.filterCompareExams(this.value)" onclick="event.stopPropagation()">
+                    `;
+                    panel.prepend(searchWrap);
+
                     const phases = [...new Set(validExams.map(ex => Utils.calculatePhase(ex.grade, ex.date)).filter(p => p && !p.includes('未知')))].sort(Utils.sortPhaseStrict);
                     if (phases.length > 0) {
                         const shortcut = document.createElement('div');
                         shortcut.className = 'compare-phase-shortcut';
                         shortcut.innerHTML = phases.map(p => `<button type="button" class="secondary" onclick="window.app.ui.selectCompareExamsByPhase('${Utils.escapeHTML(p)}')">全选${Utils.escapeHTML(p)}</button>`).join('');
-                        panel.prepend(shortcut);
+                        panel.appendChild(shortcut);
                     }
                     let lastKey = '';
                     Array.from(panel.querySelectorAll('.ms-item')).forEach(label => {
@@ -8333,10 +8444,143 @@
                             const title = document.createElement('div');
                             title.className = 'compare-exam-group-title';
                             title.textContent = key;
-                            panel.insertBefore(title, label);
+                            panel.appendChild(title);
                             lastKey = key;
                         }
+                        panel.appendChild(label);
                     });
+                }
+
+                filterCompareExams(keyword = '') {
+                    const panel = document.getElementById('ms-compare-exams-panel');
+                    if (!panel) return;
+                    const cleanKeyword = keyword.trim().toLowerCase();
+                    
+                    const labels = Array.from(panel.querySelectorAll('.ms-item'));
+                    labels.forEach(label => {
+                        const text = label.textContent.toLowerCase();
+                        if (!cleanKeyword || text.includes(cleanKeyword)) {
+                            label.style.display = 'flex';
+                        } else {
+                            label.style.display = 'none';
+                        }
+                    });
+                    
+                    let currentGroupTitle = null;
+                    let hasVisibleInGroup = false;
+                    const children = Array.from(panel.childNodes);
+                    children.forEach(node => {
+                        if (node.classList && node.classList.contains('compare-exam-group-title')) {
+                            if (currentGroupTitle) {
+                                currentGroupTitle.style.display = hasVisibleInGroup ? 'block' : 'none';
+                            }
+                            currentGroupTitle = node;
+                            hasVisibleInGroup = false;
+                        } else if (node.classList && node.classList.contains('ms-item')) {
+                            if (node.style.display !== 'none') {
+                                hasVisibleInGroup = true;
+                            }
+                        }
+                    });
+                    if (currentGroupTitle) {
+                        currentGroupTitle.style.display = hasVisibleInGroup ? 'block' : 'none';
+                    }
+                }
+
+                quickTriggerCompareScenario(scenarioType) {
+                    const storeExams = this.store.state.data.exams || [];
+                    const panel = document.getElementById('ms-compare-exams-panel');
+                    if (!panel) return;
+                    
+                    const focus = this.store.state.globalFocus;
+
+                    if (scenarioType === 'cross-grade-pk') {
+                        const dirEl = document.getElementById('a-compare-direction');
+                        if (dirEl) dirEl.value = 'cross-grade';
+                        
+                        this._syncCompareDirectionUI();
+                        this.updateComparePhaseSelect();
+                        
+                        const phaseEl = document.getElementById('a-compare-phase');
+                        if (phaseEl && phaseEl.options.length > 0) {
+                            let targetPhase = phaseEl.options[0].value;
+                            for (let i = 0; i < phaseEl.options.length; i++) {
+                                if (phaseEl.options[i].value.includes('高一下') || phaseEl.options[i].value.includes('高一上')) {
+                                    targetPhase = phaseEl.options[i].value;
+                                    break;
+                                }
+                            }
+                            phaseEl.value = targetPhase;
+                        }
+                        
+                        this.handleComparePhaseChange();
+                        
+                        const chartTypeEl = document.getElementById('a-compare-chart-type');
+                        if (chartTypeEl) chartTypeEl.value = 'line';
+                        const scoreTypeEl = document.getElementById('a-trend-score-type');
+                        if (scoreTypeEl) scoreTypeEl.value = 'pct';
+                        
+                        this.runAnalysis();
+                        toast("已智能关联跨届同期考试并切换至总均分折线图！", "success");
+                    }
+                    
+                    if (scenarioType === 'class-trajectory') {
+                        const dirEl = document.getElementById('a-compare-direction');
+                        if (dirEl) dirEl.value = 'class';
+                        
+                        this._syncCompareDirectionUI();
+                        
+                        const trackingEl = document.getElementById('a-compare-tracking');
+                        if (trackingEl) trackingEl.value = 'current';
+                        const chartTypeEl = document.getElementById('a-compare-chart-type');
+                        if (chartTypeEl) chartTypeEl.value = 'line';
+                        const scoreTypeEl = document.getElementById('a-trend-score-type');
+                        if (scoreTypeEl) scoreTypeEl.value = 'pct';
+                        
+                        const examsSorted = [...storeExams].sort((a,b) => (b.date || '').localeCompare(a.date || ''));
+                        if (examsSorted.length > 0) {
+                            const activeGrade = focus.grades.length > 0 ? focus.grades[0] : examsSorted[0].grade;
+                            const targetExams = examsSorted.filter(ex => ex.grade === activeGrade).slice(0, 5);
+                            const targetIds = new Set(targetExams.map(e => e.id));
+                            
+                            panel.querySelectorAll('.ms-item input').forEach(cb => {
+                                cb.checked = targetIds.has(cb.value);
+                            });
+                        }
+                        this._updateMsHeader('ms-compare-exams-panel', 'ms-compare-exams-header', '请勾选您要对比的考试...', true);
+                        
+                        this.runAnalysis();
+                        toast("已自动切换至【当前最新班级口径】，追踪这届班级在历次考试中的均分成长曲线！", "success");
+                    }
+                    
+                    if (scenarioType === 'history-restore') {
+                        const dirEl = document.getElementById('a-compare-direction');
+                        if (dirEl) dirEl.value = 'class';
+                        
+                        this._syncCompareDirectionUI();
+                        
+                        const trackingEl = document.getElementById('a-compare-tracking');
+                        if (trackingEl) trackingEl.value = 'history';
+                        const chartTypeEl = document.getElementById('a-compare-chart-type');
+                        if (chartTypeEl) chartTypeEl.value = 'bar';
+                        const scoreTypeEl = document.getElementById('a-trend-score-type');
+                        if (scoreTypeEl) scoreTypeEl.value = 'pct';
+                        
+                        const examsSorted = [...storeExams].sort((a,b) => (b.date || '').localeCompare(a.date || ''));
+                        if (examsSorted.length > 0) {
+                            const activeGrade = focus.grades.length > 0 ? focus.grades[0] : examsSorted[0].grade;
+                            const targetExams = examsSorted.filter(ex => ex.grade === activeGrade).slice(0, 4);
+                            const targetIds = new Set(targetExams.map(e => e.id));
+                            
+                            panel.querySelectorAll('.ms-item input').forEach(cb => {
+                                cb.checked = targetIds.has(cb.value);
+                            });
+                        }
+                        this._updateMsHeader('ms-compare-exams-panel', 'ms-compare-exams-header', '请勾选您要对比的考试...', true);
+                        
+                        this.runAnalysis();
+                        toast("已还原当时考场的历史现场！按考试当时的历史分班展示柱状图分差对比。", "success");
+                    }
                 }
 
                 selectCompareExamsByPhase(phase) {
@@ -8349,10 +8593,44 @@
                     this.runAnalysis();
                 }
 
-                normalizeExamLabel(examName = '') {
-                    const text = String(examName || '').trim();
+                getCustomAliasMap() {
+                    const el = document.getElementById('a-compare-alias');
+                    if (!el) return new Map();
+                    const text = el.value || '';
+                    const map = new Map();
+                    text.split('\n').forEach(line => {
+                        const parts = line.split('=>');
+                        if (parts.length === 2) {
+                            const src = parts[0].trim();
+                            const target = parts[1].trim();
+                            if (src && target) map.set(src, target);
+                        }
+                    });
+                    return map;
+                }
+
+                normalizeExamLabel(examName = '', aliasMap = new Map()) {
+                    let text = String(examName || '').trim();
+                    
+                    // 1. 先应用用户自定义的别名映射关系
+                    if (aliasMap && aliasMap.size > 0) {
+                        for (const [src, dst] of aliasMap.entries()) {
+                            if (text.includes(src)) {
+                                text = text.replace(src, dst);
+                            }
+                        }
+                    }
+                    
+                    // 2. 默认的别名对齐合并
+                    if (text.includes('半期') || text.includes('半学期') || text.includes('段考1')) {
+                        text = text.replace(/半期|半学期|段考1/, '期中');
+                    }
+                    if (text.includes('段考2')) {
+                        text = text.replace(/段考2/, '期末');
+                    }
+                    
                     const patterns = [
-                        /期中/, /期末/, /半期/,
+                        /期中/, /期末/,
                         /月考\s*\d*/i, /周测\s*\d*/i,
                         /[零一二三四五六七八九十\d]+模/,
                         /第[一二三四五六七八九十\d]+次/,
@@ -8390,8 +8668,11 @@
                     const examWrap = document.getElementById('compare-multi-exam-wrap');
                     const dimWrap = document.getElementById('compare-dimension-wrap');
                     const clsWrap = document.getElementById('ms-analysis-container');
+                    const trackingWrap = document.getElementById('compare-tracking-wrap');
+                    const aliasWrap = document.getElementById('compare-alias-wrap');
+                    
                     if (advancedPanel) {
-                        [phaseWrap, examWrap, dimWrap, chartWrap, scoreWrap, baselineWrap, clsWrap].forEach(el => {
+                        [phaseWrap, examWrap, dimWrap, chartWrap, scoreWrap, baselineWrap, clsWrap, trackingWrap, aliasWrap].forEach(el => {
                             if (el && el.parentElement !== advancedPanel) advancedPanel.appendChild(el);
                         });
                     }
@@ -8409,6 +8690,8 @@
                     if (phaseWrap) phaseWrap.style.display = dir === 'cross-grade' ? 'flex' : 'none';
                     if (dimWrap) dimWrap.style.display = dir === 'custom' ? 'flex' : 'none';
                     if (clsWrap) clsWrap.style.display = dir === 'custom' ? 'flex' : 'none';
+                    if (trackingWrap) trackingWrap.style.display = 'flex';
+                    if (aliasWrap) aliasWrap.style.display = dir === 'cross-grade' ? 'flex' : 'none';
                     if (advancedWrap) advancedWrap.style.display = 'flex';
                     if (chartWrap) chartWrap.style.display = 'flex';
                     if (scoreWrap) scoreWrap.style.display = 'flex';
@@ -10937,38 +11220,82 @@
                         const useNormalizedX = compareDirection === 'cross-grade';
                         const scoreType = document.getElementById('a-trend-score-type').value; 
                         const chartType = document.getElementById('a-compare-chart-type').value; 
+                        
+                        // 获取方案二自定义的别名对齐映射字典
+                        const aliasMap = this.getCustomAliasMap();
+                        
+                        // 获取方案三的班级追踪口径配置（当前最新班级或当时历史班级）
+                        const compareTracking = document.getElementById('a-compare-tracking')?.value || 'current';
+                        const getStudentClassInfo = (stu, examObj) => {
+                            if (compareTracking === 'current') {
+                                return { campus: stu.campus || '', teachingClass: stu.teachingClass || '' };
+                            } else {
+                                return Utils.getClassForExam(stu, examObj);
+                            }
+                        };
 
                         let selectedExams = this.store.state.data.exams.filter(e => checkedExamIds.includes(e.id));
                         selectedExams.sort((a,b) => (a.date||'').localeCompare(b.date||''));
                         
                         if (selectedExams.length === 0) {
-                            const emptyHints = {
-                                class: "请在上方勾选至少一场考试，系统会按班级生成对比线。",
-                                campus: "请在上方勾选至少一场考试，系统会按校区生成对比线。",
-                                'cross-grade': "请选择一个学段（如高一下），系统将自动匹配各届考试；也可以在考试面板中手动微调。",
-                                custom: "请勾选考试并选择对比维度。"
-                            };
-                            return renderEmptyState("未选择对比考次", emptyHints[compareDirection] || "请在上方勾选考试。");
+                            const guideHtml = `
+                                <div class="compare-guide-container" style="display:flex; gap:16px; justify-content:center; flex-wrap:wrap; margin-top:15px; width:100%; box-sizing:border-box;">
+                                    <!-- 场景一：跨代PK -->
+                                    <div class="compare-guide-card" style="flex:1 1 240px; max-width:300px; background:rgba(255,255,255,0.85); border:1px solid rgba(139,92,246,0.25); border-radius:12px; padding:16px; box-shadow:0 6px 20px -5px rgba(139,92,246,0.15); backdrop-filter:blur(10px); display:flex; flex-direction:column; text-align:left;">
+                                        <div style="font-size:22px; margin-bottom:8px;">📅</div>
+                                        <h4 style="font-size:14px; font-weight:700; color:var(--text-main); margin:0 0 6px;">1. 跨代同期PK (折线趋势)</h4>
+                                        <p style="font-size:11px; color:var(--text-sub); line-height:1.4; margin:0 0 16px; flex-grow:1;">对比不同届高一高二在<b>同一学段同期考试</b>（如高一下期中/期末）的总均分表现，直观评估历届教学质量起伏。</p>
+                                        <button type="button" class="primary" style="background:linear-gradient(135deg, #8b5cf6, #6366f1); border:none; color:#ffffff; font-weight:600; font-size:11px; padding:8px 12px; border-radius:6px; width:100%; cursor:pointer;" onclick="window.app.ui.quickTriggerCompareScenario('cross-grade-pk')">🚀 一键智能对比</button>
+                                    </div>
+                                    
+                                    <!-- 场景二：现有班级轨迹 -->
+                                    <div class="compare-guide-card" style="flex:1 1 240px; max-width:300px; background:rgba(255,255,255,0.85); border:1px solid rgba(14,165,233,0.25); border-radius:12px; padding:16px; box-shadow:0 6px 20px -5px rgba(14,165,233,0.15); backdrop-filter:blur(10px); display:flex; flex-direction:column; text-align:left;">
+                                        <div style="font-size:22px; margin-bottom:8px;">📈</div>
+                                        <h4 style="font-size:14px; font-weight:700; color:var(--text-main); margin:0 0 6px;">2. 现有班级轨迹 (追踪曲线)</h4>
+                                        <p style="font-size:11px; color:var(--text-sub); line-height:1.4; margin:0 0 16px; flex-grow:1;">智能清洗历史分班干扰，追踪“我这届现有班级”在<b>这学期所有历史考试</b>中的成绩发展走势，支持自由增删考次。</p>
+                                        <button type="button" class="primary" style="background:linear-gradient(135deg, #0ea5e9, #2563eb); border:none; color:#ffffff; font-weight:600; font-size:11px; padding:8px 12px; border-radius:6px; width:100%; cursor:pointer;" onclick="window.app.ui.quickTriggerCompareScenario('class-trajectory')">🚀 一键追踪轨迹</button>
+                                    </div>
+                                    
+                                    <!-- 场景三：历史现场还原 -->
+                                    <div class="compare-guide-card" style="flex:1 1 240px; max-width:300px; background:rgba(255,255,255,0.85); border:1px solid rgba(249,115,22,0.25); border-radius:12px; padding:16px; box-shadow:0 6px 20px -5px rgba(249,115,22,0.15); backdrop-filter:blur(10px); display:flex; flex-direction:column; text-align:left;">
+                                        <div style="font-size:22px; margin-bottom:8px;">🆚</div>
+                                        <h4 style="font-size:14px; font-weight:700; color:var(--text-main); margin:0 0 6px;">3. 历史现场还原 (柱状分差)</h4>
+                                        <p style="font-size:11px; color:var(--text-sub); line-height:1.4; margin:0 0 16px; flex-grow:1;">严格按每次考试当时的<b>真实历史分班口径</b>，直观对比平行班在此阶段历次大考中的分差与考场实力变化。</p>
+                                        <button type="button" class="primary" style="background:linear-gradient(135deg, #f97316, #ea580c); border:none; color:#ffffff; font-weight:600; font-size:11px; padding:8px 12px; border-radius:6px; width:100%; cursor:pointer;" onclick="window.app.ui.quickTriggerCompareScenario('history-restore')">🚀 一键历史还原</button>
+                                    </div>
+                                </div>
+                            `;
+                            return renderEmptyState("跨考次多维度诊断对比", "您可以利用上方工具栏自主拼装任意多次不规范命名的考试；或直接点击下方核心教研场景开启一键智能分析：", guideHtml);
                         }
                         
                         let pool = this.store.state.data.students;
                         if (focus.campuses.length > 0) pool = pool.filter(s => focus.campuses.includes(s.campus));
-                        if (focus.grades.length > 0) pool = pool.filter(s => focus.grades.includes(s.grade));
+                        
+                        // 【方案一：智能旁路全局年级过滤器】以勾选考试所覆盖的年级为依据拉取学生，不再受全局单选过滤的影响
+                        const examGrades = new Set(selectedExams.map(ex => ex.grade).filter(Boolean));
+                        if (examGrades.size > 0) {
+                            pool = pool.filter(s => examGrades.has(s.grade));
+                        } else if (focus.grades.length > 0) {
+                            pool = pool.filter(s => focus.grades.includes(s.grade));
+                        }
+
                         const checkedClasses = Array.from(document.querySelectorAll('#ms-analysis-panel input:checked')).map(cb => cb.value.replace(/&quot;/g, '"'));
                         if (checkedClasses.length === 0 && focus.tClasses.length > 0) pool = pool.filter(s => focus.tClasses.includes(s.teachingClass));
                         const studentById = new Map(this.store.state.data.students.map(s => [s.id, s]));
                         const selectedExamIds = new Set(selectedExams.map(ex => ex.id));
                         const scoreRecords = (this.store.state.data.scores || [])
-                            .filter(sc => selectedExamIds.has(sc.examId) && sc.total > 0 && !sc.examAbsent);
+                             .filter(sc => selectedExamIds.has(sc.examId) && sc.total > 0 && !sc.examAbsent);
                         const scoreByExam = new Map();
                         scoreRecords.forEach(sc => {
                             if (!scoreByExam.has(sc.examId)) scoreByExam.set(sc.examId, []);
                             scoreByExam.get(sc.examId).push(sc);
                         });
                         const poolIds = new Set(pool.map(s => s.id));
+                        
+                        // 【方案三：根据口径配置解析追踪实体的分组名称】
                         const getLineName = (stu, examObj) => {
                             if (compareDim === 'class') {
-                                const classAtExam = Utils.getClassForExam(stu, examObj);
+                                const classAtExam = getStudentClassInfo(stu, examObj);
                                 return `${classAtExam.campus || '-'} - ${classAtExam.teachingClass || '未分班'}`;
                             }
                             if (compareDim === 'grade') return stu.grade || '未知年级';
@@ -10991,7 +11318,8 @@
                         const xItems = [];
                         const xKeySet = new Set();
                         selectedExams.forEach(ex => {
-                            const key = useNormalizedX ? this.normalizeExamLabel(ex.examType || ex.name) : ex.id;
+                            // 【方案二：传入 aliasMap 自定义字典对齐横轴类目】
+                            const key = useNormalizedX ? this.normalizeExamLabel(ex.examType || ex.name, aliasMap) : ex.id;
                             if (xKeySet.has(key)) return;
                             xKeySet.add(key);
                             xItems.push({ key, label: useNormalizedX ? key : ex.name });
@@ -11004,11 +11332,15 @@
                                 const stu = studentById.get(sc.studentId);
                                 if (!stu || !poolIds.has(stu.id)) return;
                                 const line = getLineName(stu, ex);
+                                
+                                // 【方案三：根据选定班级与口径过滤学生】
                                 if (checkedClasses.length > 0) {
-                                    const classAtExam = Utils.getClassForExam(stu, ex);
+                                    const classAtExam = getStudentClassInfo(stu, ex);
                                     if (!checkedClasses.includes(`${classAtExam.campus} - ${classAtExam.teachingClass}`)) return;
                                 }
-                                const xKey = useNormalizedX ? this.normalizeExamLabel(ex.examType || ex.name) : ex.id;
+                                
+                                // 【方案二：归一化横轴对齐】
+                                const xKey = useNormalizedX ? this.normalizeExamLabel(ex.examType || ex.name, aliasMap) : ex.id;
                                 const val = getScoreValue(sc, ex, stu);
                                 if (val === null || !isFinite(val)) return;
                                 allRows.push({ exam: ex, score: sc, stu, line, xKey, value: val });
@@ -11034,6 +11366,185 @@
                             lines = [...new Set(selectedExams.map(ex => ex.grade).concat(lines).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'zh-CN',{numeric:true}));
                         }
                         
+                        // ================= 【需求三：跨实体成绩累计分布对比模式】 =================
+                        if (chartType === 'cumulative') {
+                            document.getElementById('chart-wrapper-card').style.display = 'block';
+                            this.chartInstance = echarts.init(document.getElementById('chart-main'));
+                            
+                            const seriesData = [];
+                            const tableData = [];
+                            
+                            const groups = [...new Set(allRows.map(r => r.line).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'zh-CN',{numeric:true}));
+                            
+                            groups.forEach((groupName, idx) => {
+                                const groupRows = allRows.filter(r => r.line === groupName);
+                                const totals = groupRows.map(r => Number(r.score.total)).filter(v => isFinite(v) && v >= 0).sort((a,b)=>a-b);
+                                
+                                if (totals.length > 0) {
+                                    const xPoints = [...new Set(totals)].sort((a,b)=>a-b);
+                                    const totalCount = totals.length;
+                                    
+                                    const seriesPairs = xPoints.map(x => {
+                                        const cnt = totals.filter(v => v <= x).length;
+                                        const pct = parseFloat(((cnt / totalCount) * 100).toFixed(1));
+                                        return [x, pct];
+                                    });
+                                    
+                                    seriesData.push({
+                                        name: groupName,
+                                        type: 'line',
+                                        smooth: true,
+                                        data: seriesPairs,
+                                        encode: { x: 0, y: 1 },
+                                        lineStyle: { width: 3, color: barColors[idx % barColors.length] },
+                                        itemStyle: { color: barColors[idx % barColors.length] },
+                                        symbol: 'none'
+                                    });
+                                    
+                                    tableData.push({ name: groupName, count: totalCount, median: totals[Math.floor(totalCount / 2)], max: totals[totalCount - 1] });
+                                }
+                            });
+                            
+                            if (seriesData.length === 0) {
+                                return renderEmptyState("暂无分布数据", "当前选定的对比群体内没有足够的有效成绩以生成累计分布曲线。", '');
+                            }
+                            
+                            const maxTotalScore = Math.max(...selectedExams.map(ex => Number(ex.maxTotal || 0)), 150);
+                            
+                            this._deferredChartSetOption(this.chartInstance, {
+                                title: { text: `跨校区/年级同一学段成绩累计分布对比`, left: 'center' },
+                                tooltip: {
+                                    trigger: 'item',
+                                    formatter: function(param) {
+                                        const d = param && param.data ? param.data : null;
+                                        if (!d) return '';
+                                        return `<b>${param.seriesName}</b><br/>分数: ${d[0]} 分，包含本群体内累计 ${d[1]}% 的学生`;
+                                    }
+                                },
+                                legend: { data: seriesData.map(s => s.name), bottom: 0 },
+                                xAxis: { type: 'value', name: '分数', min: 0, max: maxTotalScore },
+                                yAxis: { type: 'value', min: 0, max: 100, name: '累计百分比 (%)' },
+                                series: seriesData
+                            });
+                            
+                            document.getElementById('analysis-table-area').style.display = 'flex';
+                            document.getElementById('table-title').innerHTML = `📊 分布对比概要 <small style="color:var(--text-sub); font-weight:normal;">(对比维度：${compareDim === 'class' ? '班级' : (compareDim === 'grade' ? '年级' : '校区')})</small>`;
+                            const thead = document.getElementById('thead-analysis');
+                            const tbody = document.getElementById('tbody-analysis');
+                            thead.innerHTML = `<tr><th style="z-index:var(--z-sticky); width:180px;">追踪实体</th><th>参考人数</th><th>中位数成绩 (分)</th><th>最高分 (分)</th></tr>`;
+                            tbody.innerHTML = tableData.map(row => `
+                                <tr>
+                                    <td style="font-weight:700; color:#1e293b;">${row.name}</td>
+                                    <td>${row.count} 人</td>
+                                    <td style="font-weight:600; color:var(--primary);">${row.median} 分</td>
+                                    <td style="font-weight:600; color:var(--success);">${row.max} 分</td>
+                                </tr>
+                            `).join('');
+                            return;
+                        }
+
+                        // ================= 【需求二：跨实体题型得分率热力图对比模式】 =================
+                        if (chartType === 'heatmap') {
+                            const typeMap = new Map();
+                            selectedExams.forEach(ex => {
+                                const types = Array.isArray(ex.types) ? ex.types : [];
+                                types.forEach(t => {
+                                    if (t && t.name) typeMap.set(t.name, Math.max(typeMap.get(t.name) || 0, Number(t.max || t.maxScore || t.full || t.fullScore || 0)));
+                                });
+                            });
+                            
+                            const xAxisNames = [...typeMap.keys()];
+                            const yAxisNames = [...new Set(allRows.map(r => r.line).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'zh-CN',{numeric:true}));
+                            
+                            if (xAxisNames.length === 0 || yAxisNames.length === 0) {
+                                return renderEmptyState("题型信息缺失", "选定考试内未录入任何题型结构划分，无法生成对比热力图。", '');
+                            }
+                            
+                            const statsMap = new Map();
+                            allRows.forEach(r => {
+                                const details = r.score.details || {};
+                                const examTypes = Array.isArray(r.exam.types) ? r.exam.types : [];
+                                
+                                examTypes.forEach(t => {
+                                    if (!t || !t.name) return;
+                                    const val = Number(details[t.name]);
+                                    if (isFinite(val) && val >= 0) {
+                                        const key = `${r.line}||${t.name}`;
+                                        const prev = statsMap.get(key) || { got: 0, full: 0 };
+                                        prev.got += val;
+                                        const typeMax = Number(t.max || t.maxScore || t.full || t.fullScore || 0);
+                                        prev.full += typeMax;
+                                        statsMap.set(key, prev);
+                                    }
+                                });
+                            });
+                            
+                            const heatData = [];
+                            yAxisNames.forEach((groupName, yIdx) => {
+                                xAxisNames.forEach((typeName, xIdx) => {
+                                    const bucket = statsMap.get(`${groupName}||${typeName}`);
+                                    const pct = (bucket && bucket.full > 0) ? parseFloat(((bucket.got / bucket.full) * 100).toFixed(1)) : 0;
+                                    heatData.push([xIdx, yIdx, pct]);
+                                });
+                            });
+                            
+                            document.getElementById('chart-wrapper-card').style.display = 'block';
+                            this.chartInstance = echarts.init(document.getElementById('chart-main'));
+                            
+                            this._deferredChartSetOption(this.chartInstance, {
+                                title: { text: `跨校区/年级同一学段题型综合得分率对比热力图`, left: 'center' },
+                                tooltip: {
+                                    position: 'top',
+                                    formatter: function (params) {
+                                        return `<b>${yAxisNames[params.value[1]]}</b><br/>题型: ${xAxisNames[params.value[0]]}<br/>平均得分率: <span style="font-weight:bold; color:var(--text-main);">${params.value[2]}%</span>`;
+                                    }
+                                },
+                                animation: false,
+                                grid: { height: '50%', top: '15%' },
+                                xAxis: { type: 'category', data: xAxisNames, splitArea: { show: true } },
+                                yAxis: { type: 'category', data: yAxisNames, splitArea: { show: true } },
+                                visualMap: {
+                                    min: 0,
+                                    max: 100,
+                                    calculable: true,
+                                    orient: 'horizontal',
+                                    left: 'center',
+                                    bottom: '5%',
+                                    inRange: { color: ['#f8fafc', '#bbf7d0', '#22c55e', '#15803d'] }
+                                },
+                                series: [{
+                                    name: '题型得分率',
+                                    type: 'heatmap',
+                                    data: heatData,
+                                    label: { show: true, formatter: (p) => `${p.value[2]}%`, color: '#000000', fontSize: 10 },
+                                    emphasis: { itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0, 0, 0, 0.5)' } }
+                                }]
+                            });
+                            
+                            document.getElementById('analysis-table-area').style.display = 'flex';
+                            document.getElementById('table-title').innerHTML = `📊 题型均分得分率明细 <small style="color:var(--text-sub); font-weight:normal;">(对比维度：${compareDim === 'class' ? '班级' : (compareDim === 'grade' ? '年级' : '校区')})</small>`;
+                            const thead = document.getElementById('thead-analysis');
+                            const tbody = document.getElementById('tbody-analysis');
+                            
+                            let thHtml = `<tr><th style="z-index:var(--z-sticky); width:180px;">追踪实体</th>`;
+                            xAxisNames.forEach(name => { thHtml += `<th>${Utils.escapeHTML(name)}得分率</th>`; });
+                            thHtml += `</tr>`;
+                            thead.innerHTML = thHtml;
+                            
+                            let tbHtml = '';
+                            yAxisNames.forEach(groupName => {
+                                tbHtml += `<tr><td style="font-weight:700; color:#1e293b;">${groupName}</td>`;
+                                xAxisNames.forEach(typeName => {
+                                    const bucket = statsMap.get(`${groupName}||${typeName}`);
+                                    const pct = (bucket && bucket.full > 0) ? parseFloat(((bucket.got / bucket.full) * 100).toFixed(1)) : null;
+                                    tbHtml += `<td style="font-weight:600; color:var(--primary);">${pct !== null ? pct + '%' : '<span style="color:var(--line-strong);">-</span>'}</td>`;
+                                });
+                                tbHtml += `</tr>`;
+                            });
+                            tbody.innerHTML = tbHtml;
+                            return;
+                        }
+
                         document.getElementById('chart-wrapper-card').style.display = 'block';
                         this.chartInstance = echarts.init(document.getElementById('chart-main'));
                         
