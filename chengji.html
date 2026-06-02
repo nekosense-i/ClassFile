@@ -1494,7 +1494,7 @@
                 font-size: 11px;
                 padding: 6px 10px;
             }
-            .top-actions button[onclick*="expandAllExamCards"] {
+            #toggle-all-exams-btn {
                 display: none;
             }
         }
@@ -2419,13 +2419,12 @@
 
         <section id="view-exams" class="view-section">
             <div class="top-navbar">
-                <div class="page-title">📒成绩录入<span class="exam-status-legend" aria-label="录入状态说明"><span><i class="legend-dot"></i>未填</span><span><i class="legend-dot legend-dot--partial"></i>未完</span><span><i class="legend-dot legend-dot--complete"></i>完成</span><span><i class="legend-dot legend-dot--absent"></i>缺考</span><span>点状态点切换缺考</span></span></div>
+                <div class="page-title">📒 考试成绩录入<span class="exam-status-legend" aria-label="录入状态说明"><span><i class="legend-dot"></i>未填</span><span><i class="legend-dot legend-dot--partial"></i>未完</span><span><i class="legend-dot legend-dot--complete"></i>完成</span><span><i class="legend-dot legend-dot--absent"></i>缺考</span><span>点状态点切换缺考</span></span></div>
                 <div class="top-actions">
                     <button class="secondary btn--compact btn--soft-primary flex-row items-center gap-sm" id="undo-btn-exams" onclick="window.app.store.undo()" title="撤销最后一次操作" disabled>↩️ 撤销</button>
                     <!-- legacy save-indicator removed; replaced by header sync-dot -->
                     <input type="text" id="exam-search-student" class="input--soft-primary" placeholder="🔍 搜索学生姓名..." oninput="window.app.ui.debouncedSearchStudentInExams(this.value)">
-                    <button class="secondary btn--compact" onclick="window.app.ui.expandAllExamCards(true)">🔽 全部展开</button>
-                    <button class="secondary btn--compact" onclick="window.app.ui.expandAllExamCards(false)">🔼 全部折叠</button>
+                    <button id="toggle-all-exams-btn" class="secondary btn--compact" onclick="window.app.ui.toggleAllExamCards()">🔽 全部展开</button>
                     <button class="secondary btn--brand-primary" onclick="window.app.ui.openExamModal()">➕ 新建空白考试 (可填预估分)</button>
                     <button class="success" onmouseenter="window.app.ui.showImportFormatHint(event, 'scores')" onfocus="window.app.ui.showImportFormatHint(event, 'scores')" onmouseleave="window.app.ui.hideImportFormatHint()" onblur="window.app.ui.hideImportFormatHint()" onclick="window.app.ui.openImportExamModal()">📥 一键导入成绩单 (自动建考与合并)</button>
                 </div>
@@ -4676,6 +4675,38 @@
                     const container = document.getElementById('flat-exam-container');
                     if (!container) return;
                     container.querySelectorAll('details.exam-card').forEach(d => { try { d.open = !!expand; if (d.open) { const id = d.id.replace('e-card-',''); if (id) this.renderExamTables(id); } } catch(e){} });
+                    this.updateToggleAllExamCardsBtnState();
+                }
+
+                toggleAllExamCards() {
+                    const container = document.getElementById('flat-exam-container');
+                    if (!container) return;
+                    const detailsList = container.querySelectorAll('details.exam-card');
+                    if (detailsList.length === 0) return;
+                    
+                    // 如果有任意一个卡片未展开，则此次操作为“全部展开”
+                    const anyClosed = Array.from(detailsList).some(d => !d.open);
+                    this.expandAllExamCards(anyClosed);
+                }
+
+                updateToggleAllExamCardsBtnState() {
+                    const container = document.getElementById('flat-exam-container');
+                    const btn = document.getElementById('toggle-all-exams-btn');
+                    if (!container || !btn) return;
+                    
+                    const detailsList = container.querySelectorAll('details.exam-card');
+                    if (detailsList.length === 0) {
+                        btn.innerHTML = '🔽 全部展开';
+                        return;
+                    }
+                    
+                    // 如果有任意一个卡片未展开，按钮则提示“全部展开”，否则提示“全部折叠”
+                    const anyClosed = Array.from(detailsList).some(d => !d.open);
+                    if (anyClosed) {
+                        btn.innerHTML = '🔽 全部展开';
+                    } else {
+                        btn.innerHTML = '🔼 全部折叠';
+                    }
                 }
 
                 toggleSidebar(force) {
@@ -6127,7 +6158,7 @@
 
                             const progress = this._getExamProgress(ex);
                             const progressHtml = `<span class="exam-progress-pill ${progress.complete ? 'complete' : ''}">${this._formatExamProgressText(progress)}</span>`;
-                            html += `<details class="exam-card" id="${cardId}" ${isOpenAttr} ontoggle="if(this.open) window.app.ui.renderExamTables('${eid}')">
+                            html += `<details class="exam-card" id="${cardId}" ${isOpenAttr} ontoggle="if(this.open) window.app.ui.renderExamTables('${eid}'); window.app.ui.updateToggleAllExamCardsBtnState();">
                                 <summary class="exam-header">
                                     <div class="exam-title-wrap">
                                         <span style="font-size:16px;">✏️ ${Utils.escapeHTML(ex.name)}</span>
@@ -6147,6 +6178,7 @@
                         const eid = id.replace('e-card-', '');
                         if(document.getElementById(id)) this.renderExamTables(eid);
                     });
+                    this.updateToggleAllExamCardsBtnState();
                 }
 
                 deleteExamClass(eid, campus, className) {
