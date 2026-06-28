@@ -2661,6 +2661,7 @@
             </select>
             <button class="secondary btn--compact" onclick="window.app.ui.loadExamTemplate()">加载</button>
             <button class="secondary btn--compact" onclick="window.app.ui.saveExamTemplate()">另存为模板</button>
+            <button class="secondary btn--compact" onclick="window.app.ui.openExamTemplateManager()">管理</button>
         </div>
         <div class="dialog-footer" style="margin-top:25px;">
             <button class="secondary" onclick="document.getElementById('modal-exam').close()">取消</button>
@@ -3384,6 +3385,17 @@
 	                        || ['students', 'exams', 'scores'].some(kind => Object.keys((delta.deleted && delta.deleted[kind]) || {}).length > 0)
 	                        || Array.isArray(delta.examTemplates);
 	                }
+	                stagePendingDeltaFromCurrent() {
+	                    this.ensureSyncShape();
+	                    this.rebuildScoreIndex();
+	                    const delta = this.buildDeltaSinceSnapshot();
+	                    if (!delta) return false;
+	                    this.isDataChangedRef.current = true;
+	                    this.mergePendingDelta(delta);
+	                    this.state.ts = Date.now();
+	                    this.lastLocalDataSnapshot = this.cloneSyncState();
+	                    return true;
+	                }
 	                consumePendingDelta() {
 	                    const delta = this.pendingDelta;
 	                    this.pendingDelta = null;
@@ -3624,18 +3636,14 @@
 	                save() {
 	                    this.ensureSyncShape();
 	                    this.rebuildScoreIndex();
-	                    const delta = this.buildDeltaSinceSnapshot();
-	                    if (delta) {
-	                        this.isDataChangedRef.current = true;
-	                        this.mergePendingDelta(delta);
-	                        this.state.ts = Date.now();
-	                    }
+	                    this.stagePendingDeltaFromCurrent();
+	                    const shouldPush = this.hasPendingDelta();
 	                    try {
 	                        this.writeLocalState();
 	                        this.hasUnsavedChanges = false;
 	                        this.updateSaveIndicator();
 	                        this.lastLocalDataSnapshot = this.cloneSyncState();
-	                        if(delta && window.app && window.app.sync) window.app.sync.push();
+	                        if(shouldPush && window.app && window.app.sync) window.app.sync.push();
                     } catch(e) {
                         if (e.name === 'QuotaExceededError' || e.message.includes('QuotaExceeded')) {
                             this.showStorageQuotaWarning();
@@ -3729,6 +3737,7 @@
                 }
                 markAsUnsaved() {
                     this.isDataChangedRef.current = true;
+                    this.stagePendingDeltaFromCurrent();
                     if (!this.hasUnsavedChanges) {
                         this.hasUnsavedChanges = true;
                         this.updateSaveIndicator();
@@ -4125,8 +4134,13 @@
 	                            }
 	                        }
 	                        if (!merged) throw new Error('云端保存失败：无法生成合并数据');
-	                        this.store.state.data = merged.data;
-	                        this.store.state.deleted = merged.deleted;
+	                        const hasNewLocalEdits = this.store.hasPendingDelta();
+	                        if (hasNewLocalEdits) {
+	                            this.merge(merged);
+	                        } else {
+	                            this.store.state.data = merged.data;
+	                            this.store.state.deleted = merged.deleted;
+	                        }
 	                        this.store.state.ts = merged.ts;
 	                        this.store.state.syncMeta.lastPushedAt = Date.now();
 	                        this.store.state.syncMeta.lastPulledAt = Date.now();
@@ -4134,7 +4148,7 @@
 	                        this.store.state.syncMeta.lastError = '';
 	                        this.store.rebuildScoreIndex();
 	                        this.store.silentSave();
-	                        if (!this.store.hasPendingDelta()) this.store.resetDeltaTracking();
+	                        if (!hasNewLocalEdits && !this.store.hasPendingDelta()) this.store.resetDeltaTracking();
 	                        this.setDot('synced', `云端数据已同步（${new Date().toLocaleTimeString()}）`);
 	                    } catch(e) {
 	                        this.store.mergePendingDelta(delta);
@@ -5359,8 +5373,11 @@
                     this._buildMultiSelect('sb-pha-panel', 'sb-pha-head', availablePhases, "window.app.ui.onGlobalFilterChange('phases')", '查看全学段', false, focus.phases, true);
 
                     // 4. Class
-                    const availableClasses = [...new Set(poolPha.map(s => s.teachingClass).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'zh-CN',{numeric:true}));
-                    focus.tClasses = (focus.tClasses || []).filter(c => availableClasses.includes(c)); // 清理幽灵班级
+                    const availableClassesBase = [...new Set(poolPha.map(s => s.teachingClass).filter(Boolean))];
+                    const preservedClasses = (focus.tClasses || []).filter(Boolean);
+                    if (auth && auth.mode === 'teacher' && auth.classId) preservedClasses.push(auth.classId);
+                    const availableClasses = [...new Set(availableClassesBase.concat(preservedClasses))].sort((a,b)=>a.localeCompare(b,'zh-CN',{numeric:true}));
+                    focus.tClasses = (focus.tClasses || []).filter(Boolean); // 保留已选班级，避免云同步或上级筛选短暂不完整时从界面消失
                     this._buildMultiSelect('sb-cls-panel', 'sb-cls-head', availableClasses, "window.app.ui.onGlobalFilterChange('tClasses')", '查看全班级', false, focus.tClasses, true);
 
                     // 5. Tags
@@ -6966,8 +6983,9 @@
                     };
                 }
 
-                _updateDeltaHTML(sid, r) {
-                    const deltaEl = document.getElementById(`delta-${sid}`);
+                _updateDeltaHTML(sid, r, scopeEl = null) {
+                    const row = scopeEl && scopeEl.closest ? scopeEl.closest('tr') : null;
+                    const deltaEl = (row && row.querySelector(`#delta-${sid}`)) || document.getElementById(`delta-${sid}`);
                     if (deltaEl) {
                         if (r.estimatedTotal > 0 && r.total > 0 && !r.examAbsent) {
                             let diff = r.total - r.estimatedTotal;
@@ -7052,13 +7070,13 @@
                     const numericVal = parseFloat(val);
                     if (max > 0 && numericVal > max) {
                         if (input) input.style.borderBottomColor = 'var(--danger)';
-                        return;
+                        this._setScoreWarning(input, '超出满分，请核对');
                     }
                     if (numericVal < 0) {
                         if (input) input.style.borderBottomColor = 'var(--danger)';
                         return;
                     }
-                    if (input) input.style.borderBottomColor = '';
+                    if (input && !(max > 0 && numericVal > max)) input.style.borderBottomColor = '';
                     let r = this.store.getScore(sid, eid);
                     if(!r) { 
                         r = {studentId:sid, examId:eid, details:{}, total:0, estimatedTotal:0, examAbsent:false}; 
@@ -7073,9 +7091,10 @@
                     r._ts = Date.now(); 
                     
                     this.store.markAsUnsaved();
-                    const el = document.getElementById(tid);
+                    const row = input && input.closest ? input.closest('tr') : null;
+                    const el = (row && row.querySelector(`#${tid}`)) || document.getElementById(tid);
                     if(el) el.innerText = r.total;
-                    this._updateDeltaHTML(sid, r);
+                    this._updateDeltaHTML(sid, r, input);
                     this._refreshExamProgressIndicators(eid);
                     this._refreshScoreStatusDot(sid, eid);
                 }
@@ -7093,7 +7112,7 @@
                     r._ts = Date.now(); 
                     this.store.markAsUnsaved();
                     if (inputEl) inputEl.style.borderBottomColor = '';
-                    this._updateDeltaHTML(sid, r);
+                    this._updateDeltaHTML(sid, r, inputEl);
                     this._refreshExamProgressIndicators(eid);
                 }
 
@@ -7342,11 +7361,16 @@
                             targetExam.date = currentExam.date;
                         }
 
+                        const mergeTs = Date.now();
+                        this.store.markDeleted('exams', eid, mergeTs);
                         this.store.state.data.scores.forEach(s => {
                             if (s.examId === eid) {
+                                this.store.markScoreDeleted(s, mergeTs);
                                 s.examId = targetExam.id;
+                                s._ts = mergeTs;
                             }
                         });
+                        targetExam._ts = mergeTs;
 
                         this.store.state.data.exams = this.store.state.data.exams.filter(e => e.id !== eid);
                         Utils.msg("已将该考试与已存在的同名联考合并，且底层题型已清洗对齐！");
@@ -7381,23 +7405,16 @@
                             </label>
                         `;
                     }).join('');
-                    this._applyTeacherExamScopeLock({ campusContainer: '#m-campuses-container', gradeSelect: '#m-grade' });
+	                    this._applyTeacherExamScopeLock({ campusContainer: '#m-campuses-container', gradeSelect: '#m-grade' });
 
-                    document.getElementById('m-edate').value = new Date().toISOString().split('T')[0];
-                    
-                    const qList = document.getElementById('q-list');
-                    qList.innerHTML = `<div class="q-row" draggable="true">${this._renderQuestionRow({ name: '听力', max: 30, old: null })}</div>`;
-                    this._syncQuestionRows('q-list');
-                    // populate template select
-                    const tmplSel = document.getElementById('m-template-select');
-                    if (tmplSel) {
-                        tmplSel.innerHTML = '<option value="">— 从模板加载题型 —</option>';
-                        (this.store.state.data.examTemplates || []).forEach(t => {
-                            tmplSel.innerHTML += `<option value="${t.id}">${Utils.escapeHTML(t.name)}</option>`;
-                        });
-                    }
-                    document.getElementById('modal-exam').showModal();
-                }
+	                    document.getElementById('m-edate').value = new Date().toISOString().split('T')[0];
+	                    
+	                    const qList = document.getElementById('q-list');
+	                    qList.innerHTML = `<div class="q-row" draggable="true">${this._renderQuestionRow({ name: '听力', max: 30, old: null })}</div>`;
+	                    this._syncQuestionRows('q-list');
+	                    this.refreshExamTemplateSelect();
+	                    document.getElementById('modal-exam').showModal();
+	                }
 
                 openImportExamModal() {
                     const focus = this.store.state.globalFocus;
@@ -7419,14 +7436,38 @@
                     document.getElementById('modal-import-exam').showModal();
                 }
 
-                addQ() {
-                    this.addCommonQ('q-list', '', '');
+	                addQ() {
+	                    this.addCommonQ('q-list', '', '');
+	                }
+
+                refreshExamTemplateSelect(selectedId = '') {
+                    const tmplSel = document.getElementById('m-template-select');
+                    if (!tmplSel) return;
+                    const templates = this.store.state.data.examTemplates || [];
+                    tmplSel.innerHTML = '<option value="">— 从模板加载题型 —</option>';
+                    templates.forEach(t => {
+                        const selected = selectedId && t.id === selectedId ? ' selected' : '';
+                        tmplSel.innerHTML += `<option value="${Utils.escapeHTML(t.id)}"${selected}>${Utils.escapeHTML(t.name)}</option>`;
+                    });
                 }
-                
-                loadExamTemplate() {
-                    const sel = document.getElementById('m-template-select');
-                    if (!sel) return Utils.msg('未找到模板选择框', 'error');
-                    const id = sel.value;
+
+                collectCurrentQuestionTypes() {
+                    const rows = Array.from(document.querySelectorAll('#q-list .q-row'));
+                    const types = [];
+                    rows.forEach(r => {
+                        try {
+                            const nm = (r.querySelector('.qn') && r.querySelector('.qn').value || '').trim();
+                            const mx = parseFloat(r.querySelector('.qs') && r.querySelector('.qs').value);
+                            if (nm && !isNaN(mx)) types.push({ name: nm, max: mx });
+                        } catch(e){}
+                    });
+                    return types;
+                }
+	                
+	                loadExamTemplate() {
+	                    const sel = document.getElementById('m-template-select');
+	                    if (!sel) return Utils.msg('未找到模板选择框', 'error');
+	                    const id = sel.value;
                     if (!id) return Utils.msg('请选择一个模板再加载', 'error');
                     const tmpl = (this.store.state.data.examTemplates || []).find(t => t.id === id);
                     if (!tmpl) return Utils.msg('未找到对应模板', 'error');
@@ -7449,33 +7490,144 @@
                         const max = row.querySelector('.qs')?.value || '';
                         row.innerHTML = this._renderQuestionRow({ name, max, old: null });
                         row.draggable = true;
-                    });
-                    this._syncQuestionRows('q-list');
-                    Utils.msg('模板已加载');
+	                    });
+	                    this._syncQuestionRows('q-list');
+	                    Utils.msg('模板已加载');
+	                }
+
+                openExamTemplateManager() {
+                    let dialog = document.getElementById('exam-template-manager-dialog');
+                    if (!dialog) {
+                        dialog = document.createElement('dialog');
+                        dialog.id = 'exam-template-manager-dialog';
+                        dialog.className = 'dialog-shell dialog--lg';
+                        dialog.setAttribute('aria-modal', 'true');
+                        dialog.setAttribute('aria-label', '题型模板管理');
+                        dialog.innerHTML = `
+                            <div class="dialog-title mb-sm">题型模板管理</div>
+                            <div class="dialog-note mb-md">可整理已保存的题型模板；“覆盖”会用当前新建考试窗口里的题型替换该模板。</div>
+                            <div id="exam-template-manager-body"></div>
+                            <div class="dialog-footer">
+                                <button class="secondary" type="button" data-action="close">关闭</button>
+                            </div>
+                        `;
+                        dialog.addEventListener('click', (event) => {
+                            const btn = event.target.closest('[data-action]');
+                            if (!btn) return;
+                            const action = btn.dataset.action;
+                            const id = btn.dataset.id || '';
+                            if (action === 'close') dialog.close();
+                            else if (action === 'load') {
+                                const sel = document.getElementById('m-template-select');
+                                if (sel) sel.value = id;
+                                this.loadExamTemplate();
+                                dialog.close();
+                            } else if (action === 'rename') {
+                                this.renameExamTemplate(id);
+                            } else if (action === 'overwrite') {
+                                this.overwriteExamTemplate(id);
+                            } else if (action === 'delete') {
+                                this.deleteExamTemplate(id);
+                            }
+                        });
+                        dialog.addEventListener('close', () => {
+                            this.refreshExamTemplateSelect(document.getElementById('m-template-select')?.value || '');
+                        });
+                        document.body.appendChild(dialog);
+                    }
+                    this.renderExamTemplateManager();
+                    dialog.showModal();
                 }
 
-                saveExamTemplate() {
-                    const name = prompt('请输入模板名称：', '新模板');
-                    if (name === null) return; // cancel
-                    const rows = Array.from(document.querySelectorAll('#q-list .q-row'));
-                    const types = [];
-                    rows.forEach(r => {
-                        try {
-                            const nm = (r.querySelector('.qn') && r.querySelector('.qn').value || '').trim();
-                            const mx = parseFloat(r.querySelector('.qs') && r.querySelector('.qs').value) || 0;
-                            if (nm) types.push({ name: nm, max: mx });
-                        } catch(e){}
-                    });
-                    if (types.length === 0) return Utils.msg('请先设置至少一个题型再保存模板', 'error');
-                    const tmpl = { id: Utils.id(), name: name.trim(), types };
-                    this.store.state.data.examTemplates = this.store.state.data.examTemplates || [];
-                    this.store.state.data.examTemplates.push(tmpl);
-                    this.store.save();
-                    Utils.msg('模板已保存');
-                    // refresh select if modal open
-                    const sel = document.getElementById('m-template-select');
-                    if (sel) sel.innerHTML += `<option value="${tmpl.id}">${Utils.escapeHTML(tmpl.name)}</option>`;
+                renderExamTemplateManager() {
+                    const body = document.getElementById('exam-template-manager-body');
+                    if (!body) return;
+                    const templates = this.store.state.data.examTemplates || [];
+                    if (templates.length === 0) {
+                        body.innerHTML = `<div class="dialog-note" style="padding:24px; text-align:center; border:1px dashed var(--border); border-radius:var(--radius-md);">暂无题型模板。请先在题型区设置题型后点击“另存为模板”。</div>`;
+                        return;
+                    }
+                    body.innerHTML = `
+                        <div class="table-scroll-container" style="max-height:420px;">
+                            <table class="table-shell">
+                                <thead><tr><th>模板名称</th><th>题型构成</th><th style="width:220px;">操作</th></tr></thead>
+                                <tbody>
+                                    ${templates.map(t => {
+                                        const typesText = (t.types || []).map(x => `${Utils.escapeHTML(x.name)}(${Number(x.max) || 0})`).join('、') || '未设置题型';
+                                        return `<tr>
+                                            <td style="font-weight:700;">${Utils.escapeHTML(t.name || '未命名模板')}</td>
+                                            <td class="dialog-note">${typesText}</td>
+                                            <td>
+                                                <button class="secondary btn--compact" type="button" data-action="load" data-id="${Utils.escapeHTML(t.id)}">加载</button>
+                                                <button class="secondary btn--compact" type="button" data-action="rename" data-id="${Utils.escapeHTML(t.id)}">重命名</button>
+                                                <button class="secondary btn--compact" type="button" data-action="overwrite" data-id="${Utils.escapeHTML(t.id)}">覆盖</button>
+                                                <button class="secondary btn--danger-outline btn--compact" type="button" data-action="delete" data-id="${Utils.escapeHTML(t.id)}">删除</button>
+                                            </td>
+                                        </tr>`;
+                                    }).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    `;
                 }
+
+                renameExamTemplate(id) {
+                    const tmpl = (this.store.state.data.examTemplates || []).find(t => t.id === id);
+                    if (!tmpl) return Utils.msg('未找到对应模板', 'error');
+                    const nextName = prompt('请输入新的模板名称：', tmpl.name || '未命名模板');
+                    if (nextName === null) return;
+                    const cleanName = nextName.trim();
+                    if (!cleanName) return Utils.msg('模板名称不能为空', 'error');
+                    tmpl.name = cleanName;
+                    tmpl._ts = Date.now();
+                    this.store.save();
+                    this.refreshExamTemplateSelect(id);
+                    this.renderExamTemplateManager();
+                    Utils.msg('模板已重命名');
+                }
+
+                overwriteExamTemplate(id) {
+                    const tmpl = (this.store.state.data.examTemplates || []).find(t => t.id === id);
+                    if (!tmpl) return Utils.msg('未找到对应模板', 'error');
+                    const types = this.collectCurrentQuestionTypes();
+                    if (types.length === 0) return Utils.msg('当前题型为空，不能覆盖模板', 'error');
+                    this.showConfirmDialog(`确定用当前题型覆盖模板【${tmpl.name}】吗？`, () => {
+                        tmpl.types = types;
+                        tmpl._ts = Date.now();
+                        this.store.save();
+                        this.refreshExamTemplateSelect(id);
+                        this.renderExamTemplateManager();
+                        Utils.msg('模板已覆盖');
+                    }, '确认覆盖');
+                }
+
+                deleteExamTemplate(id) {
+                    const tmpl = (this.store.state.data.examTemplates || []).find(t => t.id === id);
+                    if (!tmpl) return Utils.msg('未找到对应模板', 'error');
+                    this.showConfirmDialog(`确定删除题型模板【${tmpl.name}】吗？`, () => {
+                        this.store.state.data.examTemplates = (this.store.state.data.examTemplates || []).filter(t => t.id !== id);
+                        this.store.save();
+                        this.refreshExamTemplateSelect();
+                        this.renderExamTemplateManager();
+                        Utils.msg('模板已删除');
+                    }, '确认删除');
+                }
+
+	                saveExamTemplate() {
+	                    const name = prompt('请输入模板名称：', '新模板');
+	                    if (name === null) return; // cancel
+	                    const types = this.collectCurrentQuestionTypes();
+	                    if (types.length === 0) return Utils.msg('请先设置至少一个题型再保存模板', 'error');
+	                    const cleanName = name.trim();
+	                    if (!cleanName) return Utils.msg('模板名称不能为空', 'error');
+	                    const tmpl = { id: Utils.id(), name: cleanName, types, _ts: Date.now() };
+	                    this.store.state.data.examTemplates = this.store.state.data.examTemplates || [];
+	                    this.store.state.data.examTemplates.push(tmpl);
+	                    this.store.save();
+	                    Utils.msg('模板已保存');
+	                    this.refreshExamTemplateSelect(tmpl.id);
+	                    this.renderExamTemplateManager();
+	                }
 
                 editStudentTags(stuId) {
                     const stu = this.store.state.data.students.find(s => s.id === stuId);
