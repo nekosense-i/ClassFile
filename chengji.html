@@ -3887,8 +3887,10 @@
 	                    if (this.pollTimer) clearTimeout(this.pollTimer);
 	                    
 	                    const tick = async () => {
-	                        if (window.app && window.app.ui && window.app.ui.cur === 'analysis') return;
-	                        if (document.hidden || this.store.hasUnsavedChanges || this.isPushing) return;
+	                        if (document.hidden || this.store.hasUnsavedChanges || this.isPushing) {
+	                            this.startAutoSync();
+	                            return;
+	                        }
 	                        
 	                        const idleTime = Date.now() - this.lastUserActiveTime;
 	                        if (idleTime > 60000) {
@@ -3917,7 +3919,6 @@
 	                    this._eventsBound = true;
 	                    
 	                    window.addEventListener('online', () => {
-	                        if (window.app && window.app.ui && window.app.ui.cur === 'analysis') return;
 	                        if (this.store.hasUnsavedChanges) {
 	                            this.push();
 	                        } else {
@@ -3926,7 +3927,6 @@
 	                    });
 	                    
 	                    document.addEventListener('visibilitychange', () => {
-	                        if (window.app && window.app.ui && window.app.ui.cur === 'analysis') return;
 	                        if (!document.hidden) {
 	                            if (this.store.hasUnsavedChanges) {
 	                                this.push();
@@ -3958,11 +3958,12 @@
 	                applyDeltaToCloud(cloud, delta) {
 	                    const merged = this.normalizeCloud(JSON.parse(JSON.stringify(cloud || {})));
 	                    delta = delta || {};
-	                    const upsertByKey = (kind, keyFn) => {
+	                    const upsertByKey = (kind, keyFn, mergeFn = null) => {
 	                        const incoming = delta[kind] || {};
 	                        const map = new Map((merged.data[kind] || []).map(item => [keyFn(item), item]));
 	                        Object.entries(incoming).forEach(([key, item]) => {
-	                            if (key && item) map.set(key, item);
+	                            if (!key || !item) return;
+	                            map.set(key, mergeFn && map.has(key) ? mergeFn(map.get(key), item) : item);
 	                        });
 	                        const deleted = (delta.deleted && delta.deleted[kind]) || {};
 	                        Object.entries(deleted).forEach(([key, ts]) => {
@@ -3976,8 +3977,16 @@
 	                    };
 	                    upsertByKey('students', item => item && item.id);
 	                    upsertByKey('exams', item => item && item.id);
-	                    upsertByKey('scores', item => item && `${item.studentId}_${item.examId}`);
-	                    if (Array.isArray(delta.examTemplates)) merged.data.examTemplates = delta.examTemplates;
+	                    upsertByKey('scores', item => item && `${item.studentId}_${item.examId}`, this.mergeScoreRecord.bind(this));
+	                    if (Array.isArray(delta.examTemplates)) {
+	                        const templateMap = new Map((merged.data.examTemplates || []).map(t => [t.id, t]));
+	                        delta.examTemplates.forEach(t => {
+	                            if (!t || !t.id) return;
+	                            const prev = templateMap.get(t.id);
+	                            if (!prev || (t._ts || 0) >= (prev._ts || 0)) templateMap.set(t.id, t);
+	                        });
+	                        merged.data.examTemplates = Array.from(templateMap.values());
+	                    }
 	                    merged.ts = Date.now();
 	                    merged.syncMeta = {
 	                        ...(merged.syncMeta || {}),
@@ -3985,6 +3994,54 @@
 	                        last_synced_at: delta.last_synced_at || 0,
 	                        lastPushedAt: Date.now()
 	                    };
+	                    return merged;
+	                }
+	                mergeScoreRecord(a, b) {
+	                    if (!a) return b;
+	                    if (!b) return a;
+	                    const merged = JSON.parse(JSON.stringify((a._ts || 0) >= (b._ts || 0) ? a : b));
+	                    const aTs = a._fieldTs || {};
+	                    const bTs = b._fieldTs || {};
+	                    merged.details = { ...(a.details || {}) };
+	                    merged._fieldTs = { ...aTs };
+	                    const allFields = new Set([...Object.keys(a.details || {}), ...Object.keys(b.details || {})]);
+	                    allFields.forEach(field => {
+	                        const aHasField = a.details && Object.prototype.hasOwnProperty.call(a.details, field);
+	                        const bHasField = b.details && Object.prototype.hasOwnProperty.call(b.details, field);
+	                        const at = Number(aTs[field] || (aHasField ? a._ts : 0) || 0);
+	                        const bt = Number(bTs[field] || (bHasField ? b._ts : 0) || 0);
+	                        if (bt >= at) {
+	                            if (bHasField) merged.details[field] = b.details[field];
+	                            else if (bTs[field]) delete merged.details[field];
+	                            merged._fieldTs[field] = bt;
+	                        }
+	                    });
+	                    const estA = Number(aTs.__estimatedTotal || a._ts || 0);
+	                    const estB = Number(bTs.__estimatedTotal || b._ts || 0);
+	                    if (estB >= estA) {
+	                        merged.estimatedTotal = b.estimatedTotal || 0;
+	                        merged._fieldTs.__estimatedTotal = estB;
+	                    } else {
+	                        merged.estimatedTotal = a.estimatedTotal || 0;
+	                        merged._fieldTs.__estimatedTotal = estA;
+	                    }
+	                    const absentA = Number(aTs.__examAbsent || a._ts || 0);
+	                    const absentB = Number(bTs.__examAbsent || b._ts || 0);
+	                    if (absentB >= absentA) {
+	                        merged.examAbsent = b.examAbsent === true;
+	                        merged._fieldTs.__examAbsent = absentB;
+	                    } else {
+	                        merged.examAbsent = a.examAbsent === true;
+	                        merged._fieldTs.__examAbsent = absentA;
+	                    }
+	                    if (merged.examAbsent) {
+	                        merged.details = {};
+	                        Object.keys(merged._fieldTs).forEach(k => { if (!k.startsWith('__')) delete merged._fieldTs[k]; });
+	                        merged.total = 0;
+	                    } else {
+	                        merged.total = Object.values(merged.details || {}).reduce((sum, v) => sum + (parseFloat(v) || 0), 0);
+	                    }
+	                    merged._ts = Math.max(a._ts || 0, b._ts || 0, ...Object.values(merged._fieldTs).map(Number).filter(Boolean));
 	                    return merged;
 	                }
 	                async postCloud(merged, delta) {
@@ -4025,7 +4082,8 @@
 	                            // 无冲突焦点保护：如果登分老师正在专注输入分数，仅静默更新底层数据状态，不刷新整张表格 DOM，防止焦点丢失
 	                            const hasActiveInput = document.activeElement && document.activeElement.classList.contains('score-input');
 	                            if (hasActiveInput && window.app.ui.cur === 'exams') {
-	                                console.log("检测到教师正在录入分数，已合并云端数据，暂缓重绘表格以保护焦点。");
+	                                window.app.ui.pendingRemoteExamRefresh = true;
+	                                Utils.msg("已收到其他老师更新，当前输入结束后将刷新表格", "info");
 	                            } else {
 	                                window.app.ui.refresh();
 	                            }
@@ -4065,7 +4123,7 @@
 	                        if ((a._ts || 0) !== (b._ts || 0)) return false;
 	                        return JSON.stringify(a) === JSON.stringify(b);
 	                    };
-	                    const mergeArr = (l, c, key, kind) => {
+	                    const mergeArr = (l, c, key, kind, mergeFn = null) => {
 	                        const map = new Map();
 	                        const deleted = localDeleted[kind] || {};
 	                        (c || []).forEach(i => {
@@ -4081,20 +4139,27 @@
 	                            } else {
 	                                const remote = map.get(ck);
 	                                if (!sameRecord(i, remote)) conflictCount++;
-	                                if ((i._ts || 0) >= (remote._ts || 0)) map.set(ck, i);
+	                                if (mergeFn) map.set(ck, mergeFn(remote, i));
+	                                else if ((i._ts || 0) >= (remote._ts || 0)) map.set(ck, i);
 	                            }
 	                        });
 	                        return Array.from(map.values());
 	                    };
 	                    const nextStudents = mergeArr(local.data.students, cloud.data.students, i=>i.id, 'students');
 	                    const nextExams = mergeArr(local.data.exams, cloud.data.exams, i=>i.id, 'exams');
-	                    const nextScores = mergeArr(local.data.scores, cloud.data.scores, i=>`${i.studentId}_${i.examId}`, 'scores');
+	                    const nextScores = mergeArr(local.data.scores, cloud.data.scores, i=>`${i.studentId}_${i.examId}`, 'scores', this.mergeScoreRecord.bind(this));
 	                    changed = !sameRecord(local.data.students, nextStudents) || !sameRecord(local.data.exams, nextExams) || !sameRecord(local.data.scores, nextScores);
 	                    local.data.students = nextStudents;
 	                    local.data.exams = nextExams;
 	                    local.data.scores = nextScores;
-	                    if (Array.isArray(cloud.data.examTemplates) && cloud.data.examTemplates.length > (local.data.examTemplates || []).length) {
-	                        local.data.examTemplates = cloud.data.examTemplates;
+	                    const templateMap = new Map((cloud.data.examTemplates || []).map(t => [t.id, t]));
+	                    (local.data.examTemplates || []).forEach(t => {
+	                        const remote = templateMap.get(t.id);
+	                        if (!remote || (t._ts || 0) >= (remote._ts || 0)) templateMap.set(t.id, t);
+	                    });
+	                    const nextTemplates = Array.from(templateMap.values()).sort((a,b) => String(a.name || '').localeCompare(String(b.name || ''), 'zh-CN', { numeric: true }));
+	                    if (JSON.stringify(local.data.examTemplates || []) !== JSON.stringify(nextTemplates)) {
+	                        local.data.examTemplates = nextTemplates;
 	                        changed = true;
 	                    }
 	                    local.ts = Math.max(local.ts, cloud.ts || 0);
@@ -6136,12 +6201,14 @@
                         this.store.state.data.scores.push(rec);
                         this.store.rebuildScoreIndex();
                     }
-                    rec.examAbsent = isAbsent;
-                    if (isAbsent) {
-                        rec.details = {};
-                        rec.total = 0;
-                    }
-                    rec._ts = Date.now();
+	                    rec.examAbsent = isAbsent;
+	                    if (!rec._fieldTs) rec._fieldTs = {};
+	                    if (isAbsent) {
+	                        rec.details = {};
+	                        rec.total = 0;
+	                    }
+	                    rec._ts = Date.now();
+	                    rec._fieldTs.__examAbsent = rec._ts;
 
                     const row = trigger && trigger.closest ? trigger.closest('tr') : null;
                     const tableDetailsId = row && row.closest('details') ? row.closest('details').id : '';
@@ -6205,17 +6272,17 @@
                         const examCampuses = this._getExamCampuses(e); 
                         if (focus.campuses.length > 0 && examCampuses.length > 0 && !examCampuses.some(c => focus.campuses.includes(c))) return false;
                         if (focus.grades.length > 0 && !focus.grades.includes(e.grade)) return false;
-                        if (focus.phases.length > 0) {
-                            const p = Utils.calculatePhase(e.grade, e.date);
-                            if (!focus.phases.includes(p)) return false;
-                        }
-                        if (focus.tClasses.length > 0) {
-                            // Ensure exam has students matching the filtered tClasses
-                            const examScores = this.store.state.data.scores.filter(s => s.examId === e.id && (!s.examAbsent && (s.total > 0 || s.estimatedTotal > 0)));
-                            const examStuIds = examScores.map(s => s.studentId);
-                            const hasValidStudent = this.store.state.data.students.some(s => examStuIds.includes(s.id) && focus.tClasses.includes(s.teachingClass));
-                            if (examScores.length > 0 && !hasValidStudent) return false;
-                        }
+	                        if (focus.phases.length > 0) {
+	                            const p = Utils.calculatePhase(e.grade, e.date);
+	                            if (!focus.phases.includes(p)) return false;
+	                        }
+	                        if (focus.tClasses.length > 0) {
+	                            const hasClassInRoster = this._getExamRosterStudents(e).some(s => {
+	                                const classAtExam = Utils.getClassForExam(s, e);
+	                                return focus.tClasses.includes(classAtExam.teachingClass) || focus.tClasses.includes(s.teachingClass);
+	                            });
+	                            if (!hasClassInRoster) return false;
+	                        }
                         return true;
                     });
 
@@ -6548,9 +6615,17 @@
                         this._highlightScoreCross(target);
                         this._openScoreMobilePad(target);
                     };
-                    wrapper.onfocusout = (event) => {
-                        if (!event.currentTarget.contains(event.relatedTarget)) this._clearScoreCross(event.currentTarget);
-                    };
+	                    wrapper.onfocusout = (event) => {
+	                        if (!event.currentTarget.contains(event.relatedTarget)) this._clearScoreCross(event.currentTarget);
+	                        setTimeout(() => {
+	                            const activeScoreInput = document.activeElement && document.activeElement.classList && document.activeElement.classList.contains('score-input');
+	                            if (this.pendingRemoteExamRefresh && !activeScoreInput) {
+	                                this.pendingRemoteExamRefresh = false;
+	                                this.refresh();
+	                                Utils.msg("已刷新其他老师同步的更新", "success");
+	                            }
+	                        }, 120);
+	                    };
                     wrapper.onbeforeinput = (event) => {
                         const target = event.target;
                         if (!target || !target.classList.contains('score-input')) return;
@@ -7083,12 +7158,15 @@
                         this.store.state.data.scores.push(r); 
                         this.store.rebuildScoreIndex();
                     }
-                    r.examAbsent = false;
-                    if (!r.details) r.details = {};
-                    if (String(val ?? '').trim() === '') delete r.details[tn];
-                    else r.details[tn] = numericVal || 0;
-                    r.total = Object.values(r.details).reduce((a,b)=>a+(parseFloat(b)||0), 0);
-                    r._ts = Date.now(); 
+	                    r.examAbsent = false;
+	                    if (!r.details) r.details = {};
+	                    if (!r._fieldTs) r._fieldTs = {};
+	                    if (String(val ?? '').trim() === '') delete r.details[tn];
+	                    else r.details[tn] = numericVal || 0;
+	                    r.total = Object.values(r.details).reduce((a,b)=>a+(parseFloat(b)||0), 0);
+	                    r._ts = Date.now(); 
+	                    r._fieldTs[tn] = r._ts;
+	                    r._fieldTs.__examAbsent = r._ts;
                     
                     this.store.markAsUnsaved();
                     const row = input && input.closest ? input.closest('tr') : null;
@@ -7107,9 +7185,11 @@
                         this.store.state.data.scores.push(r); 
                         this.store.rebuildScoreIndex();
                     }
-                    if (r.examAbsent === undefined) r.examAbsent = false;
-                    r.estimatedTotal = parseFloat(val) || 0;
-                    r._ts = Date.now(); 
+	                    if (r.examAbsent === undefined) r.examAbsent = false;
+	                    if (!r._fieldTs) r._fieldTs = {};
+	                    r.estimatedTotal = parseFloat(val) || 0;
+	                    r._ts = Date.now(); 
+	                    r._fieldTs.__estimatedTotal = r._ts;
                     this.store.markAsUnsaved();
                     if (inputEl) inputEl.style.borderBottomColor = '';
                     this._updateDeltaHTML(sid, r, inputEl);
@@ -7443,7 +7523,7 @@
                 refreshExamTemplateSelect(selectedId = '') {
                     const tmplSel = document.getElementById('m-template-select');
                     if (!tmplSel) return;
-                    const templates = this.store.state.data.examTemplates || [];
+                    const templates = (this.store.state.data.examTemplates || []).filter(t => !t._deleted);
                     tmplSel.innerHTML = '<option value="">— 从模板加载题型 —</option>';
                     templates.forEach(t => {
                         const selected = selectedId && t.id === selectedId ? ' selected' : '';
@@ -7469,7 +7549,7 @@
 	                    if (!sel) return Utils.msg('未找到模板选择框', 'error');
 	                    const id = sel.value;
                     if (!id) return Utils.msg('请选择一个模板再加载', 'error');
-                    const tmpl = (this.store.state.data.examTemplates || []).find(t => t.id === id);
+                    const tmpl = (this.store.state.data.examTemplates || []).find(t => t.id === id && !t._deleted);
                     if (!tmpl) return Utils.msg('未找到对应模板', 'error');
                     const qList = document.getElementById('q-list');
                     if (!qList) return Utils.msg('题型列表未找到', 'error');
@@ -7542,7 +7622,7 @@
                 renderExamTemplateManager() {
                     const body = document.getElementById('exam-template-manager-body');
                     if (!body) return;
-                    const templates = this.store.state.data.examTemplates || [];
+                    const templates = (this.store.state.data.examTemplates || []).filter(t => !t._deleted);
                     if (templates.length === 0) {
                         body.innerHTML = `<div class="dialog-note" style="padding:24px; text-align:center; border:1px dashed var(--border); border-radius:var(--radius-md);">暂无题型模板。请先在题型区设置题型后点击“另存为模板”。</div>`;
                         return;
@@ -7572,7 +7652,7 @@
                 }
 
                 renameExamTemplate(id) {
-                    const tmpl = (this.store.state.data.examTemplates || []).find(t => t.id === id);
+                    const tmpl = (this.store.state.data.examTemplates || []).find(t => t.id === id && !t._deleted);
                     if (!tmpl) return Utils.msg('未找到对应模板', 'error');
                     const nextName = prompt('请输入新的模板名称：', tmpl.name || '未命名模板');
                     if (nextName === null) return;
@@ -7587,7 +7667,7 @@
                 }
 
                 overwriteExamTemplate(id) {
-                    const tmpl = (this.store.state.data.examTemplates || []).find(t => t.id === id);
+                    const tmpl = (this.store.state.data.examTemplates || []).find(t => t.id === id && !t._deleted);
                     if (!tmpl) return Utils.msg('未找到对应模板', 'error');
                     const types = this.collectCurrentQuestionTypes();
                     if (types.length === 0) return Utils.msg('当前题型为空，不能覆盖模板', 'error');
@@ -7602,10 +7682,11 @@
                 }
 
                 deleteExamTemplate(id) {
-                    const tmpl = (this.store.state.data.examTemplates || []).find(t => t.id === id);
+                    const tmpl = (this.store.state.data.examTemplates || []).find(t => t.id === id && !t._deleted);
                     if (!tmpl) return Utils.msg('未找到对应模板', 'error');
                     this.showConfirmDialog(`确定删除题型模板【${tmpl.name}】吗？`, () => {
-                        this.store.state.data.examTemplates = (this.store.state.data.examTemplates || []).filter(t => t.id !== id);
+                        tmpl._deleted = true;
+                        tmpl._ts = Date.now();
                         this.store.save();
                         this.refreshExamTemplateSelect();
                         this.renderExamTemplateManager();
@@ -7837,7 +7918,8 @@
 
                                 if(targetStudent) {
                                     matchCount++;
-                                    let scoreRec = { studentId: targetStudent.id, examId: newExamId, details: {}, total: 0, estimatedTotal: 0, examAbsent: false, _ts: Date.now() };
+	                                    const importTs = Date.now();
+	                                    let scoreRec = { studentId: targetStudent.id, examId: newExamId, details: {}, total: 0, estimatedTotal: 0, examAbsent: false, _ts: importTs, _fieldTs: { __examAbsent: importTs } };
                                     const scoreHeaders = headers.filter(header => (header || '').toString().trim().match(scoreRegex));
                                     const allAbsent = scoreHeaders.length > 0 && scoreHeaders.every(header => isAbsentScoreToken(row[header]));
                                     if (allAbsent) {
@@ -7847,18 +7929,22 @@
                                     } else {
                                         scoreHeaders.forEach(header => {
                                             const match = (header || '').toString().trim().match(scoreRegex);
-                                            if(match) {
-                                                let val = parseFloat(row[header]);
-                                                scoreRec.details[match[1].trim()] = isNaN(val) ? 0 : val;
-                                            }
+	                                            if(match) {
+	                                                let val = parseFloat(row[header]);
+	                                                const fieldName = match[1].trim();
+	                                                scoreRec.details[fieldName] = isNaN(val) ? 0 : val;
+	                                                scoreRec._fieldTs[fieldName] = importTs;
+	                                            }
                                         });
                                         scoreRec.total = Object.values(scoreRec.details).reduce((a,b)=>a+b, 0);
                                     }
                                     
                                     const oldIdx = this.store.state.data.scores.findIndex(s => s.studentId === targetStudent.id && s.examId === newExamId);
-                                    if (oldIdx >= 0) {
-                                        scoreRec.estimatedTotal = this.store.state.data.scores[oldIdx].estimatedTotal; 
-                                        this.store.state.data.scores[oldIdx] = scoreRec;
+	                                    if (oldIdx >= 0) {
+	                                        const oldScore = this.store.state.data.scores[oldIdx];
+	                                        scoreRec.estimatedTotal = oldScore.estimatedTotal;
+	                                        scoreRec._fieldTs.__estimatedTotal = (oldScore._fieldTs && oldScore._fieldTs.__estimatedTotal) || oldScore._ts || importTs;
+	                                        this.store.state.data.scores[oldIdx] = scoreRec;
                                     } else {
                                         this.store.state.data.scores.push(scoreRec);
                                     }
@@ -7951,26 +8037,31 @@
                                     if (!exam.campuses) exam.campuses = [];
                                     if (!exam.campuses.includes(targetStudent.campus)) exam.campuses.push(targetStudent.campus);
 
-                                    let scoreRec = this.store.getScore(targetStudent.id, eid);
-                                    if (!scoreRec) {
-                                        scoreRec = { studentId: targetStudent.id, examId: eid, details: {}, total: 0, estimatedTotal: 0, examAbsent: false, _ts: Date.now() };
-                                        this.store.state.data.scores.push(scoreRec);
-                                    }
+	                                    let scoreRec = this.store.getScore(targetStudent.id, eid);
+	                                    if (!scoreRec) {
+	                                        scoreRec = { studentId: targetStudent.id, examId: eid, details: {}, total: 0, estimatedTotal: 0, examAbsent: false, _ts: Date.now(), _fieldTs: {} };
+	                                        this.store.state.data.scores.push(scoreRec);
+	                                    }
+	                                    if (!scoreRec._fieldTs) scoreRec._fieldTs = {};
 
-                                    const allAbsent = parsedHeaders.length > 0 && parsedHeaders.every(ph => isAbsentScoreToken(row[ph.raw]));
-                                    if (allAbsent) {
-                                        scoreRec.examAbsent = true;
-                                        scoreRec.details = {};
-                                        scoreRec.total = 0;
-                                    } else {
-                                        scoreRec.examAbsent = false;
-                                        parsedHeaders.forEach(ph => {
-                                            let val = parseFloat(row[ph.raw]);
-                                            scoreRec.details[ph.name] = isNaN(val) ? 0 : val;
-                                        });
-                                        scoreRec.total = Object.values(scoreRec.details).reduce((a,b)=>a+b, 0);
-                                    }
-                                    scoreRec._ts = Date.now();
+	                                    const importTs = Date.now();
+	                                    const allAbsent = parsedHeaders.length > 0 && parsedHeaders.every(ph => isAbsentScoreToken(row[ph.raw]));
+	                                    if (allAbsent) {
+	                                        scoreRec.examAbsent = true;
+	                                        scoreRec.details = {};
+	                                        scoreRec.total = 0;
+	                                        scoreRec._fieldTs.__examAbsent = importTs;
+	                                    } else {
+	                                        scoreRec.examAbsent = false;
+	                                        scoreRec._fieldTs.__examAbsent = importTs;
+	                                        parsedHeaders.forEach(ph => {
+	                                            let val = parseFloat(row[ph.raw]);
+	                                            scoreRec.details[ph.name] = isNaN(val) ? 0 : val;
+	                                            scoreRec._fieldTs[ph.name] = importTs;
+	                                        });
+	                                        scoreRec.total = Object.values(scoreRec.details).reduce((a,b)=>a+b, 0);
+	                                    }
+	                                    scoreRec._ts = importTs;
                                 } else {
                                     failCount++;
                                 }
@@ -8053,13 +8144,13 @@
             const p = Utils.calculatePhase(e.grade, e.date);
             if (!focus.phases.includes(p)) return false;
         }
-        // 🌟 修复：补充缺失的班级交叉过滤逻辑
-        if (focus.tClasses.length > 0) {
-            const examScores = this.store.state.data.scores.filter(s => s.examId === e.id && (!s.examAbsent && (s.total > 0 || s.estimatedTotal > 0)));
-            const examStuIds = examScores.map(s => s.studentId);
-            const hasValidStudent = this.store.state.data.students.some(s => examStuIds.includes(s.id) && focus.tClasses.includes(s.teachingClass));
-            if (examScores.length > 0 && !hasValidStudent) return false;
-        }
+	        if (focus.tClasses.length > 0) {
+	            const hasClassInRoster = this._getExamRosterStudents(e).some(s => {
+	                const classAtExam = Utils.getClassForExam(s, e);
+	                return focus.tClasses.includes(classAtExam.teachingClass) || focus.tClasses.includes(s.teachingClass);
+	            });
+	            if (!hasClassInRoster) return false;
+	        }
         return true;
     });
     
