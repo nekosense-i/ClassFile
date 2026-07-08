@@ -6077,8 +6077,27 @@
                     return types.every(t => rec.details && rec.details[t.name] !== undefined && rec.details[t.name] !== null && String(rec.details[t.name]).trim() !== '');
                 }
 
+                _getExamRosterStudents(exam) {
+                    if (!exam) return [];
+                    const focus = this.store.state.globalFocus || { campuses: [], grades: [], tClasses: [] };
+                    const auth = this._getAuth();
+                    const exCampuses = this._getExamCampuses(exam);
+                    const scoredStudentIds = new Set((this.store.state.data.scores || []).filter(s => s.examId === exam.id).map(s => s.studentId));
+                    return (this.store.state.data.students || []).filter(s => {
+                        const configuredForExam = s.grade === exam.grade && (exCampuses.length === 0 || exCampuses.includes(s.campus));
+                        if (!configuredForExam && !scoredStudentIds.has(s.id)) return false;
+                        if (focus.campuses && focus.campuses.length > 0 && !focus.campuses.includes(s.campus)) return false;
+                        if (auth && auth.mode === 'teacher') {
+                            const classAtExam = Utils.getClassForExam(s, exam);
+                            if (s.campus !== auth.campus || s.grade !== auth.grade) return false;
+                            if (classAtExam.teachingClass !== auth.classId && s.teachingClass !== auth.classId) return false;
+                        }
+                        return true;
+                    });
+                }
+
                 _getExamProgress(exam, students = null) {
-                    const pool = students || this._getExamEntryStudents(exam);
+                    const pool = students || this._getExamRosterStudents(exam);
                     let absentCount = 0;
                     const done = pool.filter(stu => {
                         const rec = this.store.getScore(stu.id, exam.id);
@@ -6221,25 +6240,16 @@
                             const cardId = `e-card-${eid}`;
                             const isOpenAttr = openStates.has(cardId) ? 'open' : '';
 
-                            const examStuIdsAll = this.store.state.data.scores.filter(s => s.examId === eid).map(s => s.studentId);
-                            let examStudentsAll = [];
-                            if (examStuIdsAll.length > 0) {
-                                examStudentsAll = this.store.state.data.students.filter(s => examStuIdsAll.includes(s.id));
-                            } else {
-                                const exCampuses = ex.campuses && ex.campuses.length > 0 ? ex.campuses : (ex.campus ? [ex.campus] : []);
-                                examStudentsAll = this.store.state.data.students.filter(s => s.grade === ex.grade && (exCampuses.length === 0 || exCampuses.includes(s.campus)));
-                            }
+                            const examStudentsAll = this._getExamRosterStudents(ex);
                             
                             const classOpts = [];
                             examStudentsAll.forEach(s => {
                                 const classAtExam = Utils.getClassForExam(s, ex);
-                                if (focus.tClasses.length === 0 || focus.tClasses.includes(classAtExam.teachingClass)) {
-                                    const label = `${classAtExam.campus} - ${classAtExam.teachingClass}`;
-                                    if (!classOpts.includes(label)) classOpts.push(label);
-                                }
+                                const label = `${classAtExam.campus} - ${classAtExam.teachingClass}`;
+                                if (!classOpts.includes(label)) classOpts.push(label);
                             });
                             classOpts.sort((a,b) => a.localeCompare(b, 'zh-CN', {numeric: true}));
-                            const prevChecked = msStates[eid] || classOpts; 
+                            const prevChecked = msStates[eid] ? [...new Set(msStates[eid].concat(classOpts.filter(cls => !msStates[eid].includes(cls))))] : classOpts; 
 
                             let msHtml = `
                                 <div class="exam-header-row">
@@ -6341,17 +6351,7 @@
                     if (!panelNode) return;
                     const checkedClasses = Array.from(panelNode.querySelectorAll('input:checked')).map(cb => cb.value.replace(/&quot;/g, '"'));
                     
-                    const focus = this.store.state.globalFocus;
-                    
-                    const examStuIds = new Set(this.store.state.data.scores.filter(s => s.examId === eid).map(s => s.studentId));
-                    const exCampuses = exam.campuses && exam.campuses.length > 0 ? exam.campuses : (exam.campus ? [exam.campus] : []);
-                    let targetStudents = this.store.state.data.students.filter(s => {
-                        const configuredForExam = s.grade === exam.grade && (exCampuses.length === 0 || exCampuses.includes(s.campus));
-                        return configuredForExam || examStuIds.has(s.id);
-                    });
-
-                    if (focus.campuses.length > 0) targetStudents = targetStudents.filter(s => focus.campuses.includes(s.campus));
-                    if (focus.tClasses.length > 0) targetStudents = targetStudents.filter(s => focus.tClasses.includes(Utils.getClassForExam(s, exam).teachingClass));
+                    let targetStudents = this._getExamRosterStudents(exam);
                     
                     targetStudents = targetStudents.filter(s => checkedClasses.includes(`${Utils.getClassForExam(s, exam).campus} - ${Utils.getClassForExam(s, exam).teachingClass}`));
                     
