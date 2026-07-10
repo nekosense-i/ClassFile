@@ -4854,31 +4854,69 @@
 
                 updateNavBadges() {
                     if (!this.store || !this.store.state || !this.store.state.data) return;
+                    const data = this.store.state.data;
+                    const focus = this.store.state.globalFocus || { campuses: [], grades: [], phases: [], tClasses: [], tags: [] };
+                    const students = data.students || [];
+                    const exams = data.exams || [];
+                    const scores = data.scores || [];
+
+                    const visibleStudents = students.filter(s => this._studentMatchesFocusForExam(s, null, focus));
+                    const visibleStudentIds = new Set(visibleStudents.map(s => s.id));
+                    const visibleExams = exams.filter(exam => {
+                        const exCampuses = this._getExamCampuses(exam);
+                        if (focus.grades && focus.grades.length > 0 && !focus.grades.includes(exam.grade)) return false;
+                        if (focus.phases && focus.phases.length > 0) {
+                            const phase = Utils.calculatePhase(exam.grade, exam.date);
+                            if (!focus.phases.includes(phase)) return false;
+                        }
+                        return students.some(s => {
+                            if (!this._studentMatchesFocusForExam(s, exam, focus)) return false;
+                            if (s.grade !== exam.grade) return false;
+                            const classAtExam = Utils.getClassForExam(s, exam);
+                            const campusAtExam = classAtExam.campus || s.campus || '';
+                            return exCampuses.length === 0 || exCampuses.includes(campusAtExam);
+                        });
+                    });
+                    const visibleExamIds = new Set(visibleExams.map(e => e.id));
+                    const visibleScoreCount = scores.filter(sc => {
+                        if (!visibleExamIds.has(sc.examId)) return false;
+                        if (!visibleStudentIds.has(sc.studentId)) {
+                            const stu = students.find(s => s.id === sc.studentId);
+                            const exam = exams.find(e => e.id === sc.examId);
+                            if (!stu || !exam || !this._studentMatchesFocusForExam(stu, exam, focus)) return false;
+                        }
+                        return !sc.examAbsent && (Number(sc.total || 0) > 0 || Number(sc.estimatedTotal || 0) > 0 || (sc.details && Object.keys(sc.details).length > 0));
+                    }).length;
+                    const selectedExamId = this.store.state.currentExamId || document.getElementById('global-exam')?.value || '';
+                    const selectedExam = selectedExamId ? exams.find(e => e.id === selectedExamId) : null;
+                    const selectedExamScoreCount = selectedExam ? scores.filter(sc => {
+                        if (sc.examId !== selectedExam.id) return false;
+                        const stu = students.find(s => s.id === sc.studentId);
+                        if (!stu || !this._studentMatchesFocusForExam(stu, selectedExam, focus)) return false;
+                        return !sc.examAbsent && (Number(sc.total || 0) > 0 || Number(sc.estimatedTotal || 0) > 0 || (sc.details && Object.keys(sc.details).length > 0));
+                    }).length : visibleScoreCount;
                     
                     // 1. 考试场次
                     const badgeExam = document.getElementById('nav-badge-exam');
                     if (badgeExam) {
-                        const examsCount = this.store.state.data.exams ? this.store.state.data.exams.length : 0;
-                        badgeExam.innerText = `${examsCount}场`;
+                        badgeExam.innerText = `${visibleExams.length}场`;
                     }
                     
                     // 2. 成绩条数
                     const badgeAnalysis = document.getElementById('nav-badge-analysis');
                     if (badgeAnalysis) {
-                        const recordsCount = this.store.state.data.scores ? this.store.state.data.scores.length : 0;
-                        badgeAnalysis.innerText = `${recordsCount}条`;
+                        badgeAnalysis.innerText = `${visibleScoreCount}条`;
                     }
 
                     const badgeDetails = document.getElementById('nav-badge-details');
-                    if (badgeDetails && this.store.state.data.scores) {
-                        badgeDetails.innerText = `${this.store.state.data.scores.length}条`;
+                    if (badgeDetails) {
+                        badgeDetails.innerText = `${selectedExamScoreCount}条`;
                     }
                     
                     // 3. 学生人数
                     const badgeStudent = document.getElementById('nav-badge-student');
                     if (badgeStudent) {
-                        const studentsCount = this.store.state.data.students ? this.store.state.data.students.length : 0;
-                        badgeStudent.innerText = `${studentsCount}人`;
+                        badgeStudent.innerText = `${visibleStudents.length}人`;
                     }
                 }
 
@@ -5442,6 +5480,26 @@
                     }).length;
                 }
 
+                _studentMatchesFocusForExam(student, exam = null, focus = this.store.state.globalFocus || {}) {
+                    if (!student) return false;
+                    const classAtExam = exam ? Utils.getClassForExam(student, exam) : { campus: student.campus, teachingClass: student.teachingClass };
+                    const campusAtExam = classAtExam.campus || student.campus || '';
+                    const teachingClassAtExam = classAtExam.teachingClass || student.teachingClass || '';
+                    const currentTeachingClass = student.teachingClass || '';
+
+                    if (focus.campuses && focus.campuses.length > 0 && !focus.campuses.includes(campusAtExam)) return false;
+                    if (focus.grades && focus.grades.length > 0 && !focus.grades.includes(student.grade)) return false;
+                    if (focus.phases && focus.phases.length > 0) {
+                        const phase = Utils.calculatePhase(student.grade, exam ? (exam.date || new Date().toISOString()) : new Date().toISOString());
+                        if (!focus.phases.includes(phase)) return false;
+                    }
+                    if (focus.tClasses && focus.tClasses.length > 0) {
+                        if (!focus.tClasses.includes(teachingClassAtExam) && !focus.tClasses.includes(currentTeachingClass)) return false;
+                    }
+                    if (focus.tags && focus.tags.length > 0 && !(student.tags || []).some(t => focus.tags.includes(t))) return false;
+                    return true;
+                }
+
                 _decorateSidebarFilterFeedback() {
                     const isCompareMode = this.store && this.store.state && this.store.state.currentAnalysisType === 'compare';
                     const configs = [
@@ -5689,6 +5747,7 @@
     this.store.save();
     
     this.initGlobalFilters();
+    try { this.updateNavBadges(); } catch(e) {}
     
     if(this.cur === 'exams') this.renderExamsWorkflow();
     // 🌟 修复：无论在分析视图还是详情视图，只要全局下拉框存在，就必须同步刷新它
@@ -6234,14 +6293,14 @@
 
                 _getExamEntryStudents(exam) {
                     if (!exam) return [];
-                    const focus = this.store.state.globalFocus || { campuses: [], tClasses: [] };
+                    const focus = this.store.state.globalFocus || { campuses: [], grades: [], phases: [], tClasses: [], tags: [] };
                     const exCampuses = this._getExamCampuses(exam);
                     return (this.store.state.data.students || []).filter(s => {
+                        const classAtExam = Utils.getClassForExam(s, exam);
+                        const campusAtExam = classAtExam.campus || s.campus;
                         if (s.grade !== exam.grade) return false;
-                        if (exCampuses.length > 0 && !exCampuses.includes(s.campus)) return false;
-                        if (focus.campuses && focus.campuses.length > 0 && !focus.campuses.includes(s.campus)) return false;
-                        if (focus.tClasses && focus.tClasses.length > 0 && !focus.tClasses.includes(s.teachingClass)) return false;
-                        return true;
+                        if (exCampuses.length > 0 && !exCampuses.includes(campusAtExam)) return false;
+                        return this._studentMatchesFocusForExam(s, exam, focus);
                     });
                 }
 
@@ -6255,16 +6314,17 @@
 
 	                _getExamRosterStudents(exam) {
 	                    if (!exam) return [];
-	                    const focus = this.store.state.globalFocus || { campuses: [], grades: [], tClasses: [] };
+	                    const focus = this.store.state.globalFocus || { campuses: [], grades: [], phases: [], tClasses: [], tags: [] };
 	                    const auth = this._getAuth();
                     const exCampuses = this._getExamCampuses(exam);
                     const scoredStudentIds = new Set((this.store.state.data.scores || []).filter(s => s.examId === exam.id).map(s => s.studentId));
                     return (this.store.state.data.students || []).filter(s => {
-                        const configuredForExam = s.grade === exam.grade && (exCampuses.length === 0 || exCampuses.includes(s.campus));
+                        const classAtExam = Utils.getClassForExam(s, exam);
+                        const campusAtExam = classAtExam.campus || s.campus;
+                        const configuredForExam = s.grade === exam.grade && (exCampuses.length === 0 || exCampuses.includes(campusAtExam));
                         if (!configuredForExam && !scoredStudentIds.has(s.id)) return false;
-                        if (focus.campuses && focus.campuses.length > 0 && !focus.campuses.includes(s.campus)) return false;
+                        if (!this._studentMatchesFocusForExam(s, exam, focus)) return false;
                         if (auth && auth.mode === 'teacher') {
-                            const classAtExam = Utils.getClassForExam(s, exam);
                             if (s.campus !== auth.campus || s.grade !== auth.grade) return false;
                             if (classAtExam.teachingClass !== auth.classId && s.teachingClass !== auth.classId) return false;
                         }
@@ -6274,14 +6334,17 @@
 
 	                _getAIExamRosterStudents(exam) {
 	                    if (!exam) return [];
+	                    const focus = this.store.state.globalFocus || { campuses: [], grades: [], phases: [], tClasses: [], tags: [] };
 	                    const auth = this._getAuth();
 	                    const exCampuses = this._getExamCampuses(exam);
 	                    const scoredStudentIds = new Set((this.store.state.data.scores || []).filter(s => s.examId === exam.id).map(s => s.studentId));
 	                    return (this.store.state.data.students || []).filter(s => {
-	                        const configuredForExam = s.grade === exam.grade && (exCampuses.length === 0 || exCampuses.includes(s.campus));
+	                        const classAtExam = Utils.getClassForExam(s, exam);
+	                        const campusAtExam = classAtExam.campus || s.campus;
+	                        const configuredForExam = s.grade === exam.grade && (exCampuses.length === 0 || exCampuses.includes(campusAtExam));
 	                        if (!configuredForExam && !scoredStudentIds.has(s.id)) return false;
+	                        if (!this._studentMatchesFocusForExam(s, exam, focus)) return false;
 	                        if (auth && auth.mode === 'teacher') {
-	                            const classAtExam = Utils.getClassForExam(s, exam);
 	                            if (s.campus !== auth.campus || s.grade !== auth.grade) return false;
 	                            if (classAtExam.teachingClass !== auth.classId && s.teachingClass !== auth.classId) return false;
 	                        }
@@ -8238,16 +8301,11 @@
                     if (!exam) return 0;
                     const actualCamps = this._getExamCampuses(exam);
                     const validStudentIds = new Set((this.store.state.data.students || []).filter(s => {
+                        const classAtExam = Utils.getClassForExam(s, exam);
+                        const campusAtExam = classAtExam.campus || s.campus;
                         if (s.grade !== exam.grade) return false;
-                        if (focus.campuses && focus.campuses.length > 0 && !focus.campuses.includes(s.campus)) return false;
-                        if (actualCamps.length > 0 && !actualCamps.includes(s.campus)) return false;
-                        if (focus.grades && focus.grades.length > 0 && !focus.grades.includes(s.grade)) return false;
-                        if (focus.tClasses && focus.tClasses.length > 0 && !focus.tClasses.includes(s.teachingClass)) return false;
-                        if (focus.tags && focus.tags.length > 0) {
-                            const tags = s.tags || [];
-                            if (!tags.some(t => focus.tags.includes(t))) return false;
-                        }
-                        return true;
+                        if (actualCamps.length > 0 && !actualCamps.includes(campusAtExam)) return false;
+                        return this._studentMatchesFocusForExam(s, exam, focus);
                     }).map(s => s.id));
                     if (validStudentIds.size === 0) return 0;
                     return (this.store.state.data.scores || []).filter(sc => (
@@ -9146,9 +9204,13 @@
                     const type = this.store.state.currentAnalysisType;
                     const focus = this.store.state.globalFocus;
                     let pool = this.store.state.data.students;
+                    const activeExam = eid ? this.store.state.data.exams.find(e => e.id === eid) : null;
 
-                    if (focus.campuses.length > 0) pool = pool.filter(s => focus.campuses.includes(s.campus));
-                    if (focus.grades.length > 0) pool = pool.filter(s => focus.grades.includes(s.grade));
+                    if (activeExam && type !== 'compare') {
+                        pool = pool.filter(s => this._studentMatchesFocusForExam(s, activeExam, focus));
+                    } else {
+                        pool = pool.filter(s => this._studentMatchesFocusForExam(s, null, focus));
+                    }
                     
                     if (type === 'compare') {
                         let checkedExamIds = Array.from(document.querySelectorAll('#ms-compare-exams-panel input:checked')).map(cb => cb.value);
@@ -9180,9 +9242,12 @@
                         }
                     }
 
-                    if (focus.tClasses.length > 0) pool = pool.filter(s => focus.tClasses.includes(s.teachingClass));
-                    
-                    const classes = [...new Set(pool.map(s=>`${s.campus} - ${s.teachingClass}`).filter(Boolean))].sort((a,b) => a.localeCompare(b, 'zh-CN', {numeric:true}));
+                    const classes = [...new Set(pool.map(s => {
+                        const cls = activeExam ? Utils.getClassForExam(s, activeExam) : { campus: s.campus, teachingClass: s.teachingClass };
+                        const campus = cls.campus || s.campus || '';
+                        const teachingClass = cls.teachingClass || s.teachingClass || '';
+                        return campus && teachingClass ? `${campus} - ${teachingClass}` : '';
+                    }).filter(Boolean))].sort((a,b) => a.localeCompare(b, 'zh-CN', {numeric:true}));
                     
                     this._buildMultiSelect('ms-analysis-panel', 'ms-analysis-header', classes, 'window.app.ui.runAnalysis()', '查看所有班级', true);
                 }
@@ -9193,17 +9258,11 @@
                     const exam = (this.store.state.data.exams || []).find(e => e.id === (selectedExamId || fallbackExamId));
                     if (!exam) return null;
 
-                    const focus = this.store.state.globalFocus || { campuses: [], grades: [], tClasses: [], tags: [] };
-                    const examCampuses = this._getExamCampuses(exam);
+                    const focus = this.store.state.globalFocus || { campuses: [], grades: [], phases: [], tClasses: [], tags: [] };
                     const studentsById = new Map((this.store.state.data.students || []).map(s => [s.id, s]));
                     const inCurrentScope = row => {
                         if (!row) return false;
-                        if (examCampuses.length > 0 && !examCampuses.includes(row.campus)) return false;
-                        if (focus.campuses && focus.campuses.length > 0 && !focus.campuses.includes(row.campus)) return false;
-                        if (focus.grades && focus.grades.length > 0 && !focus.grades.includes(row.grade)) return false;
-                        if (focus.tClasses && focus.tClasses.length > 0 && !focus.tClasses.includes(row.teachingClass)) return false;
-                        if (focus.tags && focus.tags.length > 0 && !(row.tags || []).some(t => focus.tags.includes(t))) return false;
-                        return true;
+                        return this._studentMatchesFocusForExam(row, exam, focus);
                     };
                     const toExportRow = sc => {
                         const stu = studentsById.get(sc.studentId);
@@ -9750,20 +9809,7 @@
 
                     const studentsById = new Map((data.students || []).map(s => [s.id, s]));
                     const focus = this.store.state.globalFocus || { campuses: [], grades: [], phases: [], tClasses: [], tags: [] };
-                    const allowedStudents = (data.students || []).filter(s => {
-                        if (focus.campuses && focus.campuses.length > 0 && !focus.campuses.includes(s.campus)) return false;
-                        if (focus.grades && focus.grades.length > 0 && !focus.grades.includes(s.grade)) return false;
-                        if (focus.tClasses && focus.tClasses.length > 0 && !focus.tClasses.includes(s.teachingClass)) return false;
-                        if (focus.tags && focus.tags.length > 0) {
-                            const stags = s.tags || [];
-                            if (!stags.some(t => focus.tags.includes(t))) return false;
-                        }
-                        if (focus.phases && focus.phases.length > 0) {
-                            const studentPhase = Utils.calculatePhase(s.grade, exam.date || new Date().toISOString());
-                            if (!focus.phases.includes(studentPhase)) return false;
-                        }
-                        return true;
-                    });
+                    const allowedStudents = (data.students || []).filter(s => this._studentMatchesFocusForExam(s, exam, focus));
                     const allowedIds = new Set(allowedStudents.map(s => s.id));
 
                     const scoreRows = (data.scores || [])
@@ -11261,6 +11307,8 @@
                         return; 
                     }
                     const eid = examEl.value; 
+                    const exam = this.store.state.data.exams.find(i => i.id === eid);
+                    if (!exam) return;
     
                     // 2. 清理旧的容器引用逻辑
                     // 确保不再去寻找已经搬走的 student-dashboard-container
@@ -11329,16 +11377,11 @@
                     const getValidStudentsForExam = (examObj) => {
                         const actualCamps = this._getExamCampuses(examObj);
                         return this.store.state.data.students.filter(s => {
+                            const classAtExam = Utils.getClassForExam(s, examObj);
+                            const campusAtExam = classAtExam.campus || s.campus;
                             if (s.grade !== examObj.grade) return false;
-                            if (focus.campuses.length > 0 && !focus.campuses.includes(s.campus)) return false;
-                            if (actualCamps.length > 0 && !actualCamps.includes(s.campus)) return false;
-                            if (focus.grades.length > 0 && !focus.grades.includes(s.grade)) return false;
-                            if (focus.tClasses.length > 0 && !focus.tClasses.includes(s.teachingClass)) return false;
-                            if (focus.tags && focus.tags.length > 0) {
-                                const stags = s.tags || [];
-                                if (!stags.some(t => focus.tags.includes(t))) return false;
-                            }
-                            return true;
+                            if (actualCamps.length > 0 && !actualCamps.includes(campusAtExam)) return false;
+                            return this._studentMatchesFocusForExam(s, examObj, focus);
                         });
                     };
 
@@ -11399,10 +11442,13 @@
                         const checkedClasses = msPanel ? Array.from(msPanel.querySelectorAll('input:checked')).map(cb => cb.value.replace(/&quot;/g, '"')) : [];
 
                         let trendStudents = this.store.state.data.students.filter(s => {
-                            if (focus.campuses.length > 0 && !focus.campuses.includes(s.campus)) return false;
-                            if (focus.grades.length > 0 && !focus.grades.includes(s.grade)) return false;
-                            if (focus.tClasses.length > 0 && !focus.tClasses.includes(s.teachingClass)) return false;
-                            if (checkedClasses.length > 0 && !checkedClasses.includes(`${s.campus} - ${s.teachingClass}`)) return false;
+                            if (!this._studentMatchesFocusForExam(s, exam, focus)) return false;
+                            if (checkedClasses.length > 0) {
+                                const cls = Utils.getClassForExam(s, exam);
+                                const keyAtExam = `${cls.campus || s.campus || ''} - ${cls.teachingClass || s.teachingClass || ''}`;
+                                const keyCurrent = `${s.campus || ''} - ${s.teachingClass || ''}`;
+                                if (!checkedClasses.includes(keyAtExam) && !checkedClasses.includes(keyCurrent)) return false;
+                            }
                             return true;
                         });
 
@@ -12140,7 +12186,6 @@
 
                     // ====== 后续为单次特定考试分析 ======
                     if(!eid) return renderEmptyState("还没有选择考试", "您正在进行单次考试的分析。\n👆 请先在上方选择一场考试。", type === 'radar' ? '' : undefined);
-                    const exam = this.store.state.data.exams.find(i=>i.id===eid);
                     let validStudentsForExam = getValidStudentsForExam(exam);
                     const maxScore = exam.maxTotal;
                     
