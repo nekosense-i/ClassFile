@@ -281,6 +281,60 @@
 const { useState, useEffect, useRef, useCallback, useMemo } = React;
 
 /* ===== HELPERS ===== */
+// 汉字拼音首字母简易判定算法 ( localeCompare 驱动)
+function getSingleCharInitial(char) {
+  if (/[a-zA-Z0-9]/.test(char)) return char.toLowerCase();
+  if (char < "\u4e00" || char > "\u9fa5") return "";
+  
+  const boundaries = [
+    { char: '啊', letter: 'a' }, { char: '芭', letter: 'b' }, { char: '擦', letter: 'c' },
+    { char: '搭', letter: 'd' }, { char: '蛾', letter: 'e' }, { char: '发', letter: 'f' },
+    { char: '噶', letter: 'g' }, { char: '哈', letter: 'h' }, { char: '击', letter: 'j' },
+    { char: '喀', letter: 'k' }, { char: '垃', letter: 'l' }, { char: '妈', letter: 'm' },
+    { char: '拿', letter: 'n' }, { char: '哦', letter: 'o' }, { char: '啪', letter: 'p' },
+    { char: '期', letter: 'q' }, { char: '然', letter: 'r' }, { char: '撒', letter: 's' },
+    { char: '塌', letter: 't' }, { char: '挖', letter: 'w' }, { char: '昔', letter: 'x' },
+    { char: '压', letter: 'y' }, { char: '匝', letter: 'z' }
+  ];
+  
+  for (let i = boundaries.length - 1; i >= 0; i--) {
+    if (char.localeCompare(boundaries[i].char, 'zh') >= 0) {
+      // 包含生僻或非多音字基本覆盖
+      return boundaries[i].letter;
+    }
+  }
+  return 'z';
+}
+
+function getPinyinInitials(str) {
+  if (!str) return "";
+  return str.split("").map(getSingleCharInitial).join("");
+}
+
+function makeClassKey(campus, grade, className) {
+  return [campus, grade, className].map(v => String(v || "").trim()).join("|");
+}
+
+function makeUsername(campus, name, grade, className, classSeq = "") {
+  const c_py = getPinyinInitials(campus);
+  const n_py = getPinyinInitials(name);
+  const g_num = (String(grade).match(/\d+/) || [""])[0];
+  const c_char = (String(className).match(/[a-zA-Z]+/) || [""])[0].toLowerCase();
+  const seq = classSeq ? String(classSeq).padStart(2, "0") : "";
+  return (c_py + g_num + c_char + seq + n_py).toLowerCase();
+}
+
+function ensureUniqueUsername(baseUsername, seen) {
+  const base = String(baseUsername || "student").trim().toLowerCase().replace(/[^a-z0-9]/g, "") || "student";
+  let finalUsername = base;
+  let count = 2;
+  while (seen.has(finalUsername)) {
+    finalUsername = `${base}${String(count++).padStart(2, "0")}`;
+  }
+  seen.add(finalUsername);
+  return finalUsername;
+}
+
 const gid = () => Math.random().toString(36).substr(2, 9);
 const shuffle = (a) => {
   const b = [...a];
@@ -372,29 +426,24 @@ const todayStamp = () => {
 };
 const CLOUD_SYNC_BASE = "https://sync.nekosensei.cn/classtango";
 const LEGACY_STORAGE_KEY = "jp_vocab_v1";
-const DEFAULT_SYNC_GROUP_ID = "default";
+const DEFAULT_SYNC_GROUP_ID = "classtango";
 const sanitizeGroupId = (value) => {
   const raw = String(value ?? "").trim();
   if (!raw) return DEFAULT_SYNC_GROUP_ID;
-  return raw.replace(/[^a-zA-Z0-9_-]/g, "_").replace(/_+/g, "_").replace(/^_+|_+$/g, "") || DEFAULT_SYNC_GROUP_ID;
+  // 保留中文等合法班级名。URLSearchParams 会负责 URL 编码；旧逻辑会把纯中文
+  // 班名降级为默认房间，导致不同班级意外共用同一份云端数据。
+  return raw.replace(/[\u0000-\u001F\u007F]/g, "").slice(0, 160) || DEFAULT_SYNC_GROUP_ID;
 };
 const parseGroupIdFromUrl = () => {
   try {
-    const url = new URL(window.location.href);
-    const queryGroup = sanitizeGroupId(url.searchParams.get("group"));
-    if (queryGroup) return queryGroup;
-    const path = url.pathname.replace(/\/+$/, "");
-    const tail = path.split("/").filter(Boolean).pop();
-    if (tail && !/\.[a-z0-9]+$/i.test(tail)) return sanitizeGroupId(tail);
+    const params = new URLSearchParams(window.location.search);
+    const g = params.get("group") || params.get("group_id") || params.get("gid");
+    if (g) return sanitizeGroupId(g);
   } catch (e) {}
   return DEFAULT_SYNC_GROUP_ID;
 };
 const syncUrlGroupId = (groupId) => {
-  try {
-    const url = new URL(window.location.href);
-    url.searchParams.set("group", sanitizeGroupId(groupId));
-    window.history.replaceState({}, "", url.toString());
-  } catch (e) {}
+  // 网页内部操作，不再改写或修改 URL 地址栏后缀，实现纯裸链接运行
 };
 const cloneGroups = (groups) => JSON.parse(JSON.stringify(Array.isArray(groups) ? groups : []));
 const makeDataSnapshot = (groups, categories, tombstones) => JSON.stringify({
@@ -447,7 +496,7 @@ const normalizeSyncPayload = (payload, fallbackGroupId = DEFAULT_SYNC_GROUP_ID) 
     } : { groups: {}, words: {} };
     return {
       ...payload,
-      group_id: sanitizeGroupId(payload.group_id || payload.groupId || fallbackGroupId),
+      group_id: sanitizeGroupId(fallbackGroupId),
       last_updated: lastUpdated,
       synced_at: syncedAt,
       categories: buildCategoryList(clonedGroups, payload.categories),
@@ -573,46 +622,76 @@ const requestJson = async (url, options = {}, timeoutMs = 10000) => {
   }
 };
 const pullFromCloud = async (groupId) => {
+  const targetGid = sanitizeGroupId(groupId);
   const url = new URL(CLOUD_SYNC_BASE);
-  url.searchParams.set("group", sanitizeGroupId(groupId));
+  url.searchParams.set("group", targetGid);
   const data = await requestJson(url.toString(), { method:"GET", headers:{ Accept:"application/json" } });
-  return normalizeSyncPayload(data.data ?? data.payload ?? data, groupId);
+  const raw = data.data ?? data.payload ?? data;
+  return normalizeSyncPayload(raw, targetGid);
 };
-const pushToCloud = async (groupId, data) => {
-  const payload = normalizeSyncPayload(data, groupId);
+const extractStudentsList = (payload) => {
+  return Array.isArray(payload?.students) ? payload.students : [];
+};
+const pushToCloud = async (groupId, data, { syncType = "words" } = {}) => {
+  const syncingStudents = syncType === "students";
+  let payloadData = { ...(data || {}) };
+  let remoteData = null;
+  let remoteReadFailed = false;
+  try {
+    remoteData = await pullFromCloud(groupId);
+    if (remoteData && typeof remoteData === "object") {
+      if (syncingStudents) {
+        if (Array.isArray(remoteData.groups) && remoteData.groups.length > 0) payloadData.groups = remoteData.groups;
+        if (Array.isArray(remoteData.categories)) payloadData.categories = remoteData.categories;
+        if (remoteData.tombstones) payloadData.tombstones = remoteData.tombstones;
+      } else if (Array.isArray(remoteData.students)) {
+        const localStudents = Array.isArray(payloadData.students) ? payloadData.students : [];
+        if (remoteData.students.length || !localStudents.length) {
+          payloadData.students = remoteData.students;
+          if (remoteData.challengeSettings) payloadData.challengeSettings = remoteData.challengeSettings;
+        }
+      } else if (!Array.isArray(payloadData.students) || !payloadData.students.length) {
+        delete payloadData.students;
+      }
+    }
+  } catch (e) {
+    console.error("[写保护] 推送前读取云端失败:", e);
+    remoteReadFailed = true;
+  }
+  if (remoteReadFailed) throw new Error("无法校验云端数据，已阻止推送以防止数据覆盖。请检查网络后重试。");
+
+  const localGroups = Array.isArray(payloadData.groups) ? payloadData.groups : [];
+  const remoteGroups = Array.isArray(remoteData?.groups) ? remoteData.groups : [];
+  if (localGroups.length === 0 && remoteGroups.length > 0) payloadData.groups = remoteGroups;
+
+  const localStudents = Array.isArray(payloadData.students) ? payloadData.students : [];
+  const remoteStudents = Array.isArray(remoteData?.students) ? remoteData.students : [];
+  if (localStudents.length === 0 && remoteStudents.length > 0) {
+    payloadData.students = remoteStudents;
+    if (remoteData?.challengeSettings) payloadData.challengeSettings = remoteData.challengeSettings;
+  }
+
+  const payload = normalizeSyncPayload(payloadData, groupId);
   const url = new URL(CLOUD_SYNC_BASE);
   url.searchParams.set("group", sanitizeGroupId(groupId));
+  url.searchParams.set("scope", syncingStudents ? "students" : "words");
+  // 每个子记录各自带版本号。服务端发现版本已变化时拒绝旧写入，避免最后写入者
+  // 把其他设备的较新数据整包覆盖掉。
+  payload.revision = Number(syncingStudents ? remoteData?.students_revision : remoteData?.words_revision) || 0;
   const res = await requestJson(url.toString(), {
     method:"POST",
     headers:{ "Content-Type":"application/json", Accept:"application/json" },
-    body: JSON.stringify({ group_id:sanitizeGroupId(groupId), ...payload }),
+    body: JSON.stringify({ ...payload, group_id:sanitizeGroupId(groupId) }),
   });
-  return normalizeSyncPayload(res.data ?? res.payload ?? payload, groupId);
+  const rawRes = res.data ?? res.payload ?? payload;
+  return normalizeSyncPayload(rawRes, groupId);
 };
 const sendFinalSyncToCloud = (groupId, data) => {
-  const safeGroupId = sanitizeGroupId(groupId);
-  const payload = normalizeSyncPayload(data, safeGroupId);
-  if (!hasUnsyncedLocalChanges(payload)) return false;
-  const url = new URL(CLOUD_SYNC_BASE);
-  url.searchParams.set("group", safeGroupId);
-  const body = JSON.stringify({ group_id:safeGroupId, ...payload, synced_at:Number(payload.last_updated || Date.now()) });
-  try {
-    if (navigator.sendBeacon) {
-      const blob = new Blob([body], { type:"application/json" });
-      if (navigator.sendBeacon(url.toString(), blob)) return true;
-    }
-  } catch(e) {}
-  try {
-    fetch(url.toString(), {
-      method:"POST",
-      headers:{ "Content-Type":"application/json", Accept:"application/json" },
-      body,
-      keepalive:true,
-    }).catch(() => {});
-    return true;
-  } catch(e) {
-    return false;
-  }
+  // [安全修复] 页面关闭时不再盲写到云端。
+  // 原因：sendBeacon / keepalive fetch 无法先读取云端再合并，
+  // 会用本地可能过时的缓存整包覆盖云端最新数据，导致数据丢失。
+  // 未同步的本地修改保留在 localStorage 中，下次打开页面时由 backgroundRevalidate 自动同步。
+  return false;
 };
 const downloadBlob = (blob, filename) => {
   const url = URL.createObjectURL(blob);
@@ -694,7 +773,44 @@ const VH = "calc(100vh - 64px)";
 /* ===== STORAGE ===== */
 const storage = {
   key(groupId) { return `classtango_data_${sanitizeGroupId(groupId)}`; },
-  save(groupId, data) { try { localStorage.setItem(this.key(groupId), JSON.stringify(normalizeSyncPayload(data, groupId))); } catch(e){} },
+  studentBackupKey(groupId) { return `classtango_students_backup_${sanitizeGroupId(groupId)}`; },
+  save(groupId, data) {
+    try {
+      const normalized = normalizeSyncPayload(data, groupId);
+      // Ordinary vocabulary sync payloads do not include students. Do not let one
+      // overwrite the local student fallback that is stored under the same group.
+      if (!Array.isArray(data?.students)) {
+        const existingRaw = localStorage.getItem(this.key(groupId));
+        if (existingRaw) {
+          const existing = JSON.parse(existingRaw);
+          if (Array.isArray(existing?.students) && existing.students.length) {
+            normalized.students = existing.students;
+            if (existing.challengeSettings) normalized.challengeSettings = existing.challengeSettings;
+          }
+        }
+      }
+      localStorage.setItem(this.key(groupId), JSON.stringify(normalized));
+    } catch(e) {}
+  },
+  saveStudentBackup(groupId, students, challengeSettings = {}) {
+    if (!Array.isArray(students) || !students.length) return;
+    try {
+      const key = this.studentBackupKey(groupId);
+      const previous = JSON.parse(localStorage.getItem(key) || "[]");
+      const snapshots = Array.isArray(previous) ? previous : [];
+      snapshots.unshift({ savedAt: Date.now(), students, challengeSettings });
+      localStorage.setItem(key, JSON.stringify(snapshots.slice(0, 3)));
+    } catch(e) {}
+  },
+  loadStudentBackup(groupId) {
+    try {
+      const snapshots = JSON.parse(localStorage.getItem(this.studentBackupKey(groupId)) || "[]");
+      return Array.isArray(snapshots) ? snapshots.find(item => Array.isArray(item?.students) && item.students.length) || null : null;
+    } catch(e) { return null; }
+  },
+  clearStudentBackup(groupId) {
+    try { localStorage.removeItem(this.studentBackupKey(groupId)); } catch(e) {}
+  },
   load(groupId) {
     try {
       const key = this.key(groupId);
@@ -3073,13 +3189,959 @@ function PracticeMode({ groups, gid: curGid, chalkboardMode, onPracticeStateChan
   );
 }
 
+/* ===== STUDENTS MODE ===== */
+function StudentsMode({ students, setStudents, pushStudents, pullStudents, syncMeta, groups, challengeWordCounts, saveChallengeWordCounts, challengeCycle, saveChallengeCycle, themeC }) {
+  const C = themeC;
+  const [importOpen, setImportOpen] = useState(false);
+  const [pasteText, setPasteText] = useState("");
+  const [importDraft, setImportDraft] = useState([]);
+  const [editingStudentId, setEditingStudentId] = useState(null);
+  const [editPasswordVal, setEditPasswordVal] = useState("");
+  const [viewProgressStudent, setViewProgressStudent] = useState(null);
+  
+  // 关卡分层与等级标签相关状态
+  const [assignStudentWords, setAssignStudentWords] = useState(null);
+  const [batchAssignOpen, setBatchAssignOpen] = useState(false);
+  const [batchTargetTag, setBatchTargetTag] = useState("A");
+  const [batchSelectedGroups, setBatchSelectedGroups] = useState([]);
+  const [wordCountSettingsOpen, setWordCountSettingsOpen] = useState(false);
+  const [wordCountDraft, setWordCountDraft] = useState(challengeWordCounts);
+  const [cycleSettingsOpen, setCycleSettingsOpen] = useState(false);
+  const [cycleDraft, setCycleDraft] = useState(challengeCycle);
+
+  const saveCycleSettings = async () => {
+    const targetLevels = Math.max(0, Math.floor(Number(cycleDraft?.targetLevels) || 0));
+    await saveChallengeCycle({ id: challengeCycle?.id || `cycle_${Date.now()}`, name: String(cycleDraft?.name || "本周期闯关任务").trim() || "本周期闯关任务", targetLevels, active: !!cycleDraft?.active });
+    setCycleSettingsOpen(false);
+  };
+
+  const openWordCountSettings = () => {
+    setWordCountDraft(challengeWordCounts);
+    setWordCountSettingsOpen(true);
+  };
+
+  const saveWordCountSettings = async () => {
+    const next = ["A", "B", "C"].reduce((result, tag) => {
+      const value = Math.floor(Number(wordCountDraft?.[tag]));
+      result[tag] = Number.isFinite(value) && value > 0 ? value : 0;
+      return result;
+    }, {});
+    await saveChallengeWordCounts(next);
+    setWordCountSettingsOpen(false);
+  };
+
+  const updateStudentTag = (id, newTag) => {
+    const nextList = students.map(s => s.id === id ? { ...s, tag: newTag } : s);
+    pushStudents(nextList);
+  };
+
+  const handleToggleStudentWordGroup = (studentId, groupKey, checked) => {
+    const nextList = students.map(s => {
+      if (s.id !== studentId) return s;
+      let cur = Array.isArray(s.assignedGroups) ? [...s.assignedGroups] : [];
+      if (checked) {
+        if (!cur.includes(groupKey)) cur.push(groupKey);
+      } else {
+        cur = cur.filter(x => x !== groupKey);
+      }
+      return { ...s, assignedGroups: cur };
+    });
+    pushStudents(nextList);
+    setAssignStudentWords(prev => {
+      if (!prev || prev.id !== studentId) return prev;
+      let cur = Array.isArray(prev.assignedGroups) ? [...prev.assignedGroups] : [];
+      if (checked) {
+        if (!cur.includes(groupKey)) cur.push(groupKey);
+      } else {
+        cur = cur.filter(x => x !== groupKey);
+      }
+      return { ...prev, assignedGroups: cur };
+    });
+  };
+
+  const handleApplyBatchAssign = () => {
+    if (!batchTargetTag) return;
+    const nextList = students.map(s => {
+      if (s.tag === batchTargetTag) {
+        return { ...s, assignedGroups: [...batchSelectedGroups] };
+      }
+      return s;
+    });
+    pushStudents(nextList);
+    setBatchAssignOpen(false);
+    alert(`已将选中的 ${batchSelectedGroups.length} 个单词关卡批量应用给所有 ${batchTargetTag} 级学生！`);
+  };
+
+  // 文件夹折叠与分类状态
+  const [selectedPath, setSelectedPath] = useState({ type: "all" });
+  const [expandedNodes, setExpandedNodes] = useState({});
+
+  const toggleNode = (nodeId, e) => {
+    e.stopPropagation();
+    setExpandedNodes(prev => ({ ...prev, [nodeId]: !prev[nodeId] }));
+  };
+
+  // 动态解析树状结构
+  const studentsTree = useMemo(() => {
+    const tree = {};
+    students.forEach(s => {
+      const campus = s.campus || "未设校区";
+      const grade = s.grade || "未设年级";
+      const className = s.class_name || "未设班级";
+      
+      if (!tree[campus]) tree[campus] = {};
+      if (!tree[campus][grade]) tree[campus][grade] = new Set();
+      tree[campus][grade].add(className);
+    });
+
+    const result = [];
+    Object.keys(tree).sort().forEach(campus => {
+      const grades = [];
+      Object.keys(tree[campus]).sort().forEach(grade => {
+        const classes = Array.from(tree[campus][grade]).sort();
+        grades.push({ grade, classes });
+      });
+      result.push({ campus, grades });
+    });
+    return result;
+  }, [students]);
+
+  // 过滤当前展示的学生
+  const filteredStudents = useMemo(() => {
+    if (!selectedPath || selectedPath.type === "all") {
+      return students;
+    }
+    return students.filter(s => {
+      if (selectedPath.type === "campus") {
+        return s.campus === selectedPath.campus;
+      }
+      if (selectedPath.type === "grade") {
+        return s.campus === selectedPath.campus && s.grade === selectedPath.grade;
+      }
+      if (selectedPath.type === "class") {
+        return s.campus === selectedPath.campus && s.grade === selectedPath.grade && s.class_name === selectedPath.className;
+      }
+      return true;
+    });
+  }, [students, selectedPath]);
+
+  const handleParsePaste = () => {
+    const lines = pasteText.split("\n").map(l => l.trim()).filter(Boolean);
+    const draft = [];
+    const classCounters = {};
+    lines.forEach((line) => {
+      const cols = line.split(/\t|\s{2,}/).map(c => c.trim()).filter(Boolean);
+      if (cols.length >= 4) {
+        const [campus, name, grade, className, tagVal] = cols;
+        const tag = (tagVal && ["A", "B", "C"].includes(tagVal.toUpperCase())) ? tagVal.toUpperCase() : "";
+        const classKey = makeClassKey(campus, grade, className);
+        classCounters[classKey] = (classCounters[classKey] || 0) + 1;
+        const username = makeUsername(campus, name, grade, className, classCounters[classKey]);
+        draft.push({
+          id: gid(),
+          name,
+          campus,
+          grade,
+          class_name: className,
+          username,
+          password: "",
+          tag: tag,
+          assignedGroups: [],
+          progress: {}
+        });
+      }
+    });
+    setImportDraft(draft);
+  };
+
+  const handleConfirmImport = (importType) => {
+    if (!importDraft.length) return;
+    let newList = [];
+    if (importType === "append") {
+      newList = [...students, ...importDraft];
+    } else {
+      newList = [...importDraft];
+    }
+    const seen = new Set();
+    const uniqueList = [];
+    newList.forEach(s => {
+      const finalUsername = ensureUniqueUsername(s.username, seen);
+      uniqueList.push({ ...s, username: finalUsername });
+    });
+    
+    pushStudents(uniqueList);
+    setSelectedPath({ type: "all" }); // 重置选择到全部
+    setImportOpen(false);
+    setPasteText("");
+    setImportDraft([]);
+  };
+
+  const handleUpdateDraftUsername = (index, newUsername) => {
+    const nextDraft = [...importDraft];
+    nextDraft[index].username = newUsername.trim().toLowerCase();
+    setImportDraft(nextDraft);
+  };
+
+  const handleDeleteStudent = (id, name) => {
+    if (window.confirm(`确定删除学生 "${name}" 吗？该生的所有闯关记录也会一同被清除。`)) {
+      const nextList = students.filter(s => s.id !== id);
+      pushStudents(nextList, undefined, { allowEmpty: nextList.length === 0 });
+    }
+  };
+
+  const startEditPassword = (student) => {
+    setEditingStudentId(student.id);
+    setEditPasswordVal(student.password || "");
+  };
+
+  const savePassword = (id) => {
+    const nextList = students.map(s => s.id === id ? { ...s, password: editPasswordVal.trim() } : s);
+    pushStudents(nextList);
+    setEditingStudentId(null);
+  };
+
+  const cancelEditPassword = () => {
+    setEditingStudentId(null);
+  };
+
+  const getStudentStats = (student) => {
+    const progress = student.progress || {};
+    const totalStars = Object.values(progress).reduce((sum, item) => sum + (item.stars || 0), 0);
+    const completedCount = Object.keys(progress).length;
+    return { completedCount, totalStars };
+  };
+
+  // 面包屑渲染
+  const renderBreadcrumbs = () => {
+    const breadcrumbStyle = { display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: C.muted, marginBottom: 12 };
+    const activeStyle = { fontWeight: 700, color: C.text };
+    const linkStyle = { cursor: "pointer", transition: "color 0.2s" };
+    
+    if (selectedPath.type === "all") {
+      return (
+        <div style={breadcrumbStyle}>
+          <span style={activeStyle}>📂 所有学生</span>
+          <span style={{ marginLeft: "auto", fontSize: 12, background: C.borderLight, color: C.text, padding: "2px 8px", borderRadius: 10, fontWeight: 700 }}>
+            共 {filteredStudents.length} 人
+          </span>
+        </div>
+      );
+    }
+    
+    const parts = [
+      <span key="all" style={linkStyle} onClick={() => setSelectedPath({ type: "all" })} onMouseEnter={e => e.target.style.color = C.primary} onMouseLeave={e => e.target.style.color = C.muted}>📂 所有学生</span>
+    ];
+    
+    if (selectedPath.type === "campus" || selectedPath.type === "grade" || selectedPath.type === "class") {
+      parts.push(<span key="sep1">/</span>);
+      if (selectedPath.type === "campus") {
+        parts.push(<span key="campus" style={activeStyle}>🏢 {selectedPath.campus}校区</span>);
+      } else {
+        parts.push(<span key="campus" style={linkStyle} onClick={() => setSelectedPath({ type: "campus", campus: selectedPath.campus })} onMouseEnter={e => e.target.style.color = C.primary} onMouseLeave={e => e.target.style.color = C.muted}>🏢 {selectedPath.campus}校区</span>);
+      }
+    }
+    
+    if (selectedPath.type === "grade" || selectedPath.type === "class") {
+      parts.push(<span key="sep2">/</span>);
+      if (selectedPath.type === "grade") {
+        parts.push(<span key="grade" style={activeStyle}>📅 {selectedPath.grade}级</span>);
+      } else {
+        parts.push(<span key="grade" style={linkStyle} onClick={() => setSelectedPath({ type: "grade", campus: selectedPath.campus, grade: selectedPath.grade })} onMouseEnter={e => e.target.style.color = C.primary} onMouseLeave={e => e.target.style.color = C.muted}>📅 {selectedPath.grade}级</span>);
+      }
+    }
+    
+    if (selectedPath.type === "class") {
+      parts.push(<span key="sep3">/</span>);
+      parts.push(<span key="class" style={activeStyle}>🏫 {selectedPath.className}班</span>);
+    }
+    
+    return (
+      <div style={breadcrumbStyle}>
+        {parts}
+        <span style={{ marginLeft: "auto", fontSize: 12, background: C.borderLight, color: C.text, padding: "2px 8px", borderRadius: 10, fontWeight: 700 }}>
+          共 {filteredStudents.length} 人
+        </span>
+      </div>
+    );
+  };
+
+  // 左侧分类折叠树节点渲染
+  const renderTreeNodes = () => {
+    const nodeStyle = (isActive) => ({
+      display: "flex",
+      alignItems: "center",
+      gap: 6,
+      padding: "8px 12px",
+      borderRadius: 8,
+      cursor: "pointer",
+      fontSize: 13,
+      fontWeight: isActive ? 700 : 500,
+      color: isActive ? "#fff" : C.text,
+      background: isActive ? C.primary : "transparent",
+      transition: "all 0.15s ease",
+      userSelect: "none"
+    });
+
+    const hoverBg = (e, isActive) => {
+      if (!isActive) e.currentTarget.style.background = C.borderLight;
+    };
+    const leaveBg = (e, isActive) => {
+      if (!isActive) e.currentTarget.style.background = "transparent";
+    };
+
+    const allStudentsCount = students.length;
+    const isAllActive = selectedPath.type === "all";
+
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <div
+          onClick={() => setSelectedPath({ type: "all" })}
+          onMouseEnter={e => hoverBg(e, isAllActive)}
+          onMouseLeave={e => leaveBg(e, isAllActive)}
+          style={nodeStyle(isAllActive)}
+        >
+          <span style={{ fontSize: 15 }}>📂</span>
+          <span style={{ flex: 1 }}>所有学生</span>
+          <span style={{ fontSize: 11, opacity: 0.6, background: isAllActive ? "rgba(255,255,255,0.2)" : C.borderLight, color: isAllActive ? "#fff" : C.text, padding: "2px 6px", borderRadius: 10 }}>{allStudentsCount}</span>
+        </div>
+
+        {studentsTree.map(({ campus, grades }) => {
+          const isCampusExpanded = !!expandedNodes[campus];
+          const isCampusActive = selectedPath.type === "campus" && selectedPath.campus === campus;
+          const campusStudentsCount = students.filter(s => s.campus === campus).length;
+
+          return (
+            <div key={campus} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              <div
+                onClick={() => setSelectedPath({ type: "campus", campus })}
+                onMouseEnter={e => hoverBg(e, isCampusActive)}
+                onMouseLeave={e => leaveBg(e, isCampusActive)}
+                style={{ ...nodeStyle(isCampusActive), paddingLeft: 12 }}
+              >
+                <span 
+                  onClick={(e) => toggleNode(campus, e)} 
+                  style={{ display: "inline-block", width: 14, cursor: "pointer", transform: isCampusExpanded ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.15s ease", fontSize: 9, opacity: 0.5 }}
+                >
+                  ▶
+                </span>
+                <span style={{ fontSize: 15 }}>🏢</span>
+                <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{campus}校区</span>
+                <span style={{ fontSize: 11, opacity: 0.6, background: isCampusActive ? "rgba(255,255,255,0.2)" : C.borderLight, color: isCampusActive ? "#fff" : C.text, padding: "2px 6px", borderRadius: 10 }}>{campusStudentsCount}</span>
+              </div>
+
+              {isCampusExpanded && grades.map(({ grade, classes }) => {
+                const gradeKey = `${campus}-${grade}`;
+                const isGradeExpanded = !!expandedNodes[gradeKey];
+                const isGradeActive = selectedPath.type === "grade" && selectedPath.campus === campus && selectedPath.grade === grade;
+                const gradeStudentsCount = students.filter(s => s.campus === campus && s.grade === grade).length;
+
+                return (
+                  <div key={grade} style={{ display: "flex", flexDirection: "column", gap: 2, marginLeft: 12 }}>
+                    <div
+                      onClick={() => setSelectedPath({ type: "grade", campus, grade })}
+                      onMouseEnter={e => hoverBg(e, isGradeActive)}
+                      onMouseLeave={e => leaveBg(e, isGradeActive)}
+                      style={{ ...nodeStyle(isGradeActive), paddingLeft: 12 }}
+                    >
+                      <span 
+                        onClick={(e) => toggleNode(gradeKey, e)} 
+                        style={{ display: "inline-block", width: 14, cursor: "pointer", transform: isGradeExpanded ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.15s ease", fontSize: 9, opacity: 0.5 }}
+                      >
+                        ▶
+                      </span>
+                      <span style={{ fontSize: 15 }}>📅</span>
+                      <span style={{ flex: 1 }}>{grade}级</span>
+                      <span style={{ fontSize: 11, opacity: 0.6, background: isGradeActive ? "rgba(255,255,255,0.2)" : C.borderLight, color: isGradeActive ? "#fff" : C.text, padding: "2px 6px", borderRadius: 10 }}>{gradeStudentsCount}</span>
+                    </div>
+
+                    {isGradeExpanded && classes.map(className => {
+                      const isClassActive = selectedPath.type === "class" && selectedPath.campus === campus && selectedPath.grade === grade && selectedPath.className === className;
+                      const classStudentsCount = students.filter(s => s.campus === campus && s.grade === grade && s.class_name === className).length;
+
+                      return (
+                        <div
+                          key={className}
+                          onClick={() => setSelectedPath({ type: "class", campus, grade, className })}
+                          onMouseEnter={e => hoverBg(e, isClassActive)}
+                          onMouseLeave={e => leaveBg(e, isClassActive)}
+                          style={{ ...nodeStyle(isClassActive), paddingLeft: 38 }}
+                        >
+                          <span style={{ fontSize: 14 }}>🏫</span>
+                          <span style={{ flex: 1 }}>{className}班</span>
+                          <span style={{ fontSize: 11, opacity: 0.6, background: isClassActive ? "rgba(255,255,255,0.2)" : C.borderLight, color: isClassActive ? "#fff" : C.text, padding: "2px 6px", borderRadius: 10 }}>{classStudentsCount}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  return (
+    <div style={{ height: "100%", display: "flex", flexDirection: "column", background: C.bg, padding: "24px 32px", color: C.text, overflow: "hidden" }}>
+      {/* 顶栏 Header */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexShrink: 0 }}>
+        <div>
+          <h2 style={{ fontSize: 22, fontWeight: 800, color: C.primary, margin: 0 }}>👥 学生与成绩管理看板</h2>
+          <div style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>
+            {syncMeta.loading ? `⏳ ${syncMeta.message}` : `✓ ${syncMeta.message || "已同步云端名单"}`}
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: 12 }}>
+          <button onClick={pullStudents} style={sBtnSm(C.bg, C.text, { border: `1.5px solid ${C.border}` })}>🔄 刷新名单</button>
+          <button onClick={() => { setCycleDraft(challengeCycle); setCycleSettingsOpen(true); }} style={sBtnSm(C.greenLight, C.green, { fontWeight: 700 })}>🗺️ 设置周期任务</button>
+          <button onClick={openWordCountSettings} style={sBtnSm(C.blueLight, C.blue, { fontWeight: 700 })}>📏 设置每次词量</button>
+          <button onClick={() => { setBatchSelectedGroups([]); setBatchAssignOpen(true); }} style={sBtnSm(C.bg, C.text, { border: `1.5px solid ${C.border}`, fontWeight: 700 })}>🎯 按标签批量设置</button>
+          <button onClick={() => setImportOpen(true)} style={sBtnSm(C.primary, "#fff", { fontWeight: 700 })}>📥 导入学生名单</button>
+        </div>
+      </div>
+
+      {/* 主体双栏布局 */}
+      <div style={{ display: "grid", gridTemplateColumns: "260px 1fr", gap: 24, flex: 1, overflow: "hidden" }}>
+        
+        {/* 左侧：分类目录树 */}
+        <div 
+          style={{ 
+            background: C.card, 
+            borderRadius: 16, 
+            border: `1.5px solid ${C.border}`, 
+            padding: "20px 16px", 
+            overflowY: "auto", 
+            boxShadow: "0 8px 30px rgba(0,0,0,0.03)" 
+          }}
+        >
+          <div style={{ fontSize: 13, fontWeight: 700, color: C.muted, marginBottom: 12, paddingLeft: 6 }}>🗂️ 班级分类文件夹</div>
+          {renderTreeNodes()}
+        </div>
+
+        {/* 右侧：学生数据表 */}
+        <div style={{ display: "flex", flexDirection: "column", overflow: "hidden" }}>
+          {renderBreadcrumbs()}
+          
+          <div 
+            style={{ 
+              background: C.card, 
+              borderRadius: 16, 
+              border: `1.5px solid ${C.border}`, 
+              overflowY: "auto", 
+              boxShadow: "0 8px 30px rgba(0,0,0,0.03)",
+              flex: 1
+            }}
+          >
+            <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
+              <thead>
+                <tr style={{ background: C.bg, borderBottom: `1.5px solid ${C.border}`, position: "sticky", top: 0, zIndex: 10 }}>
+                  {["序号", "姓名", "校区", "年级", "班级", "账号 (登录名)", "密码", "等级标签", "关卡分配", "闯关进度", "操作"].map(h => (
+                    <th key={h} style={{ padding: "14px 18px", fontSize: 13, fontWeight: 700, color: C.muted, background: C.bg }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filteredStudents.length > 0 ? (
+                  filteredStudents.map((s, index) => {
+                    const { completedCount, totalStars } = getStudentStats(s);
+                    return (
+                      <tr key={s.id} style={{ borderBottom: `1px solid ${C.borderLight}` }} onMouseEnter={e => e.currentTarget.style.background = C.borderLight} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                        <td style={{ padding: "14px 18px", fontSize: 13, color: C.muted }}>{index + 1}</td>
+                        <td style={{ padding: "14px 18px", fontSize: 14, fontWeight: 700, color: C.text }}>{s.name}</td>
+                        <td style={{ padding: "14px 18px", fontSize: 14, color: C.text }}>{s.campus}</td>
+                        <td style={{ padding: "14px 18px", fontSize: 14, color: C.text }}>{s.grade}级</td>
+                        <td style={{ padding: "14px 18px", fontSize: 14, color: C.text }}>{s.class_name}班</td>
+                        <td style={{ padding: "14px 18px", fontSize: 14, fontFamily: "monospace", fontWeight: 600, color: C.text }}>{s.username}</td>
+                        <td style={{ padding: "14px 18px", fontSize: 14 }}>
+                          {editingStudentId === s.id ? (
+                            <div style={{ display: "flex", gap: 6 }}>
+                              <input
+                                type="text"
+                                value={editPasswordVal}
+                                onChange={e => setEditPasswordVal(e.target.value)}
+                                onKeyDown={e => { if (e.key === "Enter") savePassword(s.id); if (e.key === "Escape") cancelEditPassword(); }}
+                                autoFocus
+                                style={{ padding: "4px 8px", fontSize: 13, border: `1.5px solid ${C.primary}`, borderRadius: 6, outline: "none", width: 90 }}
+                              />
+                              <button onClick={() => savePassword(s.id)} style={sBtnSm(C.primary, "#fff", { padding: "4px 8px", borderRadius: 6 })}>存</button>
+                              <button onClick={cancelEditPassword} style={sBtnSm(C.bg, C.muted, { padding: "4px 8px", border: `1px solid ${C.border}`, borderRadius: 6 })}>x</button>
+                            </div>
+                          ) : (
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <span style={{ color: s.password ? C.text : C.hint, fontStyle: s.password ? "normal" : "italic", fontWeight: s.password ? 600 : 400 }}>
+                                {s.password || "(学生未设密码)"}
+                              </span>
+                              <button onClick={() => startEditPassword(s)} style={{ border: "none", background: "none", cursor: "pointer", color: C.blue, fontSize: 12, padding: "2px 4px" }}>✏️ 修改</button>
+                            </div>
+                          )}
+                        </td>
+                        
+                        {/* 等级标签列 */}
+                        <td style={{ padding: "14px 18px", fontSize: 14 }}>
+                          <select
+                            value={s.tag || ""}
+                            onChange={e => updateStudentTag(s.id, e.target.value)}
+                            style={{
+                              padding: "4px 8px",
+                              fontSize: 13,
+                              border: `1.5px solid ${C.border}`,
+                              borderRadius: 6,
+                              background: s.tag === "A" ? C.primaryLight : s.tag === "B" ? C.blueLight : s.tag === "C" ? C.greenLight : "#fff",
+                              color: s.tag === "A" ? C.primary : s.tag === "B" ? C.blue : s.tag === "C" ? C.green : C.text,
+                              fontWeight: s.tag ? 700 : 400,
+                              outline: "none",
+                              cursor: "pointer"
+                            }}
+                          >
+                            <option value="">(无标签)</option>
+                            <option value="A">A级</option>
+                            <option value="B">B级</option>
+                            <option value="C">C级</option>
+                          </select>
+                        </td>
+                        
+                        {/* 关卡分配列 */}
+                        <td style={{ padding: "14px 18px", fontSize: 13 }}>
+                          <span
+                            onClick={() => setAssignStudentWords(s)}
+                            style={{
+                              color: C.blue,
+                              fontWeight: 600,
+                              cursor: "pointer",
+                              textDecoration: "underline"
+                            }}
+                          >
+                            {Array.isArray(s.assignedGroups) && s.assignedGroups.length > 0 ? `已分配 ${s.assignedGroups.length} 关` : "默认全部 ⚔️"}
+                          </span>
+                        </td>
+
+                        <td style={{ padding: "14px 18px", fontSize: 13 }}>
+                          <span onClick={() => completedCount > 0 && setViewProgressStudent(s)} style={{ color: completedCount > 0 ? C.primary : C.muted, fontWeight: completedCount > 0 ? 700 : 400, cursor: completedCount > 0 ? "pointer" : "default", textDecoration: completedCount > 0 ? "underline" : "none" }}>
+                            已通关 {completedCount} 关 (共 {totalStars} ⭐)
+                          </span>
+                        </td>
+                        <td style={{ padding: "14px 18px" }}>
+                          <button onClick={() => handleDeleteStudent(s.id, s.name)} style={{ border: "none", background: "none", cursor: "pointer", display: "flex", alignItems: "center" }} title="删除学生">
+                            <ITrash size={16} color={C.wrong} />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan="11" style={{ textAlign: "center", padding: "40px", color: C.hint, fontSize: 14 }}>
+                      {students.length === 0 ? "📭 当前分组内还没有学生名单，请点击右上方按钮导入学生 Excel 名单。" : "🔍 该分类下暂无学生。"}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+      <Modal open={importOpen} onClose={() => setImportOpen(false)} title="导入学生名单" wide themeC={C}>
+        <div>
+          <div style={{ background: C.bg, borderRadius: 10, padding: "12px 14px", fontSize: 13, color: C.muted, lineHeight: 1.6, marginBottom: 16 }}>
+            💡 <strong>导入格式指南：</strong><br />
+            请打开包含学生信息的 Excel，<strong>依次复制『 校区、姓名、年级、班级、等级标签（可选填 A/B/C） 』数据</strong>，然后在下方粘贴。<br />
+            每一行代表一位学生（例如：<code>师上  张三  2024  B  A</code> 或 <code>师上  李四  2024  B</code>）。系统会按班级内导入顺序生成账号，格式为 <strong>校区简拼 + 年级 + 班级 + 序号 + 姓名首字母</strong>，如 <code>ss2024b01zs</code>，并自动识别初始等级。
+          </div>
+          
+          <textarea
+            value={pasteText}
+            onChange={e => setPasteText(e.target.value)}
+            placeholder="请在此粘贴 Excel 中的数据..."
+            style={{ width: "100%", height: 160, padding: 12, fontSize: 13, border: `1.5px solid ${C.border}`, borderRadius: 10, outline: "none", background: "#fff", color: "#000", fontFamily: "monospace", resize: "vertical", marginBottom: 14 }}
+          />
+
+          <button onClick={handleParsePaste} style={sBtnSm(C.primaryLight, C.primary, { fontWeight: 800, padding: "8px 16px", marginBottom: 16 })}>⚡ 解析数据并生成账号</button>
+
+          {importDraft.length > 0 && (
+            <div style={{ marginBottom: 18 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 8 }}>解析预览（共 {importDraft.length} 人，账号可手动修正）：</div>
+              <div style={{ maxHeight: 200, overflowY: "auto", border: `1.5px solid ${C.border}`, borderRadius: 10 }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ background: C.bg, borderBottom: `1.5px solid ${C.border}` }}>
+                      {["校区", "姓名", "年级", "班级", "等级", "系统自动生成账号"].map(h => (
+                        <th key={h} style={{ padding: "8px 12px", color: C.muted, textAlign: "left" }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {importDraft.map((item, idx) => (
+                      <tr key={item.id} style={{ borderBottom: `1px solid ${C.borderLight}` }}>
+                        <td style={{ padding: "8px 12px" }}>{item.campus}</td>
+                        <td style={{ padding: "8px 12px", fontWeight: 700 }}>{item.name}</td>
+                        <td style={{ padding: "8px 12px" }}>{item.grade}级</td>
+                        <td style={{ padding: "8px 12px" }}>{item.class_name}班</td>
+                        <td style={{ padding: "8px 12px" }}>{item.tag ? `${item.tag}级` : "无"}</td>
+                        <td style={{ padding: "6px 12px" }}>
+                          <input
+                            type="text"
+                            value={item.username}
+                            onChange={e => handleUpdateDraftUsername(idx, e.target.value)}
+                            style={{ padding: "4px 8px", fontSize: 12, border: `1.5px solid ${C.border}`, borderRadius: 6, width: 140, outline: "none", fontFamily: "monospace" }}
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, borderTop: `1px solid ${C.borderLight}`, paddingTop: 16 }}>
+            <button onClick={() => setImportOpen(false)} style={sBtn(C.bg, C.muted)}>取消</button>
+            {importDraft.length > 0 && (
+              <>
+                <button onClick={() => handleConfirmImport("append")} style={sBtn(C.blueLight, C.blue, { fontWeight: 700 })}>➕ 追加到现有列表</button>
+                <button onClick={() => handleConfirmImport("replace")} style={sBtn(C.primary, "#fff", { fontWeight: 700 })}>🔄 覆盖现有列表</button>
+              </>
+            )}
+          </div>
+        </div>
+      </Modal>
+
+      <Modal open={wordCountSettingsOpen} onClose={() => setWordCountSettingsOpen(false)} title="按学生等级设置每次闯关词量" themeC={C}>
+        <div>
+          <div style={{ background: C.bg, borderRadius: 10, padding: "12px 14px", fontSize: 13, color: C.muted, lineHeight: 1.6, marginBottom: 16 }}>
+            学生会按自己的 A／B／C 等级标签，从教师分配的单词关卡中随机抽取对应数量进行学习和闯关。填 <strong>0</strong> 表示该等级每次完成该关的全部单词。
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+            {["A", "B", "C"].map(tag => (
+              <label key={tag} style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 14, fontWeight: 700, color: C.text }}>
+                {tag} 级学生
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={wordCountDraft?.[tag] ?? 0}
+                  onChange={e => setWordCountDraft(prev => ({ ...prev, [tag]: e.target.value }))}
+                  style={{ width: "100%", padding: "9px 10px", border: `1.5px solid ${C.border}`, borderRadius: 8, fontSize: 16, outline: "none" }}
+                />
+              </label>
+            ))}
+          </div>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, borderTop: `1px solid ${C.borderLight}`, marginTop: 20, paddingTop: 14 }}>
+            <button onClick={() => setWordCountSettingsOpen(false)} style={sBtn(C.bg, C.muted)}>取消</button>
+            <button onClick={saveWordCountSettings} style={sBtn(C.primary, "#fff", { fontWeight: 700 })}>保存设置</button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal open={cycleSettingsOpen} onClose={() => setCycleSettingsOpen(false)} title="周期闯关任务" themeC={C}>
+        <div>
+          <div style={{ background: C.bg, borderRadius: 10, padding: "12px 14px", fontSize: 13, color: C.muted, lineHeight: 1.6, marginBottom: 16 }}>学生可在周期内任意时间完成指定关数，不要求每日登录。每一关从该学生已分配的单词组中抽取。</div>
+          <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 12 }}>任务名称<input value={cycleDraft?.name || ""} onChange={e => setCycleDraft(prev => ({ ...prev, name: e.target.value }))} placeholder="例如：第 3 周词汇闯关" style={{ width: "100%", marginTop: 7, padding: "9px 10px", border: `1.5px solid ${C.border}`, borderRadius: 8, fontSize: 14 }} /></label>
+          <label style={{ display: "block", fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 14 }}>本周期目标关数<input type="number" min="1" step="1" value={cycleDraft?.targetLevels || ""} onChange={e => setCycleDraft(prev => ({ ...prev, targetLevels: e.target.value }))} placeholder="例如：6" style={{ width: "100%", marginTop: 7, padding: "9px 10px", border: `1.5px solid ${C.border}`, borderRadius: 8, fontSize: 14 }} /></label>
+          <label style={{ display: "flex", gap: 8, fontSize: 14, color: C.text }}><input type="checkbox" checked={!!cycleDraft?.active} onChange={e => setCycleDraft(prev => ({ ...prev, active: e.target.checked }))} />启用并显示给学生</label>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, borderTop: `1px solid ${C.borderLight}`, marginTop: 20, paddingTop: 14 }}><button onClick={() => setCycleSettingsOpen(false)} style={sBtn(C.bg, C.muted)}>取消</button><button onClick={saveCycleSettings} style={sBtn(C.primary, "#fff", { fontWeight: 700 })}>发布任务</button></div>
+        </div>
+      </Modal>
+
+      {/* 学生进度明细 Modal */}
+      {viewProgressStudent && (
+        <Modal open={!!viewProgressStudent} onClose={() => setViewProgressStudent(null)} title={`${viewProgressStudent.name} 学生的闯关详情`} themeC={C}>
+          <div>
+            <div style={{ background: C.bg, padding: "10px 14px", borderRadius: 10, fontSize: 13, color: C.muted, marginBottom: 16 }}>
+              账号：<strong style={{ fontFamily: "monospace", color: C.text }}>{viewProgressStudent.username}</strong><br />
+              班级：{viewProgressStudent.campus} {viewProgressStudent.grade}级 {viewProgressStudent.class_name}班
+            </div>
+            <div style={{ maxHeight: 300, overflowY: "auto" }}>
+              {Object.keys(viewProgressStudent.progress || {}).length > 0 ? (
+                Object.entries(viewProgressStudent.progress).map(([groupKey, data]) => {
+                  const matchingGroup = groups.find(g => g.id === groupKey || g.name === groupKey);
+                  const gName = matchingGroup ? matchingGroup.name : groupKey;
+                  return (
+                    <div key={groupKey} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", borderBottom: `1px solid ${C.borderLight}` }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{gName}</span>
+                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        <span style={{ color: "#E8A040", fontSize: 14 }}>{"⭐".repeat(data.stars || 0)}</span>
+                        <span style={{ fontSize: 12, color: C.muted }}>得分: {data.score || 0}</span>
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div style={{ color: C.hint, textAlign: "center", padding: 20 }}>暂无通关记录</div>
+              )}
+            </div>
+            <div style={{ textAlign: "right", marginTop: 20, borderTop: `1px solid ${C.borderLight}`, paddingTop: 14 }}>
+              <button onClick={() => setViewProgressStudent(null)} style={sBtn(C.primary, "#fff")}>确定</button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* 单人分配关卡 Modal */}
+      {assignStudentWords && (
+        <Modal
+          open={!!assignStudentWords}
+          onClose={() => setAssignStudentWords(null)}
+          title={`分配闯关卡 - ${assignStudentWords.name}`}
+          themeC={C}
+        >
+          <div>
+            <div style={{ fontSize: 13, color: C.muted, marginBottom: 16, lineHeight: 1.5 }}>
+              勾选当前学生可以挑战的单词组关卡。未勾选的关卡将在学生端隐去。若全部取消勾选，则默认学生可以挑战所有关卡。
+            </div>
+            
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, maxHeight: 260, overflowY: "auto", border: `1.5px solid ${C.border}`, borderRadius: 10, padding: 12, marginBottom: 18 }}>
+              {groups.length > 0 ? (
+                groups.map(g => {
+                  const key = g.id || g.name;
+                  const isChecked = Array.isArray(assignStudentWords.assignedGroups)
+                    ? assignStudentWords.assignedGroups.includes(key)
+                    : false;
+                  return (
+                    <label key={key} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, cursor: "pointer", userSelect: "none" }}>
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={e => handleToggleStudentWordGroup(assignStudentWords.id, key, e.target.checked)}
+                        style={{ cursor: "pointer", width: 16, height: 16 }}
+                      />
+                      <strong>{g.name}</strong>
+                      <span style={{ fontSize: 12, color: C.muted }}>({(g.words || []).length} 个单词)</span>
+                    </label>
+                  );
+                })
+              ) : (
+                <div style={{ color: C.hint, textAlign: "center", padding: 10, fontSize: 13 }}>暂无单词关卡</div>
+              )}
+            </div>
+            
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, borderTop: `1px solid ${C.borderLight}`, paddingTop: 14 }}>
+              <button onClick={() => setAssignStudentWords(null)} style={sBtn(C.primary, "#fff")}>确定</button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* 按等级标签批量分配关卡 Modal */}
+      {batchAssignOpen && (
+        <Modal
+          open={batchAssignOpen}
+          onClose={() => setBatchAssignOpen(false)}
+          title="🎯 按等级标签批量分配关卡"
+          themeC={C}
+        >
+          <div>
+            <div style={{ marginBottom: 16 }}>
+              <label style={sLabel}>选择学生等级标签</label>
+              <select
+                value={batchTargetTag}
+                onChange={e => setBatchTargetTag(e.target.value)}
+                style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: `1.5px solid ${C.border}`, fontSize: 14, outline: "none", cursor: "pointer" }}
+              >
+                <option value="A">A级学生</option>
+                <option value="B">B级学生</option>
+                <option value="C">C级学生</option>
+              </select>
+            </div>
+            
+            <div style={{ marginBottom: 16 }}>
+              <label style={sLabel}>选择允许挑战的关卡</label>
+              <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>
+                选中的关卡将一键覆盖应用到所有属于该等级的学生身上。
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10, maxHeight: 220, overflowY: "auto", border: `1.5px solid ${C.border}`, borderRadius: 10, padding: 12 }}>
+                {groups.length > 0 ? (
+                  groups.map(g => {
+                    const key = g.id || g.name;
+                    const isChecked = batchSelectedGroups.includes(key);
+                    return (
+                      <label key={key} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, cursor: "pointer", userSelect: "none" }}>
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={e => {
+                            if (e.target.checked) {
+                              setBatchSelectedGroups(prev => [...prev, key]);
+                            } else {
+                              setBatchSelectedGroups(prev => prev.filter(x => x !== key));
+                            }
+                          }}
+                          style={{ cursor: "pointer", width: 16, height: 16 }}
+                        />
+                        <strong>{g.name}</strong>
+                        <span style={{ fontSize: 12, color: C.muted }}>({(g.words || []).length} 个单词)</span>
+                      </label>
+                    );
+                  })
+                ) : (
+                  <div style={{ color: C.hint, textAlign: "center", padding: 10, fontSize: 13 }}>暂无单词关卡</div>
+                )}
+              </div>
+            </div>
+            
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, borderTop: `1px solid ${C.borderLight}`, paddingTop: 14 }}>
+              <button onClick={() => setBatchAssignOpen(false)} style={sBtn(C.bg, C.muted)}>取消</button>
+              <button onClick={handleApplyBatchAssign} style={sBtn(C.primary, "#fff", { fontWeight: 700 })}>确认批量应用</button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
 /* ===== MAIN APP ===== */
 function App() {
   const [groups, setGroups] = useState([]);
+  const [students, setStudents] = useState([]);
+  const [challengeWordCounts, setChallengeWordCounts] = useState({ A: 0, B: 0, C: 0 });
+  const [challengeCycle, setChallengeCycle] = useState({ id: "", name: "", targetLevels: 0, active: false });
+  const [studentsSyncMeta, setStudentsSyncMeta] = useState({ loading: false, status: "synced", message: "", error: "" });
+  const [groupId, setGroupId] = useState(() => parseGroupIdFromUrl());
+  const studentSyncTimerRef = useRef(null);
+  const studentSyncQueuedRef = useRef(null);
+  const studentSyncInFlightRef = useRef(false);
+
+  const flushQueuedStudentSync = useCallback(async () => {
+    if (studentSyncInFlightRef.current) return;
+    const queued = studentSyncQueuedRef.current;
+    if (!queued) return;
+    studentSyncQueuedRef.current = null;
+    studentSyncInFlightRef.current = true;
+    setStudentsSyncMeta(prev => ({ ...prev, loading: true, status: "syncing", message: "正在后台同步学生名单...", error: "" }));
+    try {
+      await pushToCloud(queued.studentsGroupId, queued.payload, { syncType: "students" });
+      setStudentsSyncMeta(prev => studentSyncQueuedRef.current
+        ? { ...prev, loading: false, status: "dirty", message: "学生名单已更新，正在继续同步...", error: "" }
+        : { ...prev, loading: false, status: "synced", message: "同步完成", error: "" }
+      );
+    } catch (err) {
+      setStudentsSyncMeta({ loading: false, status: "error", message: "同步失败: " + err.message, error: err.message });
+    } finally {
+      studentSyncInFlightRef.current = false;
+      if (studentSyncQueuedRef.current) {
+        if (studentSyncTimerRef.current) clearTimeout(studentSyncTimerRef.current);
+        studentSyncTimerRef.current = setTimeout(() => {
+          flushQueuedStudentSync().catch(() => {});
+        }, 150);
+      }
+    }
+  }, []);
+  
+  const pullStudentsList = useCallback(async () => {
+    const activeGroupId = groupIdRef.current || groupId;
+    const studentsGroupId = sanitizeGroupId(activeGroupId);
+    setStudentsSyncMeta(prev => ({ ...prev, loading: true, status: "loading", message: "正在拉取学生名单..." }));
+    try {
+      const payload = await pullFromCloud(studentsGroupId);
+      const hasStudentList = payload && typeof payload === "object" && Array.isArray(payload.students);
+      const list = extractStudentsList(payload);
+      const localCache = storage.load(activeGroupId) || {};
+      const cachedStudents = Array.isArray(localCache.students) ? localCache.students : [];
+      const backup = storage.loadStudentBackup(activeGroupId);
+      const fallbackStudents = cachedStudents.length ? cachedStudents : (backup?.students || []);
+
+      if ((!hasStudentList || !list.length) && fallbackStudents.length) {
+        setStudents(fallbackStudents);
+        if (backup?.challengeSettings?.wordCountByTag) {
+          setChallengeWordCounts(backup.challengeSettings.wordCountByTag);
+        }
+        // 云端空名单而本地仍有备份时，恢复到云端，避免刷新后只能在本机看到学生。
+        const restoredPayload = {
+          group_id: studentsGroupId,
+          last_updated: Date.now(),
+          synced_at: Date.now(),
+          students: fallbackStudents,
+          challengeSettings: backup?.challengeSettings || payload?.challengeSettings || {}
+        };
+        setStudentsSyncMeta({ loading: true, status: "syncing", message: "已从本地备份恢复学生名单，正在写回云端...", error: "" });
+        pushToCloud(studentsGroupId, restoredPayload, { syncType: "students" }).then(() => {
+          setStudentsSyncMeta({ loading: false, status: "synced", message: `已恢复并同步 ${fallbackStudents.length} 名学生`, error: "" });
+        }).catch(err => {
+          setStudentsSyncMeta({ loading: false, status: "error", message: "本地名单已保留，恢复云端失败: " + err.message, error: err.message });
+        });
+        return;
+      }
+      if (!hasStudentList) {
+        setStudentsSyncMeta({ loading: false, status: "error", message: "云端返回的不是学生名单，且本机没有可恢复的备份。", error: "学生云端响应无效" });
+        return;
+      }
+      setStudents(list);
+      const savedCounts = payload?.challengeSettings?.wordCountByTag || {};
+      setChallengeWordCounts(["A", "B", "C"].reduce((result, tag) => {
+        const value = Math.floor(Number(savedCounts[tag]));
+        result[tag] = Number.isFinite(value) && value > 0 ? value : 0;
+        return result;
+      }, {}));
+      const savedCycle = payload?.challengeSettings?.cycle || {};
+      setChallengeCycle({ id: String(savedCycle.id || ""), name: String(savedCycle.name || ""), targetLevels: Math.max(0, Math.floor(Number(savedCycle.targetLevels) || 0)), active: !!savedCycle.active });
+      // 同步合并学生名单到本地缓存，防止退出紧急保存时数据丢失
+      try {
+        const mergedCache = normalizeSyncPayload({ ...localCache, students: list }, activeGroupId);
+        storage.save(activeGroupId, mergedCache);
+        storage.saveStudentBackup(activeGroupId, list, payload?.challengeSettings || {});
+      } catch(e){}
+      setStudentsSyncMeta({ loading: false, status: "synced", message: `同步成功，共 ${list.length} 名学生`, error: "" });
+    } catch (err) {
+      setStudentsSyncMeta({ loading: false, status: "error", message: "拉取学生名单失败: " + err.message, error: err.message });
+    }
+  }, [groupId]);
+
+  const pushStudentsList = useCallback((newList, wordCounts = challengeWordCounts, options = {}) => {
+    const activeGroupId = groupIdRef.current || groupId;
+    const studentsGroupId = sanitizeGroupId(activeGroupId);
+    try {
+      const localCache = storage.load(activeGroupId) || {};
+      const backup = storage.loadStudentBackup(activeGroupId);
+      const protectedStudents = Array.isArray(localCache.students) && localCache.students.length ? localCache.students : (backup?.students || []);
+      if (!options.allowEmpty && (!Array.isArray(newList) || !newList.length) && protectedStudents.length) {
+        throw new Error("检测到空名单，已阻止覆盖云端。");
+      }
+      const payload = {
+        group_id: studentsGroupId,
+        last_updated: Date.now(),
+        synced_at: Date.now(),
+        students: newList,
+        challengeSettings: { wordCountByTag: wordCounts, cycle: options.cycle || challengeCycle },
+        // 清空全班名单是明确的管理操作；没有此标志的空数组会被后端拒绝。
+        allow_empty: options.allowEmpty === true
+      };
+      // 先更新画面与本地备份；标签、分配等轻量操作无需等待整份名单的网络往返。
+      setStudents(newList);
+      const mergedCache = normalizeSyncPayload({ ...localCache, students: newList }, activeGroupId);
+      storage.save(activeGroupId, mergedCache);
+      if (newList.length) {
+        storage.saveStudentBackup(activeGroupId, newList, payload.challengeSettings);
+      } else if (options.allowEmpty) {
+        storage.clearStudentBackup(activeGroupId);
+      }
+      studentSyncQueuedRef.current = { studentsGroupId, payload };
+      if (studentSyncTimerRef.current) clearTimeout(studentSyncTimerRef.current);
+      setStudentsSyncMeta({ loading: false, status: "dirty", message: "已保存，正在准备同步...", error: "" });
+      studentSyncTimerRef.current = setTimeout(() => {
+        flushQueuedStudentSync().catch(() => {});
+      }, 350);
+    } catch (err) {
+      setStudentsSyncMeta({ loading: false, status: "error", message: "同步失败: " + err.message, error: err.message });
+      window.alert("同步学生列表失败，请重试：" + err.message);
+    }
+  }, [groupId, challengeWordCounts, challengeCycle, flushQueuedStudentSync]);
+
+  const saveChallengeWordCounts = useCallback(async (nextCounts) => {
+    setChallengeWordCounts(nextCounts);
+    await pushStudentsList(students, nextCounts);
+  }, [students, pushStudentsList]);
+
+  const saveChallengeCycle = useCallback(async (nextCycle) => {
+    setChallengeCycle(nextCycle);
+    await pushStudentsList(students, challengeWordCounts, { cycle: nextCycle });
+  }, [students, challengeWordCounts, pushStudentsList]);
+
   const [categories, setCategories] = useState(DEFAULT_WORD_SET_CATEGORIES);
   const [tombstones, setTombstones] = useState({ groups: {}, words: {} });
   const [curGid, setCurGid] = useState(null);
-  const [groupId, setGroupId] = useState(() => parseGroupIdFromUrl());
   const [mode, setMode] = useState("edit");
   const [teachChalkboardMode, setTeachChalkboardMode] = useState(true);
   const [ready, setReady] = useState(false);
@@ -3357,7 +4419,7 @@ function App() {
         return pushed;
       }
       const syncedAt = Number(pushed.last_updated || payloadToPush.last_updated || Date.now());
-      const finalPayload = normalizeSyncPayload({ group_id: activeGroupId, last_updated: payloadToPush.last_updated || syncedAt, synced_at: syncedAt, categories: payloadToPush.categories, groups: cloneGroups(payloadToPush.groups), tombstones: payloadToPush.tombstones }, activeGroupId);
+      const finalPayload = normalizeSyncPayload({ group_id: activeGroupId, last_updated: payloadToPush.last_updated || syncedAt, synced_at: syncedAt, categories: payloadToPush.categories, groups: cloneGroups(payloadToPush.groups), tombstones: payloadToPush.tombstones, students: extractStudentsList(pushed).length ? extractStudentsList(pushed) : extractStudentsList(payloadToPush) }, activeGroupId);
       persistSyncPayload(activeGroupId, finalPayload);
       suppressAutoSyncRef.current = true;
       setGroups(finalPayload.groups);
@@ -3439,10 +4501,9 @@ function App() {
     }, delay);
   }, [syncNow]);
   const syncBeforeLeaving = useCallback(() => {
-    const activeGroupId = sanitizeGroupId(groupIdRef.current);
-    const localPayload = storage.load(activeGroupId);
-    if (!hasUnsyncedLocalChanges(localPayload)) return;
-    sendFinalSyncToCloud(activeGroupId, localPayload);
+    // [安全修复] 页面关闭时不再推送云端。
+    // 本地数据已由 useEffect 实时保存到 localStorage，
+    // 下次打开页面时 backgroundRevalidate 会检测到 last_updated > synced_at 并自动同步。
   }, []);
 
   useEffect(() => {
@@ -3506,26 +4567,12 @@ function App() {
         });
       } catch (error) {
         if (cancelled) return;
-        const fallbackGroups = cloneGroups(DEMO);
-        const normalized = normalizeSyncPayload({ group_id: resolvedGroupId, last_updated: Date.now(), synced_at: Date.now(), groups: fallbackGroups }, resolvedGroupId);
-        storage.save(resolvedGroupId, normalized);
-        suppressAutoSyncRef.current = true;
-        lastSyncRef.current = normalized.synced_at || normalized.last_updated;
-        setGroups(normalized.groups);
-        setCategories(normalized.categories);
-        setTombstones(normalized.tombstones);
-        
-        const savedLastGid = localStorage.getItem("classtango_last_uploaded_" + resolvedGroupId);
-        const hasSavedGroup = savedLastGid && fallbackGroups.some(g => g.id === savedLastGid);
-        setCurGid(hasSavedGroup ? savedLastGid : (fallbackGroups[0]?.id || null));
-        
-        setReady(true);
         setSyncMeta({
           loading:false,
           status:"error",
-          message:`初始化失败，已切换到示例数据：${error?.message || "请检查网络后重试"}`,
-          lastSyncedAt: normalized.synced_at || normalized.last_updated,
-          error:error?.message || "初始化失败",
+          message:`读取数据失败：${error?.message || "请检查网络后重试"}`,
+          lastSyncedAt: lastSyncRef.current,
+          error:error?.message || "同步失败",
         });
       }
     };
@@ -3550,14 +4597,25 @@ function App() {
     if (!isHydratedWrite && !isDataReallyChangedRef.current) {
       return;
     }
-    const payload = normalizeSyncPayload({
+    // 读取本地已有缓存，防止覆盖学生名单
+    let existingStudents = [];
+    try {
+      const localCache = storage.load(activeGroupId);
+      existingStudents = localCache?.students || [];
+    } catch(e){}
+
+    const payloadSource = {
       group_id: activeGroupId,
       last_updated: isHydratedWrite ? (lastSyncRef.current || Date.now()) : Date.now(),
       synced_at: isHydratedWrite ? (lastSyncRef.current || Date.now()) : Number(lastSyncRef.current || Date.now()),
       categories,
       groups,
-      tombstones,
-    }, activeGroupId);
+      tombstones
+    };
+    const studentsToPreserve = students.length > 0 ? students : existingStudents;
+    // 单词同步并不拥有学生名单；未知或尚未加载时不构造 students: []。
+    if (studentsToPreserve.length) payloadSource.students = studentsToPreserve;
+    const payload = normalizeSyncPayload(payloadSource, activeGroupId);
     persistSyncPayload(activeGroupId, payload);
     if (suppressAutoSyncRef.current) {
       suppressAutoSyncRef.current = false;
@@ -3687,6 +4745,7 @@ function App() {
     { key:"edit", label:"📝 编辑", color:C.primary },
     { key:"teach", label:"📖 授课", color:C.primary },
     { key:"practice", label:"🎯 练习", color:C.primary },
+    { key:"students", label:"👥 学生", color:C.primary },
   ];
   const appC = teachChalkboardMode ? TEACH_CHALK : C;
   const handleBottomModeClick = (key) => {
@@ -3696,6 +4755,9 @@ function App() {
     }
     setShowTeachGroupPopover(false);
     setMode(key);
+    if (key === "students") {
+      pullStudentsList();
+    }
   };
 
   const renderPaintToolbar = () => {
@@ -4692,7 +5754,7 @@ function App() {
                   <span>🌐 云端词库同步看板</span>
                 </div>
                 <div style={{ fontSize: 11, color: appC.muted, lineHeight: 1.6, display: "flex", flexDirection: "column", gap: 4 }}>
-                  <div>组 ID：<span style={{ fontFamily: "monospace", color: appC.text }}>{groupId}</span></div>
+                  <div>云端房间：<span style={{ fontFamily: "monospace", color: appC.text, fontWeight: 700 }}>{groupId}</span></div>
                   <div>当前词组：<span style={{ color: appC.text, fontWeight: 600 }}>{currentWordGroup?.name || "未选择"}</span></div>
                   <div>状态：<span style={{
                     color: syncMeta.loading ? appC.blue : (syncMeta.status === "error" ? appC.wrong : syncMeta.status === "dirty" ? "#E8A040" : appC.green),
@@ -4755,6 +5817,7 @@ function App() {
           onTeachStateChange={setTeachState}
         />}
         {mode === "practice" && <PracticeMode groups={groups} gid={curGid} chalkboardMode={teachChalkboardMode} onPracticeStateChange={setPracticeState}/>}
+        {mode === "students" && <StudentsMode students={students} setStudents={setStudents} pushStudents={pushStudentsList} pullStudents={pullStudentsList} syncMeta={studentsSyncMeta} groups={groups} challengeWordCounts={challengeWordCounts} saveChallengeWordCounts={saveChallengeWordCounts} challengeCycle={challengeCycle} saveChallengeCycle={saveChallengeCycle} themeC={appC} />}
       </div>
 
       {renderBottombar()}
