@@ -1,0 +1,2830 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>ClassTango - 单词闯关挑战</title>
+    <!-- Google Fonts 日文字体 -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;800&family=Noto+Serif+JP:wght@600;700&display=swap" rel="stylesheet">
+    <!-- React CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/17.0.2/umd/react.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/17.0.2/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.24.7/babel.min.js"></script>
+    
+    <style>
+        :root {
+            --bg: #F7F3ED;
+            --card: #FFFFFF;
+            --primary: #C8402D;
+            --primary-light: #FFF0ED;
+            --primary-hover: #B5351F;
+            --green: #2D8E5A;
+            --green-light: #EDFAF2;
+            --blue: #3B6BA5;
+            --blue-light: #EDF4FF;
+            --text: #1E1E1E;
+            --muted: #7A7670;
+            --border: #E6DED3;
+            --border-light: #F0EBE3;
+            --wrong: #D14343;
+            --correct: #2D8E5A;
+            --accent-gold: #D48806;
+            --accent-gold-bg: #FFFBE6;
+        }
+        
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%;
+            background: #EDE8E1;
+            font-family: 'PingFang SC', 'Microsoft YaHei', 'Noto Sans JP', sans-serif;
+            color: var(--text);
+            overflow: hidden;
+        }
+
+        /* 现代手机竖屏 App 响应式容器（手机满屏，电脑和平板自动居中） */
+        #app-wrapper {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #E8E2D8;
+        }
+
+        #app-container {
+            width: 100%;
+            max-width: 480px;
+            height: 100%;
+            background: var(--bg);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 0 35px rgba(0, 0, 0, 0.08);
+        }
+
+        @media (max-width: 480px) {
+            #app-container {
+                max-width: 100%;
+                box-shadow: none;
+            }
+        }
+        
+        .fade-in { animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        
+
+
+        /* 洒落七彩纸屑 */
+        .confetti { position: fixed; width: 8px; height: 8px; z-index: 999; pointer-events: none; animation: fall linear forwards; }
+        @keyframes fall { to { transform: translateY(100vh) rotate(720deg); opacity: 0; } }
+        
+        /* 选项按钮（自适应触控） */
+        .opt-btn {
+            background: #fff;
+            border: 1.5px solid var(--border);
+            padding: 13px 12px;
+            border-radius: 14px;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.15s;
+            color: var(--text);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 48px;
+        }
+        .opt-btn:active { transform: scale(0.97); }
+        .opt-btn.correct { background: var(--green-light) !important; color: var(--green) !important; border-color: var(--green) !important; }
+        .opt-btn.wrong { background: #FDF2F2 !important; color: var(--wrong) !important; border-color: var(--wrong) !important; }
+        
+        /* 假名拼写按键（立体高质感大触控键） */
+        .kana-block {
+            background: #fff;
+            border: 1.5px solid #CBD5E1;
+            border-radius: 14px;
+            font-size: 24px;
+            font-weight: 800;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 4px 0 #CBD5E1;
+            height: 54px;
+            width: 100%;
+            min-width: 48px;
+            max-width: 64px;
+            color: var(--text);
+            transition: all 0.08s ease;
+            user-select: none;
+        }
+        .kana-block:active {
+            transform: translateY(3px);
+            box-shadow: 0 1px 0 #CBD5E1;
+            background: #F8FAFC;
+        }
+        
+        /* 拟物立体拼写卡槽（Slot Box） */
+        .furi-char {
+            width: 48px;
+            height: 56px;
+            background: #F8FAFC;
+            border: 2px dashed #CBD5E1;
+            border-radius: 14px;
+            font-size: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 900;
+            color: var(--text);
+            margin: 0 4px;
+            transition: all 0.15s ease;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.03);
+            user-select: none;
+        }
+        .furi-char.filled {
+            background: #fff;
+            border: 2px solid #2563EB;
+            color: #2563EB;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.18);
+            cursor: pointer;
+            animation: slotPop 0.18s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        @keyframes slotPop {
+            0% { transform: scale(0.7); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        /* 吉祥物颜表情区域 */
+        .mascot-wrap { display: flex; align-items: center; justify-content: center; gap: 10px; min-height: 38px; }
+        .mascot-message { background: #FFF7C9; border: 1.5px solid #EEE6BE; border-radius: 999px; padding: 6px 14px; color: #6B5A45; font-family: 'Noto Serif JP', serif; font-size: 13px; font-weight: 700; box-shadow: 0 2px 5px rgba(90,70,40,0.05); }
+        .mascot-face { color: #5C5148; font-family: 'Noto Sans JP', sans-serif; font-size: 24px; font-weight: 800; letter-spacing: 1px; transition: transform 0.2s ease; }
+        .mascot-wrap.cheer .mascot-face { animation: mascotPop 0.45s ease; }
+        @keyframes mascotPop { 50% { transform: scale(1.16) rotate(-3deg); } }
+
+        /* 遮罩交互样式 */
+        .maskable-box {
+            position: relative;
+            cursor: pointer;
+            border-radius: 12px;
+            transition: all 0.2s ease;
+            overflow: hidden;
+        }
+        .maskable-box:hover {
+            filter: brightness(0.98);
+        }
+        .mask-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(240, 235, 227, 0.95);
+            backdrop-filter: blur(4px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--muted);
+            font-size: 12px;
+            font-weight: 700;
+            border: 1.5px dashed var(--border);
+            border-radius: 12px;
+            z-index: 10;
+        }
+
+        /* 缩略图总览卡片 */
+        .summary-card {
+            background: #fff;
+            border: 1.5px solid var(--border);
+            border-radius: 14px;
+            padding: 12px;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+            transition: transform 0.15s, border-color 0.15s;
+        }
+        .summary-card:active {
+            transform: scale(0.98);
+        }
+        .summary-card.active-border {
+            border-color: var(--primary);
+        }
+
+        /* 答错即时对比弹层 */
+        .error-compare-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.45);
+            backdrop-filter: blur(3px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            z-index: 1000;
+            animation: fadeIn 0.2s ease;
+        }
+        .error-compare-card {
+            background: #fff;
+            width: 100%;
+            max-width: 360px;
+            border-radius: 20px;
+            padding: 20px;
+            box-shadow: 0 12px 36px rgba(0,0,0,0.25);
+            border: 2px solid var(--wrong);
+            text-align: center;
+        }
+
+        /* 滚动条美化 */
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-thumb { background: #D9D2C7; border-radius: 4px; }
+    </style>
+</head>
+<body id="main-body">
+<div id="app-wrapper">
+    <div id="app-container">
+        <div id="root" style="height: 100%; width: 100%;"></div>
+    </div>
+</div>
+
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback } = React;
+
+/* ===== Web Audio 合成音效 ===== */
+let audioCtx = null;
+function playTone(f, t, d, isMuted = false) {
+  if (isMuted) return;
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === "suspended") audioCtx.resume();
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = t;
+    o.frequency.setValueAtTime(f, audioCtx.currentTime);
+    g.gain.setValueAtTime(0.08, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + d);
+    o.connect(g);
+    g.connect(audioCtx.destination);
+    o.start();
+    o.stop(audioCtx.currentTime + d);
+  } catch(e){}
+}
+
+/* ===== 洒落金粉彩纸动画 ===== */
+function fireConfetti() {
+  const colors = ['#ff9aa2', '#ffb7b2', '#ffdac1', '#e2f0cb', '#b5ead7', '#ff5252', '#ffd700'];
+  for (let i = 0; i < 35; i++) { 
+    const el = document.createElement('div');
+    el.className = 'confetti';
+    el.style.left = Math.random() * 100 + 'vw';
+    el.style.top = '-10px';
+    el.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+    el.style.animationDuration = (Math.random() * 0.6 + 0.4) + 's';
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 1000);
+  }
+}
+
+/* ===== 常用假名与混淆常量 ===== */
+const HIRAGANA_FULL = "あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをんがぎぐげござじずぜぞだぢづでどばびぶべぼぱぴぷぺぽっょゅゃ";
+const KATAKANA_FULL = "アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲンガギグゲゴザジズゼゾダヂヅデドバビブベボパピプペポッョュャー";
+const KANA_FULL = HIRAGANA_FULL;
+
+/* ===== 智能假名读音混淆生成算法 ===== */
+function generateSmartKanaOptions(correctKana, allKanaList = []) {
+  if (!correctKana) return ["あ", "い", "う", "え"];
+  const options = new Set([correctKana]);
+  
+  // 1. 尝试促音混淆（添加或移除促音「っ」）
+  if (correctKana.includes("っ")) {
+    options.add(correctKana.replace(/っ/g, ""));
+  } else if (correctKana.length >= 3) {
+    options.add(correctKana.slice(0, 1) + "っ" + correctKana.slice(1));
+  }
+
+  // 2. 尝试长音混淆（添加或移除长音）
+  if (/[うおいえあー]/.test(correctKana) && correctKana.length >= 3) {
+    options.add(correctKana.slice(0, -1));
+  } else {
+    options.add(correctKana + "う");
+  }
+
+  // 3. 浊音/清音/半浊音混淆
+  const dakuonMap = {
+    'か':'が','が':'か','き':'ぎ','ぎ':'き','く':'ぐ','ぐ':'く','け':'げ','げ':'け','こ':'ご','ご':'こ',
+    'さ':'ざ','ざ':'さ','し':'じ','じ':'し','す':'ず','ず':'す','せ':'ぜ','ぜ':'せ','そ':'ぞ','ぞ':'そ',
+    'た':'だ','だ':'た','ち':'ぢ','ぢ':'ち','つ':'づ','づ':'つ','て':'で','der':'て','と':'ど','ど':'と',
+    'は':'ば','ば':'ぱ','ぱ':'は','ひ':'び','び':'ぴ','ぴ':'ひ','ふ':'ぶ','ぶ':'ぷ','ぷ':'ふ',
+    'へ':'べ','べ':'ぺ','ぺ':'へ','ほ':'ぼ','ぼ':'ぽ','ぽ':'ほ'
+  };
+  for (let i = 0; i < correctKana.length; i++) {
+    const char = correctKana[i];
+    if (dakuonMap[char]) {
+      const swapped = correctKana.slice(0, i) + dakuonMap[char] + correctKana.slice(i + 1);
+      options.add(swapped);
+      if (options.size >= 4) break;
+    }
+  }
+
+  // 4. 从当前组其他真实单词假名中补充
+  if (Array.isArray(allKanaList)) {
+    const shuffledKana = [...allKanaList].sort(() => Math.random() - 0.5);
+    for (const kana of shuffledKana) {
+      if (kana && kana !== correctKana) {
+        options.add(kana);
+      }
+      if (options.size >= 4) break;
+    }
+  }
+
+  // 5. 保底生成（形近假名替换）
+  while (options.size < 4) {
+    const idx = Math.floor(Math.random() * correctKana.length);
+    const randChar = KANA_FULL[Math.floor(Math.random() * KANA_FULL.length)];
+    const fake = correctKana.slice(0, idx) + randChar + correctKana.slice(idx + 1);
+    if (fake !== correctKana) options.add(fake);
+  }
+
+  return Array.from(options).slice(0, 4).sort(() => Math.random() - 0.5);
+}
+
+/* ===== 智能中文释义图文混淆生成算法（严格局限于本轮学习单词集） ===== */
+function generateSmartMeaningOptions(correctWord, currentRoundWords = []) {
+  if (!correctWord) return [];
+  const correctMeaning = typeof correctWord === "object" ? correctWord.meaning : correctWord;
+  const correctImg = typeof correctWord === "object" ? correctWord.imageUrl : null;
+  
+  const map = new Map();
+  map.set(correctMeaning, {
+    meaning: correctMeaning,
+    imageUrl: correctImg || null,
+    id: (typeof correctWord === "object" ? correctWord.id : null) || correctMeaning
+  });
+  
+  // 1. 严格只从本轮学习单词集（studyWords）中提取混淆项
+  const otherRoundWords = (currentRoundWords || [])
+    .filter(w => w && w.meaning && w.meaning !== correctMeaning)
+    .sort(() => Math.random() - 0.5);
+  
+  for (const w of otherRoundWords) {
+    if (!map.has(w.meaning)) {
+      map.set(w.meaning, {
+        meaning: w.meaning,
+        imageUrl: w.imageUrl || null,
+        id: w.id || w.meaning
+      });
+    }
+    if (map.size >= 4) break;
+  }
+
+  // 2. 仅当本轮学习单词总数极少（不足4个）时保底补充
+  if (map.size < 4) {
+    const fallbackList = [
+      { meaning: "水", imageUrl: null },
+      { meaning: "时间", imageUrl: null },
+      { meaning: "朋友", imageUrl: null },
+      { meaning: "天气", imageUrl: null }
+    ];
+    for (const f of fallbackList) {
+      if (!map.has(f.meaning)) {
+        map.set(f.meaning, {
+          meaning: f.meaning,
+          imageUrl: f.imageUrl,
+          id: f.meaning
+        });
+      }
+      if (map.size >= 4) break;
+    }
+  }
+
+  return Array.from(map.values()).slice(0, 4).sort(() => Math.random() - 0.5);
+}
+
+/* ===== 学生进度本地强缓存与双向智能合并机制 ===== */
+function mergeStudentProgress(baseStudent, localCache) {
+  if (!baseStudent) return localCache || null;
+  if (!localCache) return baseStudent;
+
+  const merged = { ...baseStudent };
+  if (!merged.password && localCache.password) {
+    merged.password = localCache.password;
+  }
+  
+  // 1. 合并 progress (常规关卡)
+  const baseProgress = baseStudent.progress || {};
+  const localProgress = localCache.progress || {};
+  const allGroupKeys = new Set([...Object.keys(baseProgress), ...Object.keys(localProgress)]);
+  const mergedProgress = {};
+
+  allGroupKeys.forEach(k => {
+    const bp = baseProgress[k] || {};
+    const lp = localProgress[k] || {};
+    mergedProgress[k] = {
+      ...bp,
+      ...lp,
+      stars: Math.max(Number(bp.stars || 0), Number(lp.stars || 0)),
+      score: Math.max(Number(bp.score || 0), Number(lp.score || 0)),
+      completedSubLevels: Math.max(Number(bp.completedSubLevels || 0), Number(lp.completedSubLevels || 0)),
+      totalSubLevels: bp.totalSubLevels || lp.totalSubLevels || 0,
+      completed_at: lp.completed_at || bp.completed_at || null
+    };
+  });
+  merged.progress = mergedProgress;
+
+  // 2. 合并 cycleProgress (周期关卡)
+  const baseCycle = baseStudent.cycleProgress || {};
+  const localCycle = localCache.cycleProgress || {};
+  const allCycleKeys = new Set([...Object.keys(baseCycle), ...Object.keys(localCycle)]);
+  const mergedCycle = {};
+
+  allCycleKeys.forEach(ck => {
+    const bc = baseCycle[ck] || {};
+    const lc = localCycle[ck] || {};
+    mergedCycle[ck] = {
+      ...bc,
+      ...lc,
+      completedLevels: Math.max(Number(bc.completedLevels || 0), Number(lc.completedLevels || 0)),
+      completed_at: lc.completed_at || bc.completed_at || null
+    };
+  });
+  merged.cycleProgress = mergedCycle;
+
+  // 3. 合并 gameProfile
+  const baseGP = baseStudent.gameProfile || {};
+  const localGP = localCache.gameProfile || {};
+  merged.gameProfile = {
+    ...baseGP,
+    ...localGP,
+    totalMedals: Math.max(Number(baseGP.totalMedals || 0), Number(localGP.totalMedals || 0)),
+    chapterRecords: { ...(baseGP.chapterRecords || {}), ...(localGP.chapterRecords || {}) },
+    wordMastery: { ...(baseGP.wordMastery || {}), ...(localGP.wordMastery || {}) },
+    achievements: { ...(baseGP.achievements || {}), ...(localGP.achievements || {}) }
+  };
+
+  return merged;
+}
+
+function saveStudentProgressToLocal(storageKey, student) {
+  if (!student || !student.username) return;
+  try {
+    const existing = JSON.parse(localStorage.getItem(storageKey) || "{}");
+    const updated = {
+      ...existing,
+      [student.username.toLowerCase()]: {
+        password: student.password || existing[student.username.toLowerCase()]?.password || "",
+        progress: student.progress,
+        cycleProgress: student.cycleProgress,
+        gameProfile: student.gameProfile,
+        updatedAt: Date.now()
+      }
+    };
+    localStorage.setItem(storageKey, JSON.stringify(updated));
+  } catch(e) {}
+}
+
+function getStudentProgressFromLocal(storageKey, username) {
+  if (!username) return null;
+  try {
+    const existing = JSON.parse(localStorage.getItem(storageKey) || "{}");
+    return existing[username.toLowerCase()] || null;
+  } catch(e) {
+    return null;
+  }
+}
+
+/* ===== API 接口常量 ===== */
+const CLOUD_SYNC_BASE = "https://sync.nekosensei.cn/classtango";
+const DEFAULT_SYNC_GROUP_ID = "classtango";
+const WORDS_PER_SUBLEVEL = 10;
+
+// 小关词量以 10 为目标，优先让每关落在 7～12 词；再均匀分配
+const getSubLevelCount = (wordCount) => {
+  const total = Math.max(0, Number(wordCount) || 0);
+  if (!total) return 0;
+  const candidates = Array.from({ length: Math.ceil(total / 6) }, (_, index) => index + 1);
+  const preferred = candidates.filter(count => {
+    const average = total / count;
+    return average >= 7 && average <= 12;
+  });
+  const pool = preferred.length ? preferred : candidates;
+  return pool.reduce((best, count) => Math.abs(total / count - 10) < Math.abs(total / best - 10) ? count : best, pool[0]);
+};
+
+const getSubLevelBounds = (wordCount, subLevelIndex) => {
+  const total = Math.max(0, Number(wordCount) || 0);
+  const count = getSubLevelCount(total);
+  if (!count || subLevelIndex < 1 || subLevelIndex > count) return { start: 0, end: 0, total: count };
+  const baseSize = Math.floor(total / count);
+  const extra = total % count;
+  const start = (subLevelIndex - 1) * baseSize + Math.min(subLevelIndex - 1, extra);
+  const size = baseSize + (subLevelIndex <= extra ? 1 : 0);
+  return { start, end: start + size, total: count };
+};
+
+const sanitizeGroupId = (value) => {
+  const raw = String(value ?? "").trim();
+  if (!raw) return DEFAULT_SYNC_GROUP_ID;
+  return raw.replace(/[\u0000-\u001F\u007F]/g, "").slice(0, 160) || DEFAULT_SYNC_GROUP_ID;
+};
+
+const parseGroupIdFromUrl = () => {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const g = params.get("group") || params.get("group_id") || params.get("gid");
+    if (g) return sanitizeGroupId(g);
+  } catch(e) {}
+  return DEFAULT_SYNC_GROUP_ID;
+};
+
+const cloudUrl = (groupId, scope = "") => {
+  const url = new URL(CLOUD_SYNC_BASE);
+  url.searchParams.set("group", sanitizeGroupId(groupId));
+  if (scope) url.searchParams.set("scope", scope);
+  return url.toString();
+};
+
+const unwrapCloudPayload = (response) => {
+  const payload = response?.data ?? response?.payload ?? response;
+  return payload && typeof payload === "object" && !Array.isArray(payload) ? payload : {};
+};
+
+const requestJson = async (url, options = {}, timeoutMs = 10000) => {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, { ...options, signal: controller.signal });
+    const text = await response.text();
+    let data = null;
+    if (text) {
+      try { data = JSON.parse(text); } catch (e) { data = { raw: text }; }
+    }
+    if (!response.ok) {
+      throw new Error((data && (data.message || data.error)) || `请求失败（${response.status}）`);
+    }
+    return data || {};
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
+function App() {
+  const groupId = useRef(parseGroupIdFromUrl()).current;
+  const authStorageKey = useRef(`classtango_student_auth_${groupId}`).current;
+  const studentProgressKey = useRef(`classtango_student_progress_${groupId}`).current;
+  const legacyAuthStorageKey = groupId === DEFAULT_SYNC_GROUP_ID ? "classtango_student_auth_default" : null;
+  
+  // 视图控制: login | set_pwd | lobby | study | study_summary | game | result
+  const [view, setView] = useState("login");
+  const [isLoading, setIsLoading] = useState(true);
+  const [initError, setInitError] = useState(null);
+  
+  // 全局静音控制（支持学校自习课/安静环境使用）
+  const [isMuted, setIsMuted] = useState(() => {
+    try { return localStorage.getItem("classtango_muted") === "true"; } catch(e) { return false; }
+  });
+  const toggleMute = () => {
+    setIsMuted(prev => {
+      const next = !prev;
+      try { localStorage.setItem("classtango_muted", String(next)); } catch(e){}
+      return next;
+    });
+  };
+
+  const soundEffects = {
+    click: () => playTone(950, 'sine', 0.08, isMuted),
+    correct: () => {
+      playTone(523.25, 'sine', 0.15, isMuted);
+      setTimeout(() => playTone(659.25, 'sine', 0.15, isMuted), 80);
+    },
+    wrong: () => playTone(180, 'triangle', 0.3, isMuted)
+  };
+
+  // 核心拉取到的数据状态
+  const [studentsPayload, setStudentsPayload] = useState(null);
+  const [wordsPayload, setWordsPayload] = useState(null);
+  
+  // 当前登录学生账号信息
+  const [currentUser, setCurrentUser] = useState(null);
+  const [usernameInput, setUsernameInput] = useState("");
+  const [passwordInput, setPasswordInput] = useState("");
+  const [newPasswordVal, setNewPasswordVal] = useState("");
+  const [loginError, setLoginError] = useState("");
+
+  const [activeGroupKey, setActiveGroupKey] = useState(null);
+  const [activeCycle, setActiveCycle] = useState(null);
+  const [activeSubLevel, setActiveSubLevel] = useState(null);
+  // 大关卡展开状态（手风琴式展开子关卡列表，支持自由选关挑战）
+  const [expandedGroupKey, setExpandedGroupKey] = useState(null);
+
+  // ===== 阶段 1：前置背记学习状态 =====
+  const [studyWords, setStudyWords] = useState([]);
+  const [studyIndex, setStudyIndex] = useState(0);
+  const [maskJp, setMaskJp] = useState(false);
+  const [maskMeaning, setMaskMeaning] = useState(false);
+  const [maskExample, setMaskExample] = useState(false);
+
+  // ===== 阶段 2：缩略图总览自检状态 =====
+  const [summaryMasks, setSummaryMasks] = useState({});
+
+  // ===== 阶段 3：闯关挑战状态 =====
+  const [gameWords, setGameWords] = useState([]);
+  const [wordIndex, setWordIndex] = useState(0);
+  const [score, setScore] = useState(0);
+  const [rDone, setRDone] = useState(false);
+  const [mDone, setMDone] = useState(false);
+  const [selectedReading, setSelectedReading] = useState(null);
+  const [selectedMeaning, setSelectedMeaning] = useState(null);
+  const [readingOpts, setReadingOpts] = useState([]);
+  const [meaningOpts, setMeaningOpts] = useState([]);
+  const [hasErrorOnCurrent, setHasErrorOnCurrent] = useState(false);
+
+  // 假名拼写状态
+  const [currentSpell, setCurrentSpell] = useState("");
+  const [targetSpell, setTargetSpell] = useState("");
+  const [spellPool, setSpellPool] = useState([]);
+  const [isRescueMode, setIsRescueMode] = useState(false);
+  const [resultSummary, setResultSummary] = useState(null);
+  
+  // 答错即时对比解析卡状态
+  const [errorFeedback, setErrorFeedback] = useState(null);
+
+  // 闯关中途退出二次确认弹窗状态
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
+
+  // 阶段 3 两小关阶段控制：1: 第1小关（假名识义） | 2: 第2小关（看义拼词）
+  const [gameStage, setGameStage] = useState(1);
+  const [stageTransition, setStageTransition] = useState(false); // 第1小关通关过渡卡片
+
+  // 自检总览遮罩自测模式: "none" | "mask_kana" (练读音) | "mask_kanji" (去汉字练识义) | "mask_meaning" (测中文)
+  const [summaryMaskMode, setSummaryMaskMode] = useState("none");
+
+  // 自检总览浮动单词详情卡片弹窗状态
+  const [summaryModalIdx, setSummaryModalIdx] = useState(null);
+  const [summaryModalMaskKanji, setSummaryModalMaskKanji] = useState(false);
+  const [summaryModalMaskKana, setSummaryModalMaskKana] = useState(false);
+  const [summaryModalMaskMeaning, setSummaryModalMaskMeaning] = useState(false);
+  const [summaryModalMaskExample, setSummaryModalMaskExample] = useState(false);
+
+  // 吉祥物状态
+  const [mascot, setMascot] = useState({ face: "(｡･ω･｡)", message: "がんばって！", mood: "calm" });
+  const cheer = (face, message, mood = "calm") => setMascot({ face, message, mood });
+
+  // 答题过程 ref
+  const sessionRef = useRef({ normalCount: 0, firstTryCorrect: 0, wordStats: {}, originalWords: [] });
+
+  // 数据同步与自动登录
+  const loadData = useCallback(async () => {
+    setIsLoading(true);
+    setInitError(null);
+    setLoginError("");
+    try {
+      const cloudPayload = unwrapCloudPayload(await requestJson(
+        cloudUrl(groupId), { headers: { Accept: "application/json" } }
+      ));
+      const rawStudents = { ...cloudPayload, students: Array.isArray(cloudPayload.students) ? cloudPayload.students : [] };
+      const rawWords = { ...cloudPayload, groups: Array.isArray(cloudPayload.groups) ? cloudPayload.groups : [] };
+      setStudentsPayload(rawStudents);
+      setWordsPayload(rawWords);
+
+      // 自动登录检测
+      let autoLoggedIn = false;
+      try {
+        const authStr = localStorage.getItem(authStorageKey) ||
+          (legacyAuthStorageKey ? localStorage.getItem(legacyAuthStorageKey) : null);
+        if (authStr) {
+          const auth = JSON.parse(authStr);
+          const list = rawStudents?.students || [];
+          const matched = list.find(s => String(s.username || "").toLowerCase() === String(auth.username || "").toLowerCase());
+          const passwordMatches = matched && matched.password && matched.password === auth.password;
+          const passwordPendingSync = matched && !matched.password && auth.password;
+          if (passwordMatches || passwordPendingSync) {
+            const baseStudent = passwordMatches ? matched : { ...matched, password: auth.password };
+            const localCachedProgress = getStudentProgressFromLocal(studentProgressKey, baseStudent.username);
+            const sessionStudent = mergeStudentProgress(baseStudent, localCachedProgress);
+            setCurrentUser(sessionStudent);
+            setView("lobby");
+            autoLoggedIn = true;
+            localStorage.setItem(authStorageKey, JSON.stringify({ username: sessionStudent.username, password: sessionStudent.password }));
+            if (legacyAuthStorageKey) localStorage.removeItem(legacyAuthStorageKey);
+          } else if (!matched || matched.password) {
+            localStorage.removeItem(authStorageKey);
+            if (legacyAuthStorageKey) localStorage.removeItem(legacyAuthStorageKey);
+          }
+        }
+      } catch(e){}
+
+      if (!autoLoggedIn) {
+        setView("login");
+      }
+    } catch (e) {
+      setInitError("无法同步云端关卡与学生数据，请检查网络连接。");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [groupId, authStorageKey, studentProgressKey, legacyAuthStorageKey]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  // 更新云端学生数据（全量Payload推送 + 单学生路由双保险，确保密码与学情100%持久化到云端）
+  const updateStudentInCloud = useCallback(async (studentId, transform) => {
+    let lastError = null;
+    const targetGid = sanitizeGroupId(groupId);
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const remoteRaw = await requestJson(
+        cloudUrl(targetGid), { headers: { Accept: "application/json" } }
+      );
+      const remotePayload = unwrapCloudPayload(remoteRaw);
+      const sourceStudents = Array.isArray(remotePayload.students) ? remotePayload.students : [];
+      const existing = sourceStudents.find(s => s.id === studentId || String(s.username || "").toLowerCase() === String(currentUser?.username || "").toLowerCase());
+      if (!existing) throw new Error("云端未找到当前学生，请刷新后重试。");
+
+      const updatedStudent = transform(existing);
+      const finalStudents = sourceStudents.map(s =>
+        (s.id === studentId || String(s.username || "").toLowerCase() === String(updatedStudent.username || "").toLowerCase())
+          ? updatedStudent
+          : s
+      );
+
+      const now = Date.now();
+      const payloadToPush = {
+        ...remotePayload,
+        group_id: targetGid,
+        last_updated: now,
+        synced_at: now,
+        students: finalStudents
+      };
+
+      try {
+        // 1. 全量推送到云端主存储桶（与教师端同步契约完全一致，100%覆盖写入云端存储）
+        await requestJson(cloudUrl(targetGid), {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify(payloadToPush)
+        });
+
+        // 2. 尝试单学生更新路由（双保险触发）
+        try {
+          await requestJson(cloudUrl(targetGid, "student"), {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Accept: "application/json" },
+            body: JSON.stringify({
+              group_id: targetGid,
+              student_id: studentId,
+              student: updatedStudent,
+              revision: Number(remotePayload.students_revision) || 0
+            })
+          });
+        } catch(e) {}
+
+        setStudentsPayload(previous => ({ ...(previous || {}), ...payloadToPush }));
+        return updatedStudent;
+      } catch (error) {
+        lastError = error;
+        if (!/版本冲突/.test(error?.message || "") || attempt === 1) throw error;
+      }
+    }
+    throw lastError || new Error("学生数据同步失败。");
+  }, [groupId, currentUser]);
+
+  // 登录处理（智能识别云端密码与本地持久化备份）
+  const handleLogin = () => {
+    setLoginError("");
+    const normalizedUser = usernameInput.trim().toLowerCase();
+    if (!normalizedUser) {
+      setLoginError("请输入账号！");
+      return;
+    }
+
+    const list = studentsPayload?.students || [];
+    const student = list.find(s => String(s.username || "").toLowerCase() === normalizedUser);
+    if (!student) {
+      setLoginError("该账号未登记，请核对您的账号。");
+      return;
+    }
+
+    const localCachedProgress = getStudentProgressFromLocal(studentProgressKey, student.username);
+    const mergedStudent = mergeStudentProgress(student, localCachedProgress);
+    
+    let localAuth = null;
+    try { localAuth = JSON.parse(localStorage.getItem(authStorageKey) || "null"); } catch(e) {}
+    const cachedAuthPwd = (localAuth && String(localAuth.username || "").toLowerCase() === normalizedUser) ? localAuth.password : null;
+    const effectivePassword = mergedStudent.password || student.password || cachedAuthPwd || "";
+
+    if (!effectivePassword) {
+      // 确实从未设过密码（云端与本地均无记录）
+      setCurrentUser(mergedStudent);
+      setView("set_pwd");
+      soundEffects.click();
+    } else {
+      // 已存在有效密码，进行密码比对校验
+      if (passwordInput.trim() === effectivePassword) {
+        const studentWithPwd = { ...mergedStudent, password: effectivePassword };
+        setCurrentUser(studentWithPwd);
+        saveStudentProgressToLocal(studentProgressKey, studentWithPwd);
+        setView("lobby");
+        soundEffects.click();
+        try {
+          localStorage.setItem(authStorageKey, JSON.stringify({
+            username: studentWithPwd.username,
+            password: effectivePassword
+          }));
+        } catch(e){}
+      } else {
+        setLoginError("密码不正确！");
+        soundEffects.wrong();
+      }
+    }
+  };
+
+  // 设置首次密码
+  const handleSetPassword = async () => {
+    if (!newPasswordVal.trim()) {
+      alert("密码不能为空！");
+      return;
+    }
+    const password = newPasswordVal.trim();
+    const optimisticStudent = { ...currentUser, password };
+    
+    // 1. 本地多重强缓存持久化（即刻生效，退出后绝不丢失）
+    try {
+      localStorage.setItem(authStorageKey, JSON.stringify({
+        username: currentUser.username,
+        password
+      }));
+    } catch(e) {}
+    saveStudentProgressToLocal(studentProgressKey, optimisticStudent);
+
+    setCurrentUser(optimisticStudent);
+    setStudentsPayload(previous => ({
+      ...(previous || {}),
+      students: (previous?.students || []).map(student => 
+        (student.id === currentUser.id || String(student.username || "").toLowerCase() === String(currentUser.username || "").toLowerCase())
+          ? optimisticStudent
+          : student
+      )
+    }));
+    
+    setView("lobby");
+    soundEffects.correct();
+
+    // 2. 异步将包含新密码的完整学生数据永久写入云端
+    try {
+      const savedStudent = await updateStudentInCloud(
+        currentUser.id,
+        student => ({ ...student, password })
+      );
+      if (savedStudent) {
+        const finalStudent = { ...optimisticStudent, ...savedStudent, password: savedStudent.password || password };
+        setCurrentUser(finalStudent);
+        saveStudentProgressToLocal(studentProgressKey, finalStudent);
+      }
+    } catch(err) {
+      console.warn("云端同步失败，密码已在本地安全存储：", err.message);
+    }
+  };
+
+  // 获取当前学生被分配的可挑战单词组（严格仅展示教师布置了的单词组）
+  const getVisibleGroups = () => {
+    if (!wordsPayload || !Array.isArray(wordsPayload.groups)) return [];
+    // 若教师未给当前学生布置任何单词组，则严格返回空，不展示全局未分配的单词组
+    if (!currentUser || !Array.isArray(currentUser.assignedGroups) || currentUser.assignedGroups.length === 0) {
+      return [];
+    }
+    // 严格过滤仅保留教师布置列表中的组（支持 id 与 name 双向兼容匹配）
+    const assignedKeys = currentUser.assignedGroups.map(k => String(k || "").trim().toLowerCase());
+    return wordsPayload.groups.filter(g => {
+      const gId = String(g.id || "").trim().toLowerCase();
+      const gName = String(g.name || "").trim().toLowerCase();
+      return assignedKeys.includes(gId) || assignedKeys.includes(gName);
+    });
+  };
+
+  const getActiveCycle = () => {
+    const cycle = studentsPayload?.challengeSettings?.cycle;
+    return cycle?.active && Number(cycle.targetLevels) > 0 ? cycle : null;
+  };
+
+  const getCycleWords = (cycle, level) => {
+    const pool = getVisibleGroups().flatMap(g => (g.words || []).filter(w => !w.hidden));
+    const tag = String(currentUser?.tag || "").trim().toUpperCase();
+    const configured = Math.floor(Number(studentsPayload?.challengeSettings?.wordCountByTag?.[tag]));
+    const count = Number.isFinite(configured) && configured > 0 ? configured : Math.max(2, Math.ceil(pool.length / Number(cycle.targetLevels)));
+    const sorted = [...pool].sort((a, b) => String(a.id || a.kana).localeCompare(String(b.id || b.kana)));
+    const start = ((level - 1) * count) % Math.max(sorted.length, 1);
+    return Array.from({ length: Math.min(count, sorted.length) }, (_, index) => sorted[(start + index) % sorted.length]);
+  };
+
+  const isLevelUnlocked = (idx, groupsArray) => {
+    if (idx === 0) return true;
+    const prevGroup = groupsArray[idx - 1];
+    const prevGroupKey = prevGroup.id || prevGroup.name;
+    const progress = currentUser?.progress?.[prevGroupKey] || {};
+    const wordCount = (prevGroup.words || []).filter(w => !w.hidden).length;
+    return Number(progress.completedSubLevels || 0) >= getSubLevelCount(wordCount);
+  };
+
+  // ===== 阶段 1 入口：选择关卡后进入【前置背记学习】 =====
+  const startStudyLevel = (groupKey, wordsList, cycleInfo = null, subLevelInfo = null) => {
+    // 知识点全员 100% 全覆盖：所有学生均完整挑战该小关所有单词（不再按等级删减词量）
+    const sessionWords = [...wordsList];
+
+    if (sessionWords.length < 2) {
+      alert("当前单词组没有足够单词，无法开启学习！");
+      return;
+    }
+    soundEffects.click();
+    setActiveGroupKey(groupKey);
+    setActiveCycle(cycleInfo);
+    setActiveSubLevel(subLevelInfo);
+
+    setStudyWords(sessionWords);
+    setStudyIndex(0);
+    setSummaryMaskMode("none");
+    setSummaryModalIdx(null);
+    setSummaryModalMaskKanji(false);
+    setSummaryModalMaskKana(false);
+    setSummaryModalMaskMeaning(false);
+    setSummaryModalMaskExample(false);
+    cheer("(｡･ω･｡)", "本关单词一览，点击即可精读！");
+    setView("study_summary");
+  };
+
+  // ===== 阶段 3 入口：开启两阶段递进闯关 =====
+  // 第 1 小关：本关所有学过的单词，完全打乱顺序，进行【假名识义】
+  const startActualGameChallenge = () => {
+    if (studyWords.length < 2) return;
+    const shuffledStage1 = [...studyWords]
+      .sort(() => Math.random() - 0.5)
+      .map(word => ({
+        data: word,
+        type: "kana_to_meaning"
+      }));
+    setGameStage(1);
+    setStageTransition(false);
+    setGameWords(shuffledStage1);
+    setWordIndex(0);
+    setScore(0);
+    setIsRescueMode(false);
+    setResultSummary(null);
+    setErrorFeedback(null);
+    sessionRef.current = {
+      originalWords: studyWords,
+      stage1Total: shuffledStage1.length,
+      stage1Correct: 0,
+      stage2Total: studyWords.length,
+      stage2Correct: 0,
+      firstTryCorrect: 0,
+      normalCount: studyWords.length * 2,
+      wordStats: {}
+    };
+    cheer("(｡･ω･｡)", "第 1/2 关 · 假名识义极速挑战！", "cheer");
+    soundEffects.click();
+    setView("game");
+  };
+
+  // 第 2 小关：本关所有学过的单词，重新完全打乱顺序，进行【看义拼词】
+  const startStage2Challenge = () => {
+    const shuffledStage2 = [...studyWords]
+      .sort(() => Math.random() - 0.5)
+      .map(word => ({
+        data: word,
+        type: "spell"
+      }));
+    setGameStage(2);
+    setStageTransition(false);
+    setGameWords(shuffledStage2);
+    setWordIndex(0);
+    setErrorFeedback(null);
+    cheer("(๑•̀ㅂ•́)و✧", "第 2/2 关 · 看义拼词深度挑战！", "cheer");
+    soundEffects.click();
+  };
+
+  // 计算错题变形重做题型（保持本阶段题型专项巩固）
+  const getVariantQuestionType = (currentType, word) => {
+    return currentType;
+  };
+
+  // 渲染题目选项与拼写池
+  useEffect(() => {
+    if (view !== "game" || gameWords.length === 0 || wordIndex >= gameWords.length) return;
+    const q = gameWords[wordIndex];
+    const d = q.data;
+    setHasErrorOnCurrent(false);
+    setSelectedReading(null);
+    setSelectedMeaning(null);
+
+    if (q.isRetryVariant) {
+      cheer("(ง •̀_•́)ง", "刚才做错的单词，再来攻克一次！", "cheer");
+    } else {
+      cheer("(｡･ω･｡)", gameStage === 1 ? "看假名迅速反应中文！" : "看中文拼出假名！");
+    }
+
+    const allWords = wordsPayload?.groups?.flatMap(g => g.words || []) || [];
+
+    if (q.type === "kana_to_meaning") {
+      // 看纯假名选中文含义（混淆项严格局限于本轮学习的 10 个左右单词中）
+      setMeaningOpts(generateSmartMeaningOptions(d, studyWords));
+    } else {
+      // 拼写题：根据单词是片假名（外来语）还是平假名，智能选择同类型假名混淆池
+      setTargetSpell(d.kana);
+      setCurrentSpell("");
+      const chars = [...new Set(d.kana.split(''))];
+      
+      const isKatakanaWord = /[ア-ンー]/.test(d.kana);
+      const poolSource = isKatakanaWord ? KATAKANA_FULL : HIRAGANA_FULL;
+      
+      while (chars.length < 10) {
+        let r = poolSource[Math.floor(Math.random() * poolSource.length)];
+        if (!chars.includes(r)) chars.push(r);
+      }
+      setSpellPool(chars.sort(() => Math.random() - 0.5));
+    }
+  }, [view, gameWords, wordIndex, gameStage]);
+
+  // 选择题作答处理（单步清晰验证）
+  const handleChoiceClick = (type, val, correct) => {
+    if (errorFeedback) return;
+    const q = gameWords[wordIndex];
+    const d = q.data;
+
+    // 假名选含义题
+    if (selectedMeaning) return;
+    setSelectedMeaning(val);
+    if (val === correct) {
+      soundEffects.click();
+      cheer("(๑•̀ㅂ•́)و✧", q.isRetryVariant ? "错题攻克成功！大正解！" : "さすが！大正解！", "cheer");
+      handleWin();
+    } else {
+      soundEffects.wrong();
+      cheer("(╯﹏╰)", "あせらないで！");
+      handleWrong("meaning", val, correct);
+    }
+  };
+
+  // 拼写气泡点击
+  const handleSpellClick = (c) => {
+    if (errorFeedback || currentSpell.length >= targetSpell.length) return;
+    soundEffects.click();
+    const nextSpell = currentSpell + c;
+    setCurrentSpell(nextSpell);
+    
+    if (nextSpell.length === targetSpell.length) {
+      if (nextSpell === targetSpell) {
+        const q = gameWords[wordIndex];
+        cheer("(๑•̀ㅂ•́)و✧", q.isRetryVariant ? "错题拼写成功！完美！" : "読めたね！完璧！", "cheer");
+        handleWin();
+      } else {
+        soundEffects.wrong();
+        cheer("(╯﹏╰)", "ゆっくり見直そう！");
+        handleWrong("spelling", nextSpell, targetSpell);
+      }
+    }
+  };
+
+  // 撤销拼写假名
+  const handleUndoSpell = (idx) => {
+    if (errorFeedback) return;
+    soundEffects.click();
+    setCurrentSpell(currentSpell.substring(0, idx) + currentSpell.substring(idx + 1));
+  };
+
+  // 关闭错题解析弹窗并前进到下一题（不要求原地机械重做，错题已打乱插入后续队列）
+  const handleDismissErrorFeedback = () => {
+    setErrorFeedback(null);
+    setSelectedMeaning(null);
+    setSelectedReading(null);
+    setCurrentSpell("");
+
+    // 直接推进到下一道题
+    if (wordIndex + 1 < gameWords.length) {
+      setWordIndex(prev => prev + 1);
+    } else {
+      // 队列全部做完
+      if (gameStage === 1) {
+        setStageTransition(true);
+        cheer("٩(ˊᗜˋ*)و", "第 1 关【假名识义】突破！准备进入第 2 关！", "cheer");
+      } else {
+        handleLevelComplete();
+      }
+    }
+  };
+
+  // 本题通关
+  const handleWin = () => {
+    const currentQ = gameWords[wordIndex];
+    if (!hasErrorOnCurrent && !currentQ.isRetryVariant) {
+      setScore(prev => prev + 5);
+      sessionRef.current.firstTryCorrect += 1;
+      if (gameStage === 1) {
+        sessionRef.current.stage1Correct += 1;
+      } else {
+        sessionRef.current.stage2Correct += 1;
+      }
+    } else if (currentQ.isRetryVariant && !hasErrorOnCurrent) {
+      // 变异错词重测一次通过给予挽回补偿分
+      setScore(prev => prev + 2);
+    }
+
+    soundEffects.correct();
+    fireConfetti();
+    
+    setTimeout(() => {
+      if (wordIndex + 1 < gameWords.length) {
+        setWordIndex(prev => prev + 1);
+      } else {
+        // 当前小关题目全部攻克完毕！
+        if (gameStage === 1) {
+          // 第一小关通关，弹出过渡卡片引导进入第二小关！
+          setStageTransition(true);
+          cheer("٩(ˊᗜˋ*)و", "第 1 关【假名识义】全通！准备进入第 2 关！", "cheer");
+        } else {
+          // 第二小关通关，大关卡通关结算！
+          handleLevelComplete();
+        }
+      }
+    }, 750);
+  };
+
+  // 答错处理（扣4分惩罚 + 弹出即时错因对比卡 + 错题打乱插入后续队列）
+  const handleWrong = (errorType = "unknown", userChoice = "", correctChoice = "") => {
+    setHasErrorOnCurrent(true);
+    // 答错即时扣 4 分（最低扣至 0 分）
+    setScore(prev => Math.max(0, prev - 4));
+
+    const currentQ = gameWords[wordIndex];
+    const word = currentQ?.data;
+
+    if (word) {
+      const key = String(word.id || `${word.kanji || ""}_${word.kana || ""}_${wordIndex}`);
+      const previous = sessionRef.current.wordStats[key] || { word, errors: {}, errorCount: 0, hasInsertedVariant: false };
+      previous.errors[errorType] = Number(previous.errors[errorType] || 0) + 1;
+      previous.errorCount += 1;
+
+      // 错题打乱插入到后续未答题目队列中（间隔重复，不原地重做）
+      const retryQuestion = {
+        data: word,
+        type: currentQ.type,
+        isRetryVariant: true
+      };
+
+      setGameWords(prev => {
+        const nextList = [...prev];
+        const unattemptedStart = wordIndex + 1;
+        const remainingCount = nextList.length - unattemptedStart;
+
+        if (remainingCount <= 1) {
+          // 若后续题目不足，直接追加到队尾
+          nextList.push(retryQuestion);
+        } else {
+          // 随机插入到后续未答题目之间，制造自然间隔
+          const insertOffset = Math.floor(Math.random() * remainingCount) + 1;
+          const targetIndex = Math.min(unattemptedStart + insertOffset, nextList.length);
+          nextList.splice(targetIndex, 0, retryQuestion);
+        }
+        return nextList;
+      });
+
+      sessionRef.current.wordStats[key] = previous;
+    }
+
+    // 直接显示温和的即时正误对比卡（无剧烈震动/闪屏）
+    setErrorFeedback({
+      word,
+      errorType,
+      userChoice,
+      correctChoice: correctChoice || (errorType === "reading" ? word.kana : errorType === "meaning" ? word.meaning : word.kana)
+    });
+  };
+
+  // 通关结算（基于学生标签及教师设定的及格达标分进行分层通关判定与学情统计）
+  const handleLevelComplete = async () => {
+    const session = sessionRef.current;
+    const finalScore = score;
+    
+    // 1. 获取当前学生的等级标签与教师设定的达标及格线
+    const studentTag = String(currentUser?.tag || "").trim().toUpperCase();
+    const passingScoresConfig = studentsPayload?.challengeSettings?.passingScoresByTag || {};
+    const configuredThreshold = Number(passingScoresConfig[studentTag]);
+    const defaultThreshold = Number(passingScoresConfig.default);
+    const requiredPassingScore = Number.isFinite(configuredThreshold) && configuredThreshold > 0
+      ? configuredThreshold
+      : (studentTag === "A" ? 90 : studentTag === "B" ? 80 : studentTag === "C" ? 60 : (Number.isFinite(defaultThreshold) && defaultThreshold > 0 ? defaultThreshold : 80));
+
+    // 2. 判定本次是否成功达标通关
+    const isPassed = finalScore >= requiredPassingScore;
+    const medal = isPassed ? (finalScore >= 90 ? "gold" : finalScore >= 80 ? "silver" : "bronze") : "unpassed";
+    const medalIcon = isPassed ? (medal === "gold" ? "🏆" : medal === "silver" ? "🏅" : "🥉") : "⚠️";
+    const starsEarned = isPassed ? (medal === "gold" ? 3 : medal === "silver" ? 2 : 1) : 0;
+    const rescuedCount = Object.keys(session.wordStats).length;
+    const firstTryRate = session.normalCount ? session.firstTryCorrect / session.normalCount : 0;
+    const scoreDiff = Math.max(0, requiredPassingScore - finalScore);
+    const mistakeWordsList = Array.from(new Set(Object.values(session.wordStats).map(s => s.word))).filter(Boolean);
+
+    setResultSummary({
+      score: finalScore,
+      firstTryRate,
+      medal,
+      medalIcon,
+      starsEarned,
+      rescuedCount,
+      firstTryCorrect: session.firstTryCorrect,
+      total: session.normalCount,
+      isPassed,
+      requiredPassingScore,
+      studentTag,
+      scoreDiff,
+      mistakeWords: mistakeWordsList
+    });
+
+    if (isPassed) {
+      cheer(
+        medal === "gold" ? "٩(ˊᗜˋ*)و" : medal === "silver" ? "(๑•̀ㅂ•́)و✧" : "(｡･ω･｡)",
+        medal === "gold" ? "太强了！斩获金杯！" : medal === "silver" ? "很棒！斩获银杯！" : "恭喜达标！顺利通关！",
+        "cheer"
+      );
+    } else {
+      cheer("(╯﹏╰)", `差一点就达标啦！还差 ${scoreDiff} 分，复习错词后再战一次吧！`, "cheer");
+    }
+
+    // 3. 构建本关通关后的最新本地进度对象
+    const prevGroupProg = currentUser?.progress?.[activeGroupKey] || {};
+    const oldSubLevelsMap = prevGroupProg.subLevelsCleared || {};
+    const existingSubRec = activeSubLevel ? oldSubLevelsMap[activeSubLevel.index] : null;
+
+    // 若本次达标，或者之前已经通关过，保持通关记录；若本次未达标且之前未通关，记录为未达标重测态
+    const nextSubStatus = isPassed
+      ? { medal, score: Math.max(Number(existingSubRec?.score || 0), finalScore), isPassed: true, completedAt: Date.now() }
+      : (existingSubRec?.isPassed ? existingSubRec : { medal: "unpassed", score: finalScore, isPassed: false, completedAt: null });
+
+    const newSubLevelsMap = activeSubLevel
+      ? { ...oldSubLevelsMap, [activeSubLevel.index]: nextSubStatus }
+      : oldSubLevelsMap;
+    
+    // 计算已成功达标通关的小关总数
+    const completedSubCount = activeSubLevel
+      ? Object.values(newSubLevelsMap).filter(item => item && item.isPassed).length
+      : Number(prevGroupProg.completedSubLevels || 0);
+    const totalSubCount = activeSubLevel?.total || prevGroupProg.totalSubLevels || 1;
+
+    const updatedProgress = {
+      ...(currentUser?.progress || {}),
+      ...(!activeCycle ? {
+        [activeGroupKey]: {
+          ...prevGroupProg,
+          stars: Math.max(Number(prevGroupProg.stars || 0), starsEarned),
+          score: Math.max(Number(prevGroupProg.score || 0), finalScore),
+          subLevelsCleared: newSubLevelsMap,
+          completedSubLevels: completedSubCount,
+          totalSubLevels: totalSubCount,
+          completed_at: completedSubCount >= totalSubCount ? (prevGroupProg.completed_at || Date.now()) : null
+        }
+      } : {})
+    };
+
+    const prevCycleProg = currentUser?.cycleProgress?.[activeCycle?.id] || {};
+    const updatedCycleProgress = {
+      ...(currentUser?.cycleProgress || {}),
+      ...(activeCycle ? {
+        [activeCycle.id]: {
+          ...prevCycleProg,
+          completedLevels: isPassed ? Math.max(Number(prevCycleProg.completedLevels || 0), Number(activeCycle.level || 1)) : Number(prevCycleProg.completedLevels || 0),
+          completed_at: isPassed ? (prevCycleProg.completed_at || Date.now()) : null
+        }
+      } : {})
+    };
+
+    const recordKey = activeCycle
+      ? `cycle_${activeCycle.id}_${activeCycle.level}`
+      : `${activeGroupKey}_sub_${activeSubLevel?.index || 1}`;
+    const previousRecord = currentUser?.gameProfile?.chapterRecords?.[recordKey] || {};
+    const previousRank = { unpassed: 0, bronze: 1, silver: 2, gold: 3 };
+    const bestMedal = (previousRank[previousRecord.bestMedal] || 0) > previousRank[medal] ? previousRecord.bestMedal : medal;
+    const oldAchievements = currentUser?.gameProfile?.achievements || {};
+    const achievements = {
+      ...oldAchievements,
+      ...(isPassed ? {
+        first_clear: oldAchievements.first_clear || { earnedAt: Date.now() },
+        ...(medal === "gold" ? { gold_clear: oldAchievements.gold_clear || { earnedAt: Date.now() } } : {}),
+        ...(rescuedCount > 0 ? { rescue_complete: oldAchievements.rescue_complete || { earnedAt: Date.now() } } : {})
+      } : {})
+    };
+
+    const updatedGameProfile = {
+      ...(currentUser?.gameProfile || {}),
+      achievements,
+      totalMedals: Number(currentUser?.gameProfile?.totalMedals || 0) + (isPassed && !previousRecord.bestMedal ? 1 : 0),
+      chapterRecords: {
+        ...(currentUser?.gameProfile?.chapterRecords || {}),
+        [recordKey]: {
+          ...previousRecord,
+          bestMedal,
+          bestScore: Math.max(Number(previousRecord.bestScore || 0), finalScore),
+          bestFirstTryRate: Math.max(Number(previousRecord.bestFirstTryRate || 0), firstTryRate),
+          attempts: Number(previousRecord.attempts || 0) + 1,
+          lastMedal: medal,
+          isPassed: isPassed || !!previousRecord.isPassed,
+          completedAt: isPassed ? Date.now() : (previousRecord.completedAt || null)
+        }
+      },
+      wordMastery: Object.entries(session.wordStats).reduce((all, [k, stat]) => ({
+        ...all,
+        [k]: {
+          ...(all[k] || {}),
+          readingErrors: Number(all[k]?.readingErrors || 0) + Number(stat.errors.reading || 0),
+          meaningErrors: Number(all[k]?.meaningErrors || 0) + Number(stat.errors.meaning || 0),
+          spellingErrors: Number(all[k]?.spellingErrors || 0) + Number(stat.errors.spelling || 0),
+          dueAt: Date.now() + 24 * 60 * 60 * 1000,
+          updatedAt: Date.now()
+        }
+      }), { ...(currentUser?.gameProfile?.wordMastery || {}) })
+    };
+
+    const localSavedStudent = {
+      ...currentUser,
+      progress: updatedProgress,
+      cycleProgress: updatedCycleProgress,
+      gameProfile: updatedGameProfile
+    };
+
+    // 4. 立即写入本地缓存与内存 state
+    saveStudentProgressToLocal(studentProgressKey, localSavedStudent);
+    setCurrentUser(localSavedStudent);
+
+    // 5. 异步静默同步到云端服务器
+    try {
+      const savedStudent = await updateStudentInCloud(currentUser.id, remoteStudent => {
+        return mergeStudentProgress(remoteStudent, localSavedStudent);
+      });
+      if (savedStudent) {
+        const finalStudent = mergeStudentProgress(savedStudent, localSavedStudent);
+        saveStudentProgressToLocal(studentProgressKey, finalStudent);
+        setCurrentUser(finalStudent);
+      }
+    } catch(err) {
+      console.warn("成绩已在本地安全存档，云端后台同步稍后重试：", err.message);
+    }
+    
+    setView("result");
+  };
+
+  // 退出大厅
+  const handleExitToLobby = () => {
+    setView("lobby");
+    soundEffects.click();
+  };
+
+  if (isLoading) {
+    return (
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", height: "100%", color: "var(--primary)" }}>
+        <div style={{ fontSize: 50, animation: "spin-breathe 2s linear infinite" }}>⛩️</div>
+        <div style={{ marginTop: 18, fontSize: 16, fontWeight: 800, letterSpacing: "1px" }}>正在连接云端系统...</div>
+        <div style={{ marginTop: 6, fontSize: 12, color: "var(--muted)" }}>同步单词关卡与学生进度</div>
+        <style>{`
+          @keyframes spin-breathe {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.15); }
+            100% { transform: scale(1); }
+          }
+        `}</style>
+      </div>
+    );
+  }
+
+  if (initError) {
+    return (
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", height: "100%", padding: 30, textAlign: "center" }}>
+        <div style={{ fontSize: 50, marginBottom: 14 }}>📡</div>
+        <h3 style={{ fontSize: 18, fontWeight: 800, color: "var(--text)", margin: "0 0 8px" }}>同步数据失败</h3>
+        <div style={{ fontSize: 13, color: "var(--muted)", marginBottom: 20, lineHeight: 1.5 }}>
+          {initError}
+        </div>
+        <button
+          onClick={() => loadData()}
+          style={{ background: "var(--primary)", color: "#fff", border: "none", padding: "12px 28px", borderRadius: 20, fontSize: 14, fontWeight: 800, cursor: "pointer" }}
+        >
+          重新同步 🔄
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="fade-in" style={{ display: "flex", flexDirection: "column", height: "100%", width: "100%", position: "relative" }}>
+
+      {/* 视图 1：登录界面 */}
+      {view === "login" && (
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", padding: "30px 24px" }}>
+          <div style={{ textAlign: "center", marginBottom: 30 }}>
+            <div style={{ fontSize: 48 }}>⛩️</div>
+            <h2 style={{ fontSize: 22, fontWeight: 800, color: "var(--primary)", margin: "8px 0 4px" }}>ClassTango 单词闯关</h2>
+            <div style={{ fontSize: 12, color: "var(--muted)" }}>日语单词自主通关与记忆训练系统</div>
+          </div>
+          
+          <div style={{ background: "#fff", border: "1.5px solid var(--border)", borderRadius: 18, padding: 22, boxShadow: "0 6px 20px rgba(0,0,0,0.02)" }}>
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", marginBottom: 6, display: "block" }}>学生账号 (例: sszz2024b)</label>
+              <input
+                type="text"
+                value={usernameInput}
+                onChange={e => setUsernameInput(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && handleLogin()}
+                placeholder="校区简拼+姓名简拼+年级+班级"
+                style={{ width: "100%", padding: 12, border: "1.5px solid var(--border)", borderRadius: 10, outline: "none", fontSize: 14 }}
+              />
+            </div>
+            
+            <div style={{ marginBottom: 18 }}>
+              <label style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", marginBottom: 6, display: "block" }}>密码 (首次登录无密码)</label>
+              <input
+                type="password"
+                value={passwordInput}
+                onChange={e => setPasswordInput(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && handleLogin()}
+                placeholder="请输入密码"
+                style={{ width: "100%", padding: 12, border: "1.5px solid var(--border)", borderRadius: 10, outline: "none", fontSize: 14 }}
+              />
+            </div>
+            
+            {loginError && (
+              <div style={{ color: "var(--wrong)", fontSize: 13, fontWeight: 700, marginBottom: 14, textAlign: "center" }}>
+                ⚠️ {loginError}
+              </div>
+            )}
+            
+            <button
+              onClick={handleLogin}
+              style={{ width: "100%", background: "var(--primary)", color: "#fff", border: "none", padding: 13, borderRadius: 12, fontSize: 15, fontWeight: 800, cursor: "pointer", boxShadow: "0 4px 12px rgba(200,64,45,0.2)" }}
+            >
+              登录闯关 🚀
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 视图 2：首次设定密码 */}
+      {view === "set_pwd" && (
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", padding: "30px 24px" }}>
+          <div style={{ textAlign: "center", marginBottom: 20 }}>
+            <div style={{ fontSize: 40 }}>🔒</div>
+            <h3 style={{ fontSize: 19, fontWeight: 800, color: "var(--text)", margin: "8px 0" }}>首次登录 · 设定新密码</h3>
+            <div style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.5 }}>
+              欢迎您，<strong>{currentUser?.name}</strong>！<br />
+              为了账号安全，请设定您的专属密码：
+            </div>
+          </div>
+          
+          <div style={{ background: "#fff", border: "1.5px solid var(--border)", borderRadius: 18, padding: 22 }}>
+            <input
+              type="text"
+              value={newPasswordVal}
+              onChange={e => setNewPasswordVal(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && handleSetPassword()}
+              placeholder="请输入您好记的新密码"
+              style={{ width: "100%", padding: 12, border: "1.5px solid var(--border)", borderRadius: 10, outline: "none", fontSize: 14, marginBottom: 14, textAlign: "center" }}
+            />
+            <button
+              onClick={handleSetPassword}
+              style={{ width: "100%", background: "var(--green)", color: "#fff", border: "none", padding: 12, borderRadius: 12, fontSize: 14, fontWeight: 800, cursor: "pointer" }}
+            >
+              确认密码并登入
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 视图 3：关卡大厅 */}
+      {view === "lobby" && (
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", height: "100%" }}>
+          <header style={{ flexShrink: 0, background: "#fff", borderBottom: "1.5px solid var(--border)", padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 800 }}>{currentUser?.name}</div>
+              <div style={{ fontSize: 10, color: "var(--muted)" }}>{currentUser?.campus} · {currentUser?.grade}级{currentUser?.class_name}班</div>
+            </div>
+            <button
+              onClick={() => {
+                setView("login");
+                setCurrentUser(null);
+                setUsernameInput("");
+                setPasswordInput("");
+                try {
+                  localStorage.removeItem(authStorageKey);
+                  if (legacyAuthStorageKey) localStorage.removeItem(legacyAuthStorageKey);
+                } catch(e){}
+              }}
+              style={{ background: "transparent", border: `1px solid var(--border)`, padding: "4px 8px", borderRadius: 8, fontSize: 11, cursor: "pointer", marginRight: 32 }}
+            >
+              退出
+            </button>
+          </header>
+          
+          <div style={{ flex: 1, overflowY: "auto", padding: "16px 14px" }}>
+            <div style={{ background: "#fff", border: "1.5px solid var(--border)", borderRadius: 14, padding: "12px 14px", marginBottom: 14, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 800 }}>🏅 我的荣誉墙</div>
+                <div style={{ fontSize: 13, marginTop: 2, color: "var(--text)" }}>
+                  已收集 {currentUser?.gameProfile?.totalMedals || 0} 枚奖章
+                </div>
+              </div>
+              <div style={{ fontSize: 18, letterSpacing: 2 }}>
+                {currentUser?.gameProfile?.achievements?.gold_clear ? "🏆" : "🔒"}
+                {currentUser?.gameProfile?.achievements?.rescue_complete ? "🛟" : ""}
+              </div>
+            </div>
+
+            <h3 style={{ fontSize: 14, fontWeight: 800, color: "var(--muted)", margin: "0 0 12px 4px" }}>🗺️ 单词闯关路线图</h3>
+            {(() => {
+              const cycle = getActiveCycle();
+              if (!cycle) return null;
+              const completed = Math.min(Number(currentUser?.cycleProgress?.[cycle.id]?.completedLevels || 0), Number(cycle.targetLevels));
+              const nextLevel = completed + 1;
+              const words = nextLevel <= Number(cycle.targetLevels) ? getCycleWords(cycle, nextLevel) : [];
+              return (
+                <div style={{ background: "var(--primary-light)", border: "1.5px solid var(--primary)", borderRadius: 16, padding: "14px 16px", marginBottom: 14 }}>
+                  <div style={{ fontSize: 11, fontWeight: 800, color: "var(--primary)" }}>本周期任务</div>
+                  <div style={{ fontSize: 16, fontWeight: 800, margin: "3px 0" }}>{cycle.name}</div>
+                  <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 10 }}>已完成 {completed} / {cycle.targetLevels} 关 · 自由步调学习</div>
+                  {completed < Number(cycle.targetLevels) ? (
+                    <button
+                      onClick={() => startStudyLevel(`cycle_${cycle.id}_${nextLevel}`, words, { id: cycle.id, level: nextLevel })}
+                      style={{ background: "var(--primary)", color: "#fff", border: "none", padding: "8px 16px", borderRadius: 10, fontWeight: 800, fontSize: 13, cursor: "pointer" }}
+                    >
+                      开始第 {nextLevel} 关（{words.length} 词）📖
+                    </button>
+                  ) : (
+                    <div style={{ color: "var(--green)", fontWeight: 800, fontSize: 13 }}>🏆 已完成本周期目标</div>
+                  )}
+                </div>
+              );
+            })()}
+            
+            {getVisibleGroups().length > 0 ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {getVisibleGroups().map((g, idx) => {
+                  const unlocked = isLevelUnlocked(idx, getVisibleGroups());
+                  const key = g.id || g.name;
+                  const scoreInfo = currentUser?.progress?.[key] || {};
+                  const activeWords = (g.words || []).filter(w => !w.hidden);
+                  const totalSubLevels = getSubLevelCount(activeWords.length);
+                  const completedSubLevels = Math.min(Number(scoreInfo?.completedSubLevels || 0), totalSubLevels);
+                  const isExpanded = expandedGroupKey === key || (expandedGroupKey === null && idx === 0 && unlocked);
+                  const isAllCleared = completedSubLevels >= totalSubLevels && totalSubLevels > 0;
+                  
+                  return (
+                    <div
+                      key={key}
+                      style={{
+                        background: unlocked ? "#fff" : "rgba(0,0,0,0.03)",
+                        border: `1.5px solid ${isExpanded ? "var(--primary)" : (unlocked ? "var(--border)" : "transparent")}`,
+                        borderRadius: 18,
+                        overflow: "hidden",
+                        boxShadow: isExpanded ? "0 6px 18px rgba(200,64,45,0.08)" : (unlocked ? "0 2px 6px rgba(0,0,0,0.02)" : "none"),
+                        transition: "all 0.2s ease"
+                      }}
+                    >
+                      {/* 大关卡头部：点击展开/收起 */}
+                      <div
+                        onClick={() => {
+                          if (!unlocked) return;
+                          soundEffects.click();
+                          setExpandedGroupKey(isExpanded ? "__none__" : key);
+                        }}
+                        style={{
+                          padding: "14px 16px",
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          cursor: unlocked ? "pointer" : "not-allowed",
+                          background: isExpanded ? "rgba(200,64,45,0.02)" : "transparent"
+                        }}
+                      >
+                        <div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 800 }}>LEVEL {idx + 1}</span>
+                            {isAllCleared && <span style={{ fontSize: 10, background: "var(--green-light)", color: "var(--green)", padding: "1px 6px", borderRadius: 10, fontWeight: 800 }}>已全通</span>}
+                          </div>
+                          <div style={{ fontSize: 16, fontWeight: 900, margin: "3px 0 2px", color: "var(--text)" }}>{g.name}</div>
+                          <div style={{ fontSize: 11, color: "var(--muted)" }}>
+                            共 {activeWords.length} 词 · 拆为 {totalSubLevels} 个小关（已通关 {completedSubLevels}/{totalSubLevels}）
+                          </div>
+                        </div>
+
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          {unlocked ? (
+                            <div style={{ textAlign: "right" }}>
+                              <div style={{ fontSize: 13, color: isExpanded ? "var(--primary)" : "var(--muted)", fontWeight: 800 }}>
+                                {isExpanded ? "收起 ▲" : "选关 ▼"}
+                              </div>
+                              <div style={{ fontSize: 10, color: "var(--muted)" }}>自由选关</div>
+                            </div>
+                          ) : (
+                            <span style={{ fontSize: 16 }}>🔒</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* 展开的小关卡自由选择列表 */}
+                      {unlocked && isExpanded && (
+                        <div style={{
+                          padding: "0 12px 14px",
+                          background: "#FAFAF9",
+                          borderTop: "1px dashed var(--border)",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: 8,
+                          paddingTop: 12
+                        }}>
+                          <div style={{ fontSize: 11, fontWeight: 800, color: "var(--muted)", marginBottom: 2 }}>
+                            👇 点击任意小关卡自由开启学习与闯关：
+                          </div>
+                          {Array.from({ length: totalSubLevels }).map((_, subIdx) => {
+                            const subLevelNumber = subIdx + 1;
+                            const bounds = getSubLevelBounds(activeWords.length, subLevelNumber);
+                            const subWords = activeWords.slice(bounds.start, bounds.end);
+                            const recordKey = `${key}_sub_${subLevelNumber}`;
+                            const subRecord = currentUser?.gameProfile?.chapterRecords?.[recordKey] || {};
+                            
+                            const studentTag = String(currentUser?.tag || "").trim().toUpperCase();
+                            const passingScoresConfig = studentsPayload?.challengeSettings?.passingScoresByTag || {};
+                            const configuredThreshold = Number(passingScoresConfig[studentTag]);
+                            const defaultThreshold = Number(passingScoresConfig.default);
+                            const userTargetScore = Number.isFinite(configuredThreshold) && configuredThreshold > 0
+                              ? configuredThreshold
+                              : (studentTag === "A" ? 90 : studentTag === "B" ? 80 : studentTag === "C" ? 60 : (Number.isFinite(defaultThreshold) && defaultThreshold > 0 ? defaultThreshold : 80));
+
+                            const isSubCleared = !!subRecord.isPassed || (subRecord.bestMedal && subRecord.bestMedal !== "unpassed") || !!subRecord.completedAt;
+                            const isSubAttemptedUnpassed = !isSubCleared && (subRecord.attempts > 0 || subRecord.bestScore > 0 || subRecord.bestMedal === "unpassed");
+
+                            return (
+                              <div
+                                key={subLevelNumber}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  startStudyLevel(key, subWords, null, {
+                                    index: subLevelNumber,
+                                    total: totalSubLevels,
+                                    startNum: bounds.start + 1,
+                                    endNum: bounds.end
+                                  });
+                                }}
+                                style={{
+                                  background: "#fff",
+                                  border: `1.5px solid ${isSubCleared ? "#86EFAC" : isSubAttemptedUnpassed ? "#FCA5A5" : "var(--border)"}`,
+                                  borderRadius: 14,
+                                  padding: "10px 14px",
+                                  display: "flex",
+                                  justifyContent: "space-between",
+                                  alignItems: "center",
+                                  cursor: "pointer",
+                                  boxShadow: "0 2px 5px rgba(0,0,0,0.02)",
+                                  transition: "transform 0.1s, border-color 0.15s"
+                                }}
+                                onMouseDown={e => e.currentTarget.style.transform = "scale(0.99)"}
+                                onMouseUp={e => e.currentTarget.style.transform = "scale(1)"}
+                              >
+                                <div>
+                                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                    <span style={{ fontSize: 13, fontWeight: 900, color: "var(--text)" }}>
+                                      第 {subLevelNumber} 小关
+                                    </span>
+                                    {isSubCleared ? (
+                                      <span style={{ fontSize: 10, background: "var(--green-light)", color: "#15803D", padding: "1px 6px", borderRadius: 8, fontWeight: 800 }}>
+                                        {subRecord.bestMedal === "gold" ? "🏆 金杯 · 达标通关" : subRecord.bestMedal === "silver" ? "🏅 银杯 · 达标通关" : "🥉 达标通关"}
+                                      </span>
+                                    ) : isSubAttemptedUnpassed ? (
+                                      <span style={{ fontSize: 10, background: "#FEF2F2", color: "var(--wrong)", border: "1px solid #FECACA", padding: "1px 6px", borderRadius: 8, fontWeight: 800 }}>
+                                        ⚠️ {subRecord.bestScore || 0}分 (未达标 · 目标≥{userTargetScore}分)
+                                      </span>
+                                    ) : (
+                                      <span style={{ fontSize: 10, background: "#F1F5F9", color: "var(--muted)", padding: "1px 6px", borderRadius: 8, fontWeight: 700 }}>
+                                        未挑战 · 目标≥{userTargetScore}分
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>
+                                    第 {bounds.start + 1} ~ {bounds.end} 词 · 共 {subWords.length} 词（先学后测）
+                                  </div>
+                                </div>
+
+                                <button
+                                  style={{
+                                    background: isSubCleared ? "#F0FDF4" : isSubAttemptedUnpassed ? "#FEF2F2" : "var(--primary)",
+                                    border: isSubCleared ? "1px solid #86EFAC" : isSubAttemptedUnpassed ? "1px solid #FCA5A5" : "none",
+                                    color: isSubCleared ? "#15803D" : isSubAttemptedUnpassed ? "var(--wrong)" : "#fff",
+                                    padding: "6px 12px",
+                                    borderRadius: 12,
+                                    fontSize: 12,
+                                    fontWeight: 800,
+                                    cursor: "pointer",
+                                    boxShadow: isSubCleared ? "none" : "0 2px 6px rgba(200,64,45,0.2)"
+                                  }}
+                                >
+                                  {isSubCleared ? "再练一次" : isSubAttemptedUnpassed ? "重测挑战 ⚡" : "开启挑战 ▶"}
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div style={{
+                background: "#fff",
+                border: "1.5px dashed var(--border)",
+                borderRadius: 18,
+                padding: "36px 20px",
+                textAlign: "center",
+                color: "var(--muted)",
+                margin: "12px 0"
+              }}>
+                <div style={{ fontSize: 44, marginBottom: 10 }}>📭</div>
+                <div style={{ fontSize: 16, fontWeight: 800, color: "var(--text)", marginBottom: 6 }}>暂无布置的单词挑战</div>
+                <div style={{ fontSize: 13, lineHeight: 1.6 }}>
+                  教师暂未为您布置待背记的单词任务。<br />任务布置后会实时同步展示在这里哦！
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+
+
+      {/* ===== 视图 5：阶段 2【单词总览与多维独立遮罩自测】 ===== */}
+      {view === "study_summary" && (
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", height: "100%", padding: "14px 16px", position: "relative" }}>
+          
+          {/* 顶部标题与多维自测模式胶囊切换栏 */}
+          <div style={{ marginBottom: 10, flexShrink: 0 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <div>
+                <div style={{ fontSize: 16, fontWeight: 800, color: "var(--text)" }}>📋 单词本总览自测</div>
+                <div style={{ fontSize: 11, color: "var(--muted)" }}>轻触卡片弹窗精读 · 切换模式专注专项自查</div>
+              </div>
+              <button
+                onClick={() => setView("lobby")}
+                style={{ background: "transparent", border: "1px solid var(--border)", borderRadius: 8, padding: "4px 8px", fontSize: 11, color: "var(--muted)", cursor: "pointer", marginRight: 32 }}
+              >
+                ✕ 退出
+              </button>
+            </div>
+
+            {/* 四合一多维自测切换栏（等宽4列网格，免滑动完整呈现） */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 5, width: "100%", marginBottom: 6 }}>
+              {[
+                { mode: "none", label: "👁️ 全显", tip: "完整显示汉字、读音与释义" },
+                { mode: "mask_kanji", label: "🙈 纯假名", tip: "只留纯假名 · 强训读音识义" },
+                { mode: "mask_kana", label: "🙈 仅汉字", tip: "只留日文汉字 · 强训拼读发音" },
+                { mode: "mask_meaning", label: "🙈 遮中文", tip: "仅遮中文释义 · 基础看词测意" }
+              ].map(m => {
+                const isActive = summaryMaskMode === m.mode;
+                return (
+                  <button
+                    key={m.mode}
+                    onClick={() => { soundEffects.click(); setSummaryMaskMode(m.mode); }}
+                    style={{
+                      background: isActive ? "var(--primary)" : "#fff",
+                      color: isActive ? "#fff" : "var(--text)",
+                      border: `1.5px solid ${isActive ? "var(--primary)" : "var(--border)"}`,
+                      borderRadius: 12,
+                      padding: "6px 2px",
+                      fontSize: 12,
+                      fontWeight: 800,
+                      cursor: "pointer",
+                      textAlign: "center",
+                      transition: "all 0.12s",
+                      boxShadow: isActive ? "0 2px 6px rgba(200,64,45,0.2)" : "none"
+                    }}
+                  >
+                    {m.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* 选中模式教学说明小提示 */}
+            <div style={{ fontSize: 11, color: "var(--muted)", textAlign: "center", minHeight: 16 }}>
+              {summaryMaskMode === "none" && "💡 完整模式：全景通读所有汉字、读音与释义"}
+              {summaryMaskMode === "mask_kanji" && "💡 纯假名模式：只留假名，遮汉字与中文，练读音识义"}
+              {summaryMaskMode === "mask_kana" && "💡 仅汉字模式：只留汉字，遮读音与中文，练看汉字拼音"}
+              {summaryMaskMode === "mask_meaning" && "💡 测释义模式：留汉字与假名，遮中文释义"}
+            </div>
+          </div>
+
+          {/* 缩略图网格流 */}
+          <div style={{ flex: 1, overflowY: "auto", padding: "4px 2px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              {studyWords.map((w, idx) => {
+                const hasKanji = !!w.kanji && w.kanji !== w.kana;
+                const isKanjiMasked = summaryMaskMode === "mask_kanji" && hasKanji;
+                const isKanaMasked = summaryMaskMode === "mask_kana";
+                const isMeaningMasked = summaryMaskMode === "mask_meaning" || summaryMaskMode === "mask_kanji" || summaryMaskMode === "mask_kana";
+
+                return (
+                  <div
+                    key={w.id || idx}
+                    className="summary-card maskable-box"
+                    onClick={() => {
+                      soundEffects.click();
+                      setSummaryModalMaskKanji(summaryMaskMode === "mask_kanji");
+                      setSummaryModalMaskKana(summaryMaskMode === "mask_kana");
+                      setSummaryModalMaskMeaning(summaryMaskMode !== "none");
+                      setSummaryModalMaskExample(false);
+                      setSummaryModalIdx(idx);
+                    }}
+                    style={{ cursor: "pointer", position: "relative", transition: "transform 0.12s, box-shadow 0.12s" }}
+                  >
+                    <div style={{ position: "absolute", top: 6, right: 6, fontSize: 10, color: "var(--primary)", background: "var(--primary-light)", padding: "1px 5px", borderRadius: 4, fontWeight: 700 }}>
+                      🔍 详情
+                    </div>
+                    {w.imageUrl && (
+                      <div style={{
+                        height: 78,
+                        width: "100%",
+                        background: "#F8FAFC",
+                        borderRadius: 8,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        marginBottom: 6,
+                        padding: "4px",
+                        overflow: "hidden"
+                      }}>
+                        <img
+                          src={w.imageUrl}
+                          alt="缩略图"
+                          style={{
+                            maxHeight: "100%",
+                            maxWidth: "100%",
+                            objectFit: "contain",
+                            filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.04))"
+                          }}
+                        />
+                      </div>
+                    )}
+
+                    {/* 汉字区域 */}
+                    {hasKanji ? (
+                      <div style={{ fontSize: 16, fontWeight: 800, color: "var(--text)", position: "relative" }}>
+                        {w.kanji}
+                        {isKanjiMasked && (
+                          <div className="mask-overlay" style={{ fontSize: 10, borderRadius: 4 }}>
+                            🙈 汉字
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: 16, fontWeight: 800, color: "var(--text)", position: "relative" }}>
+                        {w.kana}
+                      </div>
+                    )}
+
+                    {/* 假名读音区域（当有汉字时独立展示） */}
+                    {hasKanji && (
+                      <div style={{ fontSize: 12, color: "var(--primary)", fontWeight: 700, marginTop: 2, position: "relative" }}>
+                        {w.kana}
+                        {isKanaMasked && (
+                          <div className="mask-overlay" style={{ fontSize: 10, borderRadius: 4 }}>
+                            🙈 读音
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* 中文释义区域 */}
+                    <div style={{ fontSize: 12, color: "var(--green)", fontWeight: 700, marginTop: 4, position: "relative" }}>
+                      {w.meaning}
+                      {isMeaningMasked && (
+                        <div className="mask-overlay" style={{ fontSize: 10, borderRadius: 4 }}>
+                          🙈 释义
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 底部操作：直接进入两阶段正式闯关 */}
+          <div style={{ flexShrink: 0, paddingTop: 10, paddingBottom: "max(6px, env(safe-area-inset-bottom))" }}>
+            <button
+              onClick={startActualGameChallenge}
+              style={{
+                width: "100%",
+                background: "var(--green)",
+                color: "#fff",
+                border: "none",
+                borderRadius: 14,
+                padding: "13px 0",
+                fontSize: 15,
+                fontWeight: 800,
+                cursor: "pointer",
+                boxShadow: "0 4px 14px rgba(45,142,90,0.28)"
+              }}
+            >
+              ⚔️ 正式进入闯关（共 2 关 · 假名识义 + 看义拼词）
+            </button>
+          </div>
+
+          {/* ===== 浮动单词研读卡片模态弹层（汉字与假名解耦独立遮罩） ===== */}
+          {summaryModalIdx !== null && studyWords[summaryModalIdx] && (() => {
+            const curWord = studyWords[summaryModalIdx];
+            const hasKanji = !!curWord.kanji && curWord.kanji !== curWord.kana;
+            const ex = Array.isArray(curWord.examples) && curWord.examples.length ? curWord.examples[0] : null;
+
+            return (
+              <div
+                className="error-compare-overlay"
+                style={{ zIndex: 9999, padding: "16px" }}
+                onClick={() => setSummaryModalIdx(null)}
+              >
+                <div
+                  className="error-compare-card"
+                  onClick={e => e.stopPropagation()}
+                  style={{
+                    maxWidth: 420,
+                    width: "100%",
+                    maxHeight: "86vh",
+                    display: "flex",
+                    flexDirection: "column",
+                    padding: "16px",
+                    textAlign: "left",
+                    border: "1.5px solid var(--border)",
+                    borderRadius: 20
+                  }}
+                >
+                  {/* 弹窗顶部栏 */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexShrink: 0 }}>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: "var(--primary)" }}>
+                      📖 单词精读 · {summaryModalIdx + 1} / {studyWords.length}
+                    </span>
+                    <button
+                      onClick={() => setSummaryModalIdx(null)}
+                      style={{ background: "transparent", border: "none", fontSize: 18, color: "var(--muted)", cursor: "pointer", padding: "2px 6px" }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  {/* 核心研读区域（支持滑动，排版紧凑均衡） */}
+                  <div style={{ flex: 1, overflowY: "auto", paddingRight: 2, marginBottom: 10 }}>
+                    
+                    {/* 1. 顶部大图 Hero 展示区（占比提升，饱满吸睛） */}
+                    {curWord.imageUrl ? (
+                      <div style={{
+                        background: "#F8FAFC",
+                        border: "1px solid #E2E8F0",
+                        borderRadius: 16,
+                        height: 180,
+                        display: "flex",
+                        justifyContent: "center",
+                        alignItems: "center",
+                        marginBottom: 10,
+                        padding: "8px",
+                        boxShadow: "inset 0 1px 4px rgba(0,0,0,0.03)"
+                      }}>
+                        <img
+                          src={curWord.imageUrl}
+                          alt="单词配图"
+                          style={{
+                            maxHeight: "100%",
+                            maxWidth: "100%",
+                            objectFit: "contain",
+                            filter: "drop-shadow(0 4px 10px rgba(0,0,0,0.06))"
+                          }}
+                        />
+                      </div>
+                    ) : null}
+
+                    {/* 2. 日语核心表达区（汉字与假名解耦双层卡片，紧凑精致） */}
+                    <div style={{
+                      background: "#fff",
+                      border: "1.5px solid var(--border)",
+                      borderRadius: 14,
+                      overflow: "hidden",
+                      marginBottom: 8,
+                      boxShadow: "0 2px 8px rgba(0,0,0,0.02)"
+                    }}>
+                      {/* 2.1 汉字书写层（仅有汉字时展示） */}
+                      {hasKanji && (
+                        <div
+                          className="maskable-box"
+                          onClick={() => setSummaryModalMaskKanji(prev => !prev)}
+                          style={{
+                            padding: "8px 12px",
+                            textAlign: "center",
+                            background: "var(--bg)",
+                            borderBottom: "1px solid var(--border)",
+                            cursor: "pointer"
+                          }}
+                        >
+                          <div style={{ fontSize: 9, color: "var(--muted)", fontWeight: 700, marginBottom: 1 }}>
+                            🏛️ 汉字书写（点击遮罩）
+                          </div>
+                          <div style={{ fontSize: 26, fontWeight: 900, color: "var(--text)", letterSpacing: "1px", lineHeight: 1.2 }}>
+                            {curWord.kanji}
+                          </div>
+                          {summaryModalMaskKanji && (
+                            <div className="mask-overlay" style={{ fontSize: 11 }}>
+                              🙈 汉字已遮罩 · 点击查看
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* 2.2 假名发音与声调层 */}
+                      <div
+                        className="maskable-box"
+                        onClick={() => setSummaryModalMaskKana(prev => !prev)}
+                        style={{
+                          padding: "8px 12px",
+                          textAlign: "center",
+                          background: hasKanji ? "rgba(22,119,255,0.04)" : "var(--bg)",
+                          cursor: "pointer"
+                        }}
+                      >
+                        <div style={{ fontSize: 9, color: "var(--blue)", fontWeight: 700, marginBottom: 1 }}>
+                          🔊 假名发音与声调（点击遮罩）
+                        </div>
+                        <div style={{ fontSize: hasKanji ? 20 : 26, fontWeight: 800, color: "var(--blue)", letterSpacing: "1px", lineHeight: 1.2 }}>
+                          【{curWord.kana}】
+                        </div>
+                        <div style={{ display: "flex", justifyContent: "center", gap: 6, marginTop: 4 }}>
+                          {curWord.pos && (
+                            <span style={{ fontSize: 10, background: "#fff", color: "var(--primary)", padding: "1px 6px", borderRadius: 4, fontWeight: 700, border: "1px solid var(--border)" }}>
+                              {curWord.pos}
+                            </span>
+                          )}
+                          {curWord.accent && (
+                            <span style={{ fontSize: 10, background: "#fff", color: "var(--blue)", padding: "1px 6px", borderRadius: 4, fontWeight: 700, border: "1px solid var(--border)" }}>
+                              声调: {curWord.accent}
+                            </span>
+                          )}
+                        </div>
+                        {summaryModalMaskKana && (
+                          <div className="mask-overlay" style={{ fontSize: 11 }}>
+                            🙈 假名读音已遮罩 · 点击查看
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* 3. 中文释义区 —— 点击独立遮罩 */}
+                    <div
+                      className="maskable-box"
+                      onClick={() => setSummaryModalMaskMeaning(prev => !prev)}
+                      style={{
+                        background: "var(--green-light)",
+                        border: "1px solid #D4EEDF",
+                        borderRadius: 12,
+                        padding: "8px 12px",
+                        textAlign: "center",
+                        marginBottom: 8,
+                        cursor: "pointer"
+                      }}
+                    >
+                      <div style={{ fontSize: 9, color: "var(--green)", fontWeight: 700, marginBottom: 1 }}>
+                        🇨🇳 中文释义（点击遮罩）
+                      </div>
+                      <div style={{ fontSize: 17, fontWeight: 800, color: "#1D6F44", lineHeight: 1.3 }}>
+                        {curWord.meaning}
+                      </div>
+                      {curWord.usage && (
+                        <div style={{ fontSize: 11, color: "#2E7D32", marginTop: 2, fontWeight: 500 }}>
+                          💡 {curWord.usage}
+                        </div>
+                      )}
+                      {summaryModalMaskMeaning && (
+                        <div className="mask-overlay" style={{ fontSize: 11 }}>
+                          🙈 中文释义已遮罩 · 点击查看
+                        </div>
+                      )}
+                    </div>
+
+                    {/* 4. 精选例句区 —— 居中对齐，点击例句中文独立遮罩 */}
+                    {ex && (ex.ja || ex.cn) && (
+                      <div
+                        className="maskable-box"
+                        onClick={() => setSummaryModalMaskExample(prev => !prev)}
+                        style={{
+                          background: "var(--accent-gold-bg)",
+                          border: "1px solid #FFE58F",
+                          borderRadius: 12,
+                          padding: "8px 12px",
+                          textAlign: "center",
+                          cursor: "pointer"
+                        }}
+                      >
+                        <div style={{ fontSize: 9, color: "var(--accent-gold)", fontWeight: 700, marginBottom: 2 }}>
+                          📝 例句研读（点击遮罩中文）
+                        </div>
+                        {ex.ja && (
+                          <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", lineHeight: 1.35 }}>
+                            {ex.ja}
+                          </div>
+                        )}
+                        {ex.cn && (
+                          <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 3, position: "relative" }}>
+                            {ex.cn}
+                            {summaryModalMaskExample && (
+                              <div className="mask-overlay" style={{ fontSize: 11 }}>
+                                🙈 点击查看译文
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 弹窗底部多维快捷工具条 */}
+                  <div style={{ display: "flex", gap: 6, flexShrink: 0, paddingTop: 4 }}>
+                    <button
+                      onClick={() => {
+                        if (summaryModalIdx > 0) {
+                          soundEffects.click();
+                          setSummaryModalIdx(prev => prev - 1);
+                          setSummaryModalMaskKanji(false);
+                          setSummaryModalMaskKana(false);
+                          setSummaryModalMaskMeaning(false);
+                          setSummaryModalMaskExample(false);
+                        }
+                      }}
+                      disabled={summaryModalIdx === 0}
+                      style={{
+                        background: "#fff",
+                        border: "1px solid var(--border)",
+                        borderRadius: 12,
+                        padding: "9px 12px",
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: summaryModalIdx === 0 ? "var(--muted)" : "var(--text)",
+                        opacity: summaryModalIdx === 0 ? 0.4 : 1,
+                        cursor: summaryModalIdx === 0 ? "not-allowed" : "pointer"
+                      }}
+                    >
+                      ◀ 上一个
+                    </button>
+
+                    {hasKanji ? (
+                      <>
+                        <button
+                          onClick={() => {
+                            soundEffects.click();
+                            const isCurrentlyPureKana = summaryModalMaskKanji && summaryModalMaskMeaning && !summaryModalMaskKana;
+                            if (isCurrentlyPureKana) {
+                              setSummaryModalMaskKanji(false);
+                              setSummaryModalMaskMeaning(false);
+                            } else {
+                              setSummaryModalMaskKanji(true);
+                              setSummaryModalMaskMeaning(true);
+                              setSummaryModalMaskKana(false);
+                            }
+                          }}
+                          style={{
+                            flex: 1,
+                            background: (summaryModalMaskKanji && summaryModalMaskMeaning) ? "var(--primary)" : "#fff",
+                            color: (summaryModalMaskKanji && summaryModalMaskMeaning) ? "#fff" : "var(--primary)",
+                            border: "1.5px solid var(--primary)",
+                            borderRadius: 12,
+                            padding: "9px 0",
+                            fontSize: 11,
+                            fontWeight: 800,
+                            cursor: "pointer"
+                          }}
+                        >
+                          {(summaryModalMaskKanji && summaryModalMaskMeaning) ? "👁️ 显汉字" : "🙈 纯假名"}
+                        </button>
+
+                        <button
+                          onClick={() => {
+                            soundEffects.click();
+                            const isCurrentlyKanjiOnly = summaryModalMaskKana && summaryModalMaskMeaning && !summaryModalMaskKanji;
+                            if (isCurrentlyKanjiOnly) {
+                              setSummaryModalMaskKana(false);
+                              setSummaryModalMaskMeaning(false);
+                            } else {
+                              setSummaryModalMaskKana(true);
+                              setSummaryModalMaskMeaning(true);
+                              setSummaryModalMaskKanji(false);
+                            }
+                          }}
+                          style={{
+                            flex: 1,
+                            background: (summaryModalMaskKana && summaryModalMaskMeaning) ? "var(--blue)" : "#fff",
+                            color: (summaryModalMaskKana && summaryModalMaskMeaning) ? "#fff" : "var(--blue)",
+                            border: "1.5px solid var(--blue)",
+                            borderRadius: 12,
+                            padding: "9px 0",
+                            fontSize: 11,
+                            fontWeight: 800,
+                            cursor: "pointer"
+                          }}
+                        >
+                          {(summaryModalMaskKana && summaryModalMaskMeaning) ? "👁️ 显读音" : "🙈 仅汉字"}
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => {
+                          soundEffects.click();
+                          setSummaryModalMaskMeaning(prev => !prev);
+                        }}
+                        style={{
+                          flex: 1,
+                          background: summaryModalMaskMeaning ? "var(--green)" : "#fff",
+                          color: summaryModalMaskMeaning ? "#fff" : "var(--green)",
+                          border: "1.5px solid var(--green)",
+                          borderRadius: 12,
+                          padding: "9px 0",
+                          fontSize: 11,
+                          fontWeight: 800,
+                          cursor: "pointer"
+                        }}
+                      >
+                        {summaryModalMaskMeaning ? "👁️ 显示中文" : "🙈 遮中文测意"}
+                      </button>
+                    )}
+
+                    <button
+                      onClick={() => {
+                        soundEffects.click();
+                        if (summaryModalIdx + 1 < studyWords.length) {
+                          setSummaryModalIdx(prev => prev + 1);
+                          setSummaryModalMaskKanji(false);
+                          setSummaryModalMaskKana(false);
+                          setSummaryModalMaskMeaning(false);
+                          setSummaryModalMaskExample(false);
+                        } else {
+                          setSummaryModalIdx(null);
+                        }
+                      }}
+                      style={{
+                        background: "var(--primary)",
+                        color: "#fff",
+                        border: "none",
+                        borderRadius: 12,
+                        padding: "9px 14px",
+                        fontSize: 12,
+                        fontWeight: 800,
+                        cursor: "pointer"
+                      }}
+                    >
+                      {summaryModalIdx + 1 < studyWords.length ? "下一个 ▶" : "完成 ✕"}
+                    </button>
+                  </div>
+
+                </div>
+              </div>
+            );
+          })()}
+
+        </div>
+      )}
+
+      {/* ===== 视图 6：阶段 3【实战闯关与错词救援】 ===== */}
+      {view === "game" && gameWords.length > 0 && wordIndex < gameWords.length && (
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", height: "100%", padding: gameStage === 2 ? "10px 8px" : "12px 14px" }}>
+          
+          {/* 关卡状态栏 */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0, marginBottom: 8, padding: "0 2px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <button
+                onClick={() => {
+                  soundEffects.click();
+                  setShowExitConfirm(true);
+                }}
+                style={{
+                  background: "transparent",
+                  border: "1px solid var(--border)",
+                  borderRadius: 8,
+                  padding: "3px 7px",
+                  fontSize: 11,
+                  color: "var(--muted)",
+                  cursor: "pointer",
+                  fontWeight: 700
+                }}
+              >
+                ✕ 退出
+              </button>
+              <span style={{ fontSize: 12, fontWeight: 800, color: gameWords[wordIndex].isRetryVariant ? "#E67E22" : "var(--text)" }}>
+                {gameStage === 1 ? "🎯 第 1/2 关 · 假名识义" : "🧩 第 2/2 关 · 看义拼词"}
+                {gameWords[wordIndex].isRetryVariant ? " (🔄 错题重做)" : ""} · {wordIndex + 1} / {gameWords.length}
+              </span>
+            </div>
+            <div style={{ fontSize: 12, color: "var(--primary)", fontWeight: 800 }}>
+              当前得分：<span style={{ fontSize: 14, fontWeight: 900 }}>{score}</span> 分
+            </div>
+          </div>
+
+          <div className={`mascot-wrap ${mascot.mood === "cheer" ? "cheer" : ""}`} style={{ margin: "0 0 6px" }}>
+            <div className="mascot-message">{mascot.message}</div>
+            <div className="mascot-face">{mascot.face}</div>
+          </div>
+          
+          {/* ===== 屏幕主战区（自适应饱满布局，消除上下闲置留白） ===== */}
+          <div style={{
+            flex: 1,
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: gameStage === 1 ? "space-between" : "center",
+            alignItems: "center",
+            width: "100%",
+            padding: "2px 0 4px",
+            minHeight: 0
+          }}>
+            
+            {/* 1. 题目展示主卡片舞台 */}
+            <div style={{
+              background: "#fff",
+              border: "1.5px solid var(--border)",
+              borderRadius: 20,
+              padding: gameStage === 1 ? "10px 14px" : "8px 6px 12px",
+              width: "100%",
+              boxShadow: "0 4px 14px rgba(0,0,0,0.02)",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              marginBottom: 12,
+              flexShrink: 0
+            }}>
+              {/* 1.1 第 1 关：假名识义核心题干（纯假名大字） */}
+              {gameStage === 1 && (
+                <h1 style={{ fontSize: 36, fontWeight: 900, color: "var(--text)", margin: "4px 0 6px", letterSpacing: "2.5px" }}>
+                  {gameWords[wordIndex].data.kana}
+                </h1>
+              )}
+
+              {/* 1.2 第 2 关：看义拼词专属主舞台（大画幅极窄贴边插画 + 紧凑释义大字） */}
+              {gameStage === 2 && (
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: "100%" }}>
+                  {/* 高清插画展示（大尺寸画幅呈现，图片尺寸最大化） */}
+                  {gameWords[wordIndex].data.imageUrl ? (
+                    <div style={{
+                      background: "#F8FAFC",
+                      border: "1px solid #E2E8F0",
+                      borderRadius: 16,
+                      width: "100%",
+                      height: 225,
+                      display: "flex",
+                      justifyContent: "center",
+                      alignItems: "center",
+                      padding: "4px 4px",
+                      boxShadow: "inset 0 1px 4px rgba(0,0,0,0.03)",
+                      overflow: "hidden"
+                    }}>
+                      <img
+                        src={gameWords[wordIndex].data.imageUrl}
+                        alt="单词插画"
+                        style={{
+                          maxHeight: "100%",
+                          maxWidth: "100%",
+                          objectFit: "contain",
+                          filter: "drop-shadow(0 6px 14px rgba(0,0,0,0.08))"
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <div style={{
+                      background: "#F8FAFC",
+                      borderRadius: 16,
+                      width: "100%",
+                      height: 150,
+                      display: "flex",
+                      justifyContent: "center",
+                      alignItems: "center",
+                      fontSize: 54
+                    }}>
+                      🖼️
+                    </div>
+                  )}
+
+                  {/* 中文释义大字（紧随插画底座，排布紧凑有力） */}
+                  <h1 style={{ fontSize: 28, fontWeight: 900, color: "var(--text)", margin: "10px 0 2px", lineHeight: 1.2, textAlign: "center" }}>
+                    {gameWords[wordIndex].data.meaning}
+                  </h1>
+
+                  {/* 对应汉字骨架提示 */}
+                  {gameWords[wordIndex].data.kanji && gameWords[wordIndex].data.kanji !== gameWords[wordIndex].data.kana && (
+                    <div style={{ fontSize: 13, color: "var(--muted)", background: "#F1F5F9", padding: "3px 14px", borderRadius: 8, marginTop: 4, display: "inline-block" }}>
+                      🏛️ 对应汉字：<strong style={{ color: "var(--text)", fontSize: 14 }}>{gameWords[wordIndex].data.kanji}</strong>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* 2. 紧密协同的交互区（选项 / 拼写操作台） */}
+            {/* 2.1 第 1 关【假名识义】自适应大画幅四宫格图文卡片（撑满视野，沉浸通透） */}
+            {gameStage === 1 && (
+              <div style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gridTemplateRows: "1fr 1fr",
+                gap: 12,
+                width: "100%",
+                flex: 1,
+                minHeight: 0
+              }}>
+                {meaningOpts.map((opt, idx) => {
+                  const optMeaning = typeof opt === "object" ? opt.meaning : opt;
+                  const optImg = typeof opt === "object" ? opt.imageUrl : null;
+                  const isCorrect = optMeaning === gameWords[wordIndex].data.meaning;
+                  const isSelected = selectedMeaning === optMeaning;
+
+                  return (
+                    <div
+                      key={idx}
+                      onClick={() => handleChoiceClick("meaning", optMeaning, gameWords[wordIndex].data.meaning)}
+                      className={`opt-btn ${isSelected ? (isCorrect ? "correct" : "wrong") : ""}`}
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        padding: "10px 8px",
+                        borderRadius: 18,
+                        height: "100%",
+                        cursor: "pointer",
+                        background: isSelected ? (isCorrect ? "var(--green-light)" : "#FDF2F2") : "#fff",
+                        border: `2px solid ${isSelected ? (isCorrect ? "var(--green)" : "var(--wrong)") : "var(--border)"}`,
+                        boxShadow: "0 4px 12px rgba(0,0,0,0.03)",
+                        transition: "all 0.12s ease"
+                      }}
+                    >
+                      {/* 大画幅插画容器（自适应拉伸高度） */}
+                      {optImg ? (
+                        <div style={{
+                          flex: 1,
+                          width: "100%",
+                          background: "#F8FAFC",
+                          borderRadius: 12,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          marginBottom: 8,
+                          padding: "6px",
+                          overflow: "hidden",
+                          minHeight: 80
+                        }}>
+                          <img
+                            src={optImg}
+                            alt="选项配图"
+                            style={{
+                              maxHeight: "100%",
+                              maxWidth: "100%",
+                              objectFit: "contain",
+                              filter: "drop-shadow(0 2px 6px rgba(0,0,0,0.05))"
+                            }}
+                          />
+                        </div>
+                      ) : (
+                        <div style={{
+                          flex: 1,
+                          width: "100%",
+                          background: "#F8FAFC",
+                          borderRadius: 12,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          marginBottom: 8,
+                          fontSize: 36,
+                          minHeight: 80
+                        }}>
+                          🖼️
+                        </div>
+                      )}
+
+                      {/* 选项中文释义（清晰大字） */}
+                      <div style={{
+                        fontSize: 16,
+                        fontWeight: 900,
+                        color: isSelected ? (isCorrect ? "var(--green)" : "var(--wrong)") : "var(--text)",
+                        textAlign: "center",
+                        lineHeight: 1.25,
+                        flexShrink: 0
+                      }}>
+                        {optMeaning}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* 2.2 第 2 关【假名拼写】大画幅立体控制台（拟物立体卡槽 + 5列大键帽气泡池） */}
+            {gameStage === 2 && (
+              <div style={{ width: "100%", display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0, paddingTop: 4 }}>
+                {/* 拟物立体卡槽 */}
+                <div style={{ display: "flex", justifyContent: "center", minHeight: 56, marginBottom: 14 }}>
+                  {Array.from({ length: targetSpell.length }).map((_, i) => {
+                    const c = currentSpell[i] || "";
+                    return (
+                      <div
+                        key={i}
+                        onClick={() => c && handleUndoSpell(i)}
+                        className={`furi-char ${c ? "filled" : ""}`}
+                      >
+                        {c}
+                      </div>
+                    );
+                  })}
+                </div>
+                
+                {/* 5列大按键假名池 */}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8, width: "100%", maxWidth: 380 }}>
+                  {spellPool.map((c, idx) => (
+                    <div
+                      key={idx}
+                      onClick={() => handleSpellClick(c)}
+                      className="kana-block"
+                    >
+                      {c}
+                    </div>
+                  ))}
+                </div>
+
+                {/* 辅助交互提示 */}
+                <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 10, textAlign: "center" }}>
+                  💡 拼写错误？轻触上方卡槽即可撤销假名
+                </div>
+              </div>
+            )}
+
+          </div>
+
+          {/* ===== 第 1 小关通关极简过渡弹层 ===== */}
+          {stageTransition && (
+            <div className="error-compare-overlay" style={{ zIndex: 9999 }}>
+              <div className="error-compare-card" style={{ border: "2px solid var(--green)", maxWidth: 320, padding: "24px 18px" }}>
+                <div style={{ fontSize: 44, marginBottom: 6 }}>🎉</div>
+                <div style={{ fontSize: 20, fontWeight: 900, color: "var(--green)", marginBottom: 12 }}>
+                  第 1 关通关！
+                </div>
+                
+                <div style={{
+                  background: "var(--green-light)",
+                  borderRadius: 12,
+                  padding: "10px 14px",
+                  fontSize: 14,
+                  color: "#1D6F44",
+                  fontWeight: 800,
+                  marginBottom: 20
+                }}>
+                  ⚡ 第 1 关斩获：<span style={{ fontSize: 16, fontWeight: 900 }}>{score}</span> 分<br />
+                  <span style={{ fontSize: 12, color: "var(--muted)", fontWeight: 700 }}>首答做对：{sessionRef.current.stage1Correct} / {sessionRef.current.stage1Total}</span>
+                </div>
+
+                <button
+                  onClick={startStage2Challenge}
+                  style={{
+                    background: "var(--primary)",
+                    color: "#fff",
+                    border: "none",
+                    padding: "13px 20px",
+                    borderRadius: 20,
+                    fontWeight: 900,
+                    fontSize: 15,
+                    cursor: "pointer",
+                    width: "100%",
+                    boxShadow: "0 4px 14px rgba(200,64,45,0.28)"
+                  }}
+                >
+                  进入第 2 关：看义拼词 ▶
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* 答错即时对比解析卡弹层 */}
+          {errorFeedback && (
+            <div className="error-compare-overlay" onClick={handleDismissErrorFeedback}>
+              <div className="error-compare-card" onClick={e => e.stopPropagation()}>
+                <div style={{ fontSize: 30, marginBottom: 4 }}>💔</div>
+                <div style={{ fontSize: 13, fontWeight: 800, color: "var(--wrong)", background: "#FEE2E2", padding: "4px 12px", borderRadius: 20, display: "inline-block", marginBottom: 8 }}>
+                  答错扣 4 分 · 错题已打乱插至后方
+                </div>
+                
+                <div style={{ background: "var(--bg)", borderRadius: 12, padding: "10px 12px", marginBottom: 10, textAlign: "left", fontSize: 13, lineHeight: 1.6 }}>
+                  <div>🔴 <strong>你的选择：</strong>{errorFeedback.userChoice || "（未完成）"}</div>
+                  <div style={{ marginTop: 4 }}>🟢 <strong>正确答案：</strong><span style={{ color: "var(--green)", fontWeight: 800 }}>{errorFeedback.correctChoice}</span></div>
+                </div>
+
+                <div style={{ fontSize: 12, color: "var(--muted)", marginBottom: 14 }}>
+                  单词全貌：<strong style={{ color: "var(--text)" }}>{errorFeedback.word?.kanji ? `${errorFeedback.word.kanji}【${errorFeedback.word.kana}】` : errorFeedback.word?.kana}</strong><br />
+                  中文释义：<strong>{errorFeedback.word?.meaning}</strong>
+                </div>
+
+                <button
+                  onClick={handleDismissErrorFeedback}
+                  style={{ background: "var(--primary)", color: "#fff", border: "none", padding: "10px 24px", borderRadius: 20, fontWeight: 800, fontSize: 13, cursor: "pointer" }}
+                >
+                  我知道了，继续 ➔
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* 闯关中途退出二次确认弹层 */}
+          {showExitConfirm && (
+            <div className="error-compare-overlay" style={{ zIndex: 9999 }} onClick={() => setShowExitConfirm(false)}>
+              <div className="error-compare-card" onClick={e => e.stopPropagation()} style={{ border: "1.5px solid var(--border)", maxWidth: 340 }}>
+                <div style={{ fontSize: 36, marginBottom: 8 }}>🚪</div>
+                <div style={{ fontSize: 16, fontWeight: 800, color: "var(--text)", marginBottom: 8 }}>
+                  确定要退出本次闯关吗？
+                </div>
+                <div style={{ fontSize: 13, color: "var(--muted)", lineHeight: 1.6, marginBottom: 20 }}>
+                  当前关卡的答题进度和积分将<strong>不会保存</strong>。<br />建议坚持完成本轮挑战哦！
+                </div>
+                <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+                  <button
+                    onClick={() => {
+                      soundEffects.click();
+                      setShowExitConfirm(false);
+                    }}
+                    style={{
+                      flex: 1,
+                      background: "var(--primary)",
+                      color: "#fff",
+                      border: "none",
+                      padding: "11px 0",
+                      borderRadius: 20,
+                      fontWeight: 800,
+                      fontSize: 13,
+                      cursor: "pointer",
+                      boxShadow: "0 3px 10px rgba(200,64,45,0.25)"
+                    }}
+                  >
+                    继续挑战
+                  </button>
+                  <button
+                    onClick={() => {
+                      soundEffects.click();
+                      setShowExitConfirm(false);
+                      handleExitToLobby();
+                    }}
+                    style={{
+                      flex: 1,
+                      background: "#fff",
+                      border: "1.5px solid var(--border)",
+                      color: "var(--muted)",
+                      padding: "11px 0",
+                      borderRadius: 20,
+                      fontWeight: 700,
+                      fontSize: 13,
+                      cursor: "pointer"
+                    }}
+                  >
+                    确认退出
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+          
+        </div>
+      )}
+
+      {/* ===== 视图 7：关卡结算 ===== */}
+      {view === "result" && (
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", padding: "20px 16px", textAlign: "center", overflowY: "auto" }}>
+          <div className="fade-in" style={{ width: "100%", maxWidth: 420 }}>
+            <div style={{ fontSize: 50, marginBottom: 8 }}>{resultSummary?.medalIcon || "🏅"}</div>
+            
+            {resultSummary?.isPassed ? (
+              <>
+                <h2 style={{ fontSize: 22, fontWeight: 900, color: "var(--green)", margin: "0 0 4px" }}>🎉 恭喜通关！</h2>
+                <div style={{ color: resultSummary?.medal === "gold" ? "#D97706" : resultSummary?.medal === "silver" ? "#2563EB" : "#16A34A", fontSize: 16, fontWeight: 800, marginBottom: 12 }}>
+                  {resultSummary?.medal === "gold" ? "🏆 斩获金杯 · 完美精通" : resultSummary?.medal === "silver" ? "🏅 斩获银杯 · 熟练达标" : "🥉 斩获铜杯 · 顺利通关"}
+                </div>
+                <div style={{ fontSize: 12, color: "var(--muted)", fontWeight: 700, marginBottom: 14 }}>
+                  已达到 {resultSummary?.studentTag ? `${resultSummary.studentTag} 级` : ""}及格达标线（≥{resultSummary?.requiredPassingScore || 80} 分）
+                </div>
+              </>
+            ) : (
+              <>
+                <h2 style={{ fontSize: 22, fontWeight: 900, color: "var(--wrong)", margin: "0 0 4px" }}>💔 未达标，需重新挑战！</h2>
+                <div style={{ color: "var(--wrong)", fontSize: 15, fontWeight: 800, marginBottom: 6 }}>
+                  距离您的{resultSummary?.studentTag ? ` ${resultSummary.studentTag} 级` : ""}达标线（{resultSummary?.requiredPassingScore} 分）还差 <strong style={{ fontSize: 18 }}>{resultSummary?.scoreDiff}</strong> 分
+                </div>
+                <div style={{ fontSize: 12, color: "var(--muted)", fontWeight: 600, marginBottom: 14 }}>
+                  别灰心！查漏补缺复习做错的单词，再战一次必定过关！
+                </div>
+              </>
+            )}
+            
+            {/* 最终斩获积分大卡片 */}
+            <div style={{
+              background: resultSummary?.isPassed ? "#F0FDF4" : "#FEF2F2",
+              border: `1.5px solid ${resultSummary?.isPassed ? "#86EFAC" : "#FECACA"}`,
+              borderRadius: 16,
+              padding: "12px 18px",
+              marginBottom: 14,
+              display: "inline-block",
+              minWidth: 200
+            }}>
+              <div style={{ fontSize: 12, color: resultSummary?.isPassed ? "#166534" : "#991B1B", fontWeight: 700, marginBottom: 2 }}>本关最终得分</div>
+              <div style={{ fontSize: 32, fontWeight: 900, color: resultSummary?.isPassed ? "var(--green)" : "var(--wrong)" }}>
+                {resultSummary?.score || score} <span style={{ fontSize: 14 }}>分</span>
+              </div>
+            </div>
+
+            {/* 答题明细卡 */}
+            <div style={{ fontSize: 13, color: "var(--muted)", lineHeight: 1.8, marginBottom: 16, textAlign: "left", background: "#fff", border: "1px solid var(--border)", borderRadius: 14, padding: "12px 16px" }}>
+              <div>🎯 <strong>第 1 关【假名识义】首答：</strong>{sessionRef.current.stage1Correct || 0} / {sessionRef.current.stage1Total || 0}</div>
+              <div>🧩 <strong>第 2 关【看义拼词】首答：</strong>{sessionRef.current.stage2Correct || 0} / {sessionRef.current.stage2Total || 0}</div>
+              <div>⚡ <strong>综合首答正确数：</strong>{resultSummary?.firstTryCorrect || 0} / {resultSummary?.total || 0}</div>
+              {resultSummary?.rescuedCount > 0 && <div style={{ color: "var(--green)" }}>🛟 <strong>后置重测消灭错题：</strong>已攻克 {resultSummary.rescuedCount} 个错词</div>}
+            </div>
+
+            {/* 若未达标且有错词，直接展示错词强化速记卡片 */}
+            {!resultSummary?.isPassed && resultSummary?.mistakeWords?.length > 0 && (
+              <div style={{ background: "#FFFBEB", border: "1.5px solid #FDE68A", borderRadius: 14, padding: 12, marginBottom: 16, textAlign: "left" }}>
+                <div style={{ fontSize: 12, fontWeight: 800, color: "#B45309", marginBottom: 8, display: "flex", alignItems: "center", gap: 4 }}>
+                  <span>📌</span> 本关失误单词快速复习（轻触可朗读）：
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 130, overflowY: "auto" }}>
+                  {resultSummary.mistakeWords.map((w, idx) => (
+                    <div
+                      key={idx}
+                      onClick={() => speak(w.kana || w.kanji)}
+                      style={{ background: "#fff", border: "1px solid #FEE3A2", borderRadius: 8, padding: "6px 10px", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}
+                    >
+                      <div>
+                        <strong style={{ color: "var(--text)", fontSize: 13 }}>{w.kanji ? `${w.kanji}【${w.kana}】` : w.kana}</strong>
+                        <span style={{ color: "var(--muted)", fontSize: 12, marginLeft: 8 }}>{w.meaning}</span>
+                      </div>
+                      <span style={{ fontSize: 14 }}>🔊</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 操作按钮组 */}
+            <div style={{ display: "flex", gap: 10, justifyContent: "center" }}>
+              {!resultSummary?.isPassed ? (
+                <>
+                  <button
+                    onClick={handleExitToLobby}
+                    style={{ flex: 1, background: "#fff", border: "1.5px solid var(--border)", color: "var(--muted)", padding: "12px 0", borderRadius: 24, fontSize: 13, fontWeight: 700, cursor: "pointer" }}
+                  >
+                    返回路线图
+                  </button>
+                  <button
+                    onClick={() => startStudyLevel(activeGroupKey, sessionRef.current.originalWords || gameWords.map(w => w.data), activeCycle, activeSubLevel)}
+                    style={{ flex: 1.5, background: "var(--primary)", color: "#fff", border: "none", padding: "12px 0", borderRadius: 24, fontSize: 14, fontWeight: 900, cursor: "pointer", boxShadow: "0 4px 14px rgba(200,64,45,0.3)" }}
+                  >
+                    🔄 重新挑战本关 🚀
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={() => startStudyLevel(activeGroupKey, sessionRef.current.originalWords || gameWords.map(w => w.data), activeCycle, activeSubLevel)}
+                    style={{ background: "#fff", border: "1.5px solid var(--border)", color: "var(--text)", padding: "11px 18px", borderRadius: 24, fontSize: 13, fontWeight: 700, cursor: "pointer" }}
+                  >
+                    🔄 再次挑战
+                  </button>
+                  <button
+                    onClick={handleExitToLobby}
+                    style={{ background: "var(--primary)", color: "#fff", border: "none", padding: "11px 24px", borderRadius: 24, fontSize: 13, fontWeight: 800, cursor: "pointer", boxShadow: "0 4px 12px rgba(200,64,45,0.2)" }}
+                  >
+                    返回路线图
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+      
+    </div>
+  );
+}
+
+const rootElement = document.getElementById("root");
+if (ReactDOM.createRoot) {
+  ReactDOM.createRoot(rootElement).render(<App/>);
+} else {
+  ReactDOM.render(<App/>, rootElement);
+}
+</script>
+</body>
+</html>
