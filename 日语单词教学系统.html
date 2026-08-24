@@ -853,13 +853,33 @@ const sBtnSm = (bg, color, extra) => ({ ...sBtn(bg, color, extra), padding:"6px 
 /* ===== MODAL ===== */
 function Modal({ open, onClose, title, children, wide, themeC = C }) {
   const MC = themeC;
+  const overlayRef = useRef(null);
+  const mouseDownTargetRef = useRef(null);
+
   if (!open) return null;
+
+  const handleMouseDown = (e) => {
+    // 记录按下时的目标，防止在弹窗内选区拖拽到遮罩松开时误触发关闭
+    mouseDownTargetRef.current = e.target;
+  };
+
+  const handleClick = (e) => {
+    // 仅当 mousedown 和 click 的目标都是外层遮罩背景本身时才关闭
+    if (mouseDownTargetRef.current === overlayRef.current && e.target === overlayRef.current) {
+      if (typeof onClose === "function") onClose();
+    }
+    mouseDownTargetRef.current = null;
+  };
+
   return (
-    <div style={{ position:"fixed", top:0, right:0, bottom:0, left:0, zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center", background:"rgba(0,0,0,0.5)", backdropFilter:"blur(5px)" }}
-      onClick={onClose}>
+    <div
+      ref={overlayRef}
+      onMouseDown={handleMouseDown}
+      onClick={handleClick}
+      style={{ position:"fixed", top:0, right:0, bottom:0, left:0, zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center", background:"rgba(0,0,0,0.5)", backdropFilter:"blur(5px)" }}
+    >
       <div className="pop-in" style={{ background:MC.card, borderRadius:18, padding:"28px 32px", width: wide?780:540, maxWidth:"93vw",
-        maxHeight:"90vh", overflowY:"auto", boxShadow:"0 24px 80px rgba(0,0,0,0.25)" }}
-        onClick={e => e.stopPropagation()}>
+        maxHeight:"90vh", overflowY:"auto", boxShadow:"0 24px 80px rgba(0,0,0,0.25)" }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:22 }}>
           <h3 style={{ margin:0, fontSize:18, fontWeight:700, color:MC.text }}>{title}</h3>
           <button onClick={onClose} style={{ background:"none", border:"none", cursor:"pointer", padding:4, borderRadius:6 }}><IX size={18} color={MC.muted}/></button>
@@ -2371,9 +2391,16 @@ function TeachMode({
     const dynamicExJaSize = isSmallGrid && examples.length >= 3 ? (effectiveCount === 6 ? Math.max(24, cfg.exJaSize - 1) : Math.max(18, cfg.exJaSize - 1)) : cfg.exJaSize;
     const dynamicExCnSize = isSmallGrid && examples.length >= 3 ? (effectiveCount === 6 ? Math.max(18, cfg.exCnSize - 1) : Math.max(14, cfg.exCnSize - 1)) : cfg.exCnSize;
     const dynamicTranslationPadding = effectiveCount === 6 ? "5px 8px" : "8px 12px";
-    const kanaTextColor = chalkboardMode ? "rgba(235,235,235,0.72)" : "#5F5F5F";
-    const accentCurveProps = {
-      color: C.accent || C.primary,
+    // 假名注音颜色采用方案一（藏青琉璃蓝 #2D5B88 / 冰蓝粉笔色 #73B7FF），专为教室一体机大屏优化高对比度
+    const kanaTextColor = chalkboardMode ? "#73B7FF" : "#2D5B88";
+    const accentColor = C.accent || C.primary;
+    // 纯假名无汉字时，假名作为正式单词主词显示，颜色使用正式单词主文本色 C.text；有汉字时假名作为注音显示为藏青琉璃蓝/冰蓝色
+    const mainAccentCurveProps = {
+      color: accentColor,
+      textColor: C.text,
+    };
+    const subAccentCurveProps = {
+      color: accentColor,
       textColor: kanaTextColor,
     };
 
@@ -2414,7 +2441,7 @@ function TeachMode({
                 
                 {showMainCurve ? (
                   <div style={{ margin: "4px 0 2px", maxWidth:"100%", overflow:"visible" }}>
-                    <VisualAccentCurve kana={w.kana} accent={w.accent} fontSize={noImageSingle ? cfg.noImgKanjiSize : cfg.kanjiSize} {...accentCurveProps} />
+                    <VisualAccentCurve kana={w.kana} accent={w.accent} fontSize={noImageSingle ? cfg.noImgKanjiSize : cfg.kanjiSize} {...mainAccentCurveProps} />
                   </div>
                 ) : (
                   <div className="card-main-text" style={{ width: "100%", fontSize: noImageSingle ? cfg.noImgKanjiSize : cfg.kanjiSize, fontWeight: 700, fontFamily: SF, color: isQuizCard && !isRevealed && quizPhase === "reverse" ? C.border : C.text, lineHeight: 1.12, overflowWrap: "anywhere", textAlign: "center", borderBottom: isQuizCard && !isRevealed && quizPhase === "reverse" ? `2px dashed ${C.border}` : "none", display: "block" }}>{mainText}</div>
@@ -2423,7 +2450,7 @@ function TeachMode({
                 {subText && (
                   showSubCurve ? (
                     <div style={{ marginTop: 2, maxWidth:"100%", overflow:"visible" }}>
-                      <VisualAccentCurve kana={w.kana} accent={w.accent} fontSize={cfg.kanaSize} {...accentCurveProps} />
+                      <VisualAccentCurve kana={w.kana} accent={w.accent} fontSize={cfg.kanaSize} {...subAccentCurveProps} />
                     </div>
                   ) : (
                     <div className="card-sub-text" style={{ width: "100%", fontSize: (quizPhase === "kana" || (quizPhase === "reverse" && !isRevealed)) ? cfg.kanjiSize : cfg.kanaSize, color: isQuizCard && !isRevealed ? C.border : kanaTextColor, marginTop: 4, fontFamily: SF, overflowWrap: "anywhere", textAlign: "center", borderBottom: "none", boxShadow: "none", outline: "none", display: "block" }}>{subText}</div>
@@ -3190,7 +3217,7 @@ function PracticeMode({ groups, gid: curGid, chalkboardMode, onPracticeStateChan
 }
 
 /* ===== STUDENTS MODE ===== */
-function StudentsMode({ students, setStudents, pushStudents, pullStudents, syncMeta, groups, challengeWordCounts, saveChallengeWordCounts, challengeCycle, saveChallengeCycle, themeC }) {
+function StudentsMode({ students, setStudents, pushStudents, pullStudents, syncMeta, groups, challengePassingScores, saveChallengePassingScores, challengeCycle, saveChallengeCycle, themeC }) {
   const C = themeC;
   const [importOpen, setImportOpen] = useState(false);
   const [pasteText, setPasteText] = useState("");
@@ -3204,8 +3231,13 @@ function StudentsMode({ students, setStudents, pushStudents, pullStudents, syncM
   const [batchAssignOpen, setBatchAssignOpen] = useState(false);
   const [batchTargetTag, setBatchTargetTag] = useState("A");
   const [batchSelectedGroups, setBatchSelectedGroups] = useState([]);
-  const [wordCountSettingsOpen, setWordCountSettingsOpen] = useState(false);
-  const [wordCountDraft, setWordCountDraft] = useState(challengeWordCounts);
+  const [passingScoreSettingsOpen, setPassingScoreSettingsOpen] = useState(false);
+  const [passingScoreDraft, setPassingScoreDraft] = useState(() => ({
+    A: challengePassingScores?.A ?? 90,
+    B: challengePassingScores?.B ?? 80,
+    C: challengePassingScores?.C ?? 60,
+    default: challengePassingScores?.default ?? 80
+  }));
   const [cycleSettingsOpen, setCycleSettingsOpen] = useState(false);
   const [cycleDraft, setCycleDraft] = useState(challengeCycle);
 
@@ -3215,19 +3247,25 @@ function StudentsMode({ students, setStudents, pushStudents, pullStudents, syncM
     setCycleSettingsOpen(false);
   };
 
-  const openWordCountSettings = () => {
-    setWordCountDraft(challengeWordCounts);
-    setWordCountSettingsOpen(true);
+  const openPassingScoreSettings = () => {
+    setPassingScoreDraft({
+      A: challengePassingScores?.A ?? 90,
+      B: challengePassingScores?.B ?? 80,
+      C: challengePassingScores?.C ?? 60,
+      default: challengePassingScores?.default ?? 80
+    });
+    setPassingScoreSettingsOpen(true);
   };
 
-  const saveWordCountSettings = async () => {
-    const next = ["A", "B", "C"].reduce((result, tag) => {
-      const value = Math.floor(Number(wordCountDraft?.[tag]));
-      result[tag] = Number.isFinite(value) && value > 0 ? value : 0;
-      return result;
-    }, {});
-    await saveChallengeWordCounts(next);
-    setWordCountSettingsOpen(false);
+  const savePassingScoreSettings = async () => {
+    const next = {
+      A: Math.min(100, Math.max(0, Math.floor(Number(passingScoreDraft?.A ?? 90)))),
+      B: Math.min(100, Math.max(0, Math.floor(Number(passingScoreDraft?.B ?? 80)))),
+      C: Math.min(100, Math.max(0, Math.floor(Number(passingScoreDraft?.C ?? 60)))),
+      default: Math.min(100, Math.max(0, Math.floor(Number(passingScoreDraft?.default ?? 80))))
+    };
+    await saveChallengePassingScores(next);
+    setPassingScoreSettingsOpen(false);
   };
 
   const updateStudentTag = (id, newTag) => {
@@ -3595,8 +3633,8 @@ function StudentsMode({ students, setStudents, pushStudents, pullStudents, syncM
         <div style={{ display: "flex", gap: 12 }}>
           <button onClick={pullStudents} style={sBtnSm(C.bg, C.text, { border: `1.5px solid ${C.border}` })}>🔄 刷新名单</button>
           <button onClick={() => { setCycleDraft(challengeCycle); setCycleSettingsOpen(true); }} style={sBtnSm(C.greenLight, C.green, { fontWeight: 700 })}>🗺️ 设置周期任务</button>
-          <button onClick={openWordCountSettings} style={sBtnSm(C.blueLight, C.blue, { fontWeight: 700 })}>📏 设置每次词量</button>
-          <button onClick={() => { setBatchSelectedGroups([]); setBatchAssignOpen(true); }} style={sBtnSm(C.bg, C.text, { border: `1.5px solid ${C.border}`, fontWeight: 700 })}>🎯 按标签批量设置</button>
+          <button onClick={openPassingScoreSettings} style={sBtnSm(C.blueLight, C.blue, { fontWeight: 700 })}>🎯 设置通关达标分</button>
+          <button onClick={() => { setBatchSelectedGroups([]); setBatchAssignOpen(true); }} style={sBtnSm(C.bg, C.text, { border: `1.5px solid ${C.border}`, fontWeight: 700 })}>🏷️ 按标签批量分配</button>
           <button onClick={() => setImportOpen(true)} style={sBtnSm(C.primary, "#fff", { fontWeight: 700 })}>📥 导入学生名单</button>
         </div>
       </div>
@@ -3808,29 +3846,64 @@ function StudentsMode({ students, setStudents, pushStudents, pullStudents, syncM
         </div>
       </Modal>
 
-      <Modal open={wordCountSettingsOpen} onClose={() => setWordCountSettingsOpen(false)} title="按学生等级设置每次闯关词量" themeC={C}>
+      <Modal open={passingScoreSettingsOpen} onClose={() => setPassingScoreSettingsOpen(false)} title="🎯 按学生等级设置通关达标分（满分 100 分）" themeC={C}>
         <div>
           <div style={{ background: C.bg, borderRadius: 10, padding: "12px 14px", fontSize: 13, color: C.muted, lineHeight: 1.6, marginBottom: 16 }}>
-            学生会按自己的 A／B／C 等级标签，从教师分配的单词关卡中随机抽取对应数量进行学习和闯关。填 <strong>0</strong> 表示该等级每次完成该关的全部单词。
+            💡 <strong>分层掌握通关规则：</strong><br />
+            学生在小关挑战中必须达到所属等级设定的<strong>及格达标分</strong>方可成功通关并点亮荣誉勋章与星级；<strong>未达到达标线的学生将被系统引导重新挑战</strong>，真正落实“人人过关、查漏补缺”。
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
-            {["A", "B", "C"].map(tag => (
-              <label key={tag} style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 14, fontWeight: 700, color: C.text }}>
-                {tag} 级学生
-                <input
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={wordCountDraft?.[tag] ?? 0}
-                  onChange={e => setWordCountDraft(prev => ({ ...prev, [tag]: e.target.value }))}
-                  style={{ width: "100%", padding: "9px 10px", border: `1.5px solid ${C.border}`, borderRadius: 8, fontSize: 16, outline: "none" }}
-                />
-              </label>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 14 }}>
+            {[
+              { tag: "A", name: "A 级学生 (冲刺高分)", desc: "推荐 90 分 (金杯精通)", color: C.primary, defaultVal: 90 },
+              { tag: "B", name: "B 级学生 (稳步提升)", desc: "推荐 80 分 (银杯达标)", color: C.blue, defaultVal: 80 },
+              { tag: "C", name: "C 级学生 (起步巩固)", desc: "推荐 60 分 (及格门槛)", color: C.green, defaultVal: 60 },
+            ].map(item => (
+              <div key={item.tag} style={{ background: "#fff", border: `1.5px solid ${C.border}`, borderRadius: 12, padding: "12px 14px", display: "flex", flexDirection: "column", gap: 6 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: item.color }}>{item.name}</div>
+                <div style={{ fontSize: 11, color: C.muted }}>{item.desc}</div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="1"
+                    value={passingScoreDraft?.[item.tag] ?? item.defaultVal}
+                    onChange={e => setPassingScoreDraft(prev => ({ ...prev, [item.tag]: e.target.value }))}
+                    style={{ width: "100%", padding: "8px 10px", border: `1.5px solid ${C.border}`, borderRadius: 8, fontSize: 16, fontWeight: 900, outline: "none", color: C.text }}
+                  />
+                  <span style={{ fontSize: 13, fontWeight: 700, color: C.muted }}>分</span>
+                </div>
+              </div>
             ))}
           </div>
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, borderTop: `1px solid ${C.borderLight}`, marginTop: 20, paddingTop: 14 }}>
-            <button onClick={() => setWordCountSettingsOpen(false)} style={sBtn(C.bg, C.muted)}>取消</button>
-            <button onClick={saveWordCountSettings} style={sBtn(C.primary, "#fff", { fontWeight: 700 })}>保存设置</button>
+
+          <div style={{ background: C.bg, border: `1px solid ${C.borderLight}`, borderRadius: 10, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+            <span style={{ fontSize: 12, color: C.muted, fontWeight: 600 }}>未打标签学生默认达标分：</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <input
+                type="number"
+                min="0"
+                max="100"
+                step="1"
+                value={passingScoreDraft?.default ?? 80}
+                onChange={e => setPassingScoreDraft(prev => ({ ...prev, default: e.target.value }))}
+                style={{ width: 70, padding: "5px 8px", border: `1.5px solid ${C.border}`, borderRadius: 6, fontSize: 14, fontWeight: 800, textAlign: "center", outline: "none" }}
+              />
+              <span style={{ fontSize: 12, color: C.muted, fontWeight: 700 }}>分</span>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: `1px solid ${C.borderLight}`, paddingTop: 14 }}>
+            <button
+              onClick={() => setPassingScoreDraft({ A: 90, B: 80, C: 60, default: 80 })}
+              style={sBtnSm(C.bg, C.muted, { border: `1px solid ${C.border}` })}
+            >
+              🔄 恢复标准推荐 (90/80/60)
+            </button>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={() => setPassingScoreSettingsOpen(false)} style={sBtn(C.bg, C.muted)}>取消</button>
+              <button onClick={savePassingScoreSettings} style={sBtn(C.primary, "#fff", { fontWeight: 700 })}>保存设置并同步</button>
+            </div>
           </div>
         </div>
       </Modal>
@@ -3996,7 +4069,7 @@ function StudentsMode({ students, setStudents, pushStudents, pullStudents, syncM
 function App() {
   const [groups, setGroups] = useState([]);
   const [students, setStudents] = useState([]);
-  const [challengeWordCounts, setChallengeWordCounts] = useState({ A: 0, B: 0, C: 0 });
+  const [challengePassingScores, setChallengePassingScores] = useState({ A: 90, B: 80, C: 60, default: 80 });
   const [challengeCycle, setChallengeCycle] = useState({ id: "", name: "", targetLevels: 0, active: false });
   const [studentsSyncMeta, setStudentsSyncMeta] = useState({ loading: false, status: "synced", message: "", error: "" });
   const [groupId, setGroupId] = useState(() => parseGroupIdFromUrl());
@@ -4045,8 +4118,8 @@ function App() {
 
       if ((!hasStudentList || !list.length) && fallbackStudents.length) {
         setStudents(fallbackStudents);
-        if (backup?.challengeSettings?.wordCountByTag) {
-          setChallengeWordCounts(backup.challengeSettings.wordCountByTag);
+        if (backup?.challengeSettings?.passingScoresByTag) {
+          setChallengePassingScores(backup.challengeSettings.passingScoresByTag);
         }
         // 云端空名单而本地仍有备份时，恢复到云端，避免刷新后只能在本机看到学生。
         const restoredPayload = {
@@ -4069,12 +4142,13 @@ function App() {
         return;
       }
       setStudents(list);
-      const savedCounts = payload?.challengeSettings?.wordCountByTag || {};
-      setChallengeWordCounts(["A", "B", "C"].reduce((result, tag) => {
-        const value = Math.floor(Number(savedCounts[tag]));
-        result[tag] = Number.isFinite(value) && value > 0 ? value : 0;
-        return result;
-      }, {}));
+      const savedScores = payload?.challengeSettings?.passingScoresByTag || {};
+      setChallengePassingScores({
+        A: Number.isFinite(Number(savedScores.A)) ? Math.min(100, Math.max(0, Number(savedScores.A))) : 90,
+        B: Number.isFinite(Number(savedScores.B)) ? Math.min(100, Math.max(0, Number(savedScores.B))) : 80,
+        C: Number.isFinite(Number(savedScores.C)) ? Math.min(100, Math.max(0, Number(savedScores.C))) : 60,
+        default: Number.isFinite(Number(savedScores.default)) ? Math.min(100, Math.max(0, Number(savedScores.default))) : 80
+      });
       const savedCycle = payload?.challengeSettings?.cycle || {};
       setChallengeCycle({ id: String(savedCycle.id || ""), name: String(savedCycle.name || ""), targetLevels: Math.max(0, Math.floor(Number(savedCycle.targetLevels) || 0)), active: !!savedCycle.active });
       // 同步合并学生名单到本地缓存，防止退出紧急保存时数据丢失
@@ -4089,7 +4163,7 @@ function App() {
     }
   }, [groupId]);
 
-  const pushStudentsList = useCallback((newList, wordCounts = challengeWordCounts, options = {}) => {
+  const pushStudentsList = useCallback((newList, passingScores = challengePassingScores, options = {}) => {
     const activeGroupId = groupIdRef.current || groupId;
     const studentsGroupId = sanitizeGroupId(activeGroupId);
     try {
@@ -4104,7 +4178,7 @@ function App() {
         last_updated: Date.now(),
         synced_at: Date.now(),
         students: newList,
-        challengeSettings: { wordCountByTag: wordCounts, cycle: options.cycle || challengeCycle },
+        challengeSettings: { passingScoresByTag: passingScores, cycle: options.cycle || challengeCycle },
         // 清空全班名单是明确的管理操作；没有此标志的空数组会被后端拒绝。
         allow_empty: options.allowEmpty === true
       };
@@ -4127,17 +4201,17 @@ function App() {
       setStudentsSyncMeta({ loading: false, status: "error", message: "同步失败: " + err.message, error: err.message });
       window.alert("同步学生列表失败，请重试：" + err.message);
     }
-  }, [groupId, challengeWordCounts, challengeCycle, flushQueuedStudentSync]);
+  }, [groupId, challengePassingScores, challengeCycle, flushQueuedStudentSync]);
 
-  const saveChallengeWordCounts = useCallback(async (nextCounts) => {
-    setChallengeWordCounts(nextCounts);
-    await pushStudentsList(students, nextCounts);
+  const saveChallengePassingScores = useCallback(async (nextScores) => {
+    setChallengePassingScores(nextScores);
+    await pushStudentsList(students, nextScores);
   }, [students, pushStudentsList]);
 
   const saveChallengeCycle = useCallback(async (nextCycle) => {
     setChallengeCycle(nextCycle);
-    await pushStudentsList(students, challengeWordCounts, { cycle: nextCycle });
-  }, [students, challengeWordCounts, pushStudentsList]);
+    await pushStudentsList(students, challengePassingScores, { cycle: nextCycle });
+  }, [students, challengePassingScores, pushStudentsList]);
 
   const [categories, setCategories] = useState(DEFAULT_WORD_SET_CATEGORIES);
   const [tombstones, setTombstones] = useState({ groups: {}, words: {} });
@@ -5817,7 +5891,7 @@ function App() {
           onTeachStateChange={setTeachState}
         />}
         {mode === "practice" && <PracticeMode groups={groups} gid={curGid} chalkboardMode={teachChalkboardMode} onPracticeStateChange={setPracticeState}/>}
-        {mode === "students" && <StudentsMode students={students} setStudents={setStudents} pushStudents={pushStudentsList} pullStudents={pullStudentsList} syncMeta={studentsSyncMeta} groups={groups} challengeWordCounts={challengeWordCounts} saveChallengeWordCounts={saveChallengeWordCounts} challengeCycle={challengeCycle} saveChallengeCycle={saveChallengeCycle} themeC={appC} />}
+        {mode === "students" && <StudentsMode students={students} setStudents={setStudents} pushStudents={pushStudentsList} pullStudents={pullStudentsList} syncMeta={studentsSyncMeta} groups={groups} challengePassingScores={challengePassingScores} saveChallengePassingScores={saveChallengePassingScores} challengeCycle={challengeCycle} saveChallengeCycle={saveChallengeCycle} themeC={appC} />}
       </div>
 
       {renderBottombar()}
