@@ -1835,8 +1835,9 @@ function TeachMode({
   const lastClickedBtnRef = useRef(false);
   const lastShortcutAtRef = useRef(0);
   const countdownTimerRef = useRef(null);
-  // 记录最近抽取过的单词 ID 历史队列（用于跨次去重，实现至少 5 次内不重复抽取）
-  const recentPickedWordIdsRef = useRef([]);
+  // 随机抽卡动态词袋（Shuffled Bag）：每轮全量真随机洗牌，保证完全不可预测且无规律重复
+  const drawBagRef = useRef([]);
+  const lastPickedWordIdRef = useRef(null);
   const restoreHiddenWords = useCallback(() => {
     if (!group || hiddenCount === 0) return;
     setGroups(groups.map(g => g.id === group.id ? { ...g, words:(g.words || []).map(w => w.hidden ? { ...w, hidden:false } : w) } : g));
@@ -2104,7 +2105,8 @@ function TeachMode({
     setSelectedCard(null);
     setCardStatus({});
     setQuizWords([]);
-    recentPickedWordIdsRef.current = [];
+    drawBagRef.current = [];
+    lastPickedWordIdRef.current = null;
   };
   const goPage = (n) => {
     setPage(Math.max(0, Math.min(n, totalPages - 1)));
@@ -2154,11 +2156,15 @@ function TeachMode({
     setQuizPhase("kana");
     setCardStatus(Object.fromEntries(nextQuizWords.map((_, i) => [i, "pending"])));
     setSelectedCard(null);
+    drawBagRef.current = [];
+    lastPickedWordIdRef.current = null;
   }, [pageWords]);
   const enterReversePhase = () => {
     setQuizPhase("reverse");
     setCardStatus(Object.fromEntries((quizWords.length ? quizWords : currentWords).map((_, i) => [i, "pending"])));
     setSelectedCard(null);
+    drawBagRef.current = [];
+    lastPickedWordIdRef.current = null;
   };
   const enterResultPhase = () => {
     setQuizPhase("result");
@@ -2170,7 +2176,7 @@ function TeachMode({
     if (safePage < totalPages - 1) goPage(safePage + 1);
   };
   const pickRandomCard = () => {
-    // 待抽选（未揭示）的有效卡片列表
+    // 获取当前所有待抽选（未揭示）的有效卡片列表
     const pending = currentWords
       .map((word, i) => ({ index: i, word, id: word?.id || String(i) }))
       .filter(item => cardStatus[item.index] === "pending");
@@ -2181,47 +2187,38 @@ function TeachMode({
     if (pending.length === 1) {
       const onlyOne = pending[0];
       setSelectedCard(onlyOne.index);
-      recentPickedWordIdsRef.current = [...recentPickedWordIdsRef.current.filter(id => id !== onlyOne.id), onlyOne.id].slice(-10);
+      lastPickedWordIdRef.current = onlyOne.id;
+      drawBagRef.current = [];
       return;
     }
 
-    const recentIds = recentPickedWordIdsRef.current;
-    // 动态限制防重窗口：最多5次；若当前剩余待选词数不足6，窗口自动设为待选词数-1，防止候选被全部过滤
-    const maxHistoryLimit = Math.min(5, Math.max(1, pending.length - 1));
-    const effectiveRecent = recentIds.slice(-maxHistoryLimit);
+    // 过滤掉词袋中已被揭示或失效的卡片
+    const validPendingIds = new Set(pending.map(p => p.id));
+    let currentBag = (drawBagRef.current || []).filter(item => validPendingIds.has(item.id));
 
-    // 第一优先级：排除最近 5 次内抽过的词，并且坚决排除当前已选中的卡片
-    let candidates = pending.filter(item => {
-      const isCurrentlySelected = selectedCard === item.index;
-      const isRecent = effectiveRecent.includes(item.id);
-      return !isCurrentlySelected && !isRecent;
-    });
-
-    // 第二优先级：若无可用候选，放宽条件，但依然杜绝与当前选中的卡片连续重复
-    if (candidates.length === 0) {
-      candidates = pending.filter(item => item.index !== selectedCard);
+    // 若当前词袋已抽空，开启新一轮全量 Fisher-Yates 真正随机乱序洗牌
+    if (currentBag.length === 0) {
+      currentBag = shuffle(pending);
+      // 跨轮防连续重复：新词袋第一张若与上一轮最后一张相同，则与新词袋中随机另一张交换
+      if (currentBag.length > 1 && currentBag[0].id === lastPickedWordIdRef.current) {
+        const swapIdx = 1 + Math.floor(Math.random() * (currentBag.length - 1));
+        [currentBag[0], currentBag[swapIdx]] = [currentBag[swapIdx], currentBag[0]];
+      }
     }
 
-    // 极端兜底
-    if (candidates.length === 0) {
-      candidates = pending;
+    // 避免与当前画面上已经选中的卡片连续重复抽到同一张
+    if (currentBag.length > 1 && currentBag[0].index === selectedCard) {
+      const swapIdx = 1 + Math.floor(Math.random() * (currentBag.length - 1));
+      [currentBag[0], currentBag[swapIdx]] = [currentBag[swapIdx], currentBag[0]];
     }
 
-    // 在候选列表中，优先挑选在历史记录中“出现时间最久远”（LRU策略）的词
-    candidates.sort((a, b) => {
-      const lastIdxA = recentIds.lastIndexOf(a.id);
-      const lastIdxB = recentIds.lastIndexOf(b.id);
-      return lastIdxA - lastIdxB;
-    });
+    // 从真随机词袋中弹出一张卡片
+    const picked = currentBag.shift();
+    drawBagRef.current = currentBag;
 
-    const minScore = recentIds.lastIndexOf(candidates[0].id);
-    const bestCandidates = candidates.filter(c => recentIds.lastIndexOf(c.id) === minScore);
-    const chosen = bestCandidates[Math.floor(Math.random() * bestCandidates.length)];
-
-    if (chosen) {
-      setSelectedCard(chosen.index);
-      // 记录最新抽中的词 ID，保持队列长度在 10 以内
-      recentPickedWordIdsRef.current = [...recentIds.filter(id => id !== chosen.id), chosen.id].slice(-10);
+    if (picked) {
+      setSelectedCard(picked.index);
+      lastPickedWordIdRef.current = picked.id;
     }
   };
   const revealQuizCard = (i) => {
@@ -2914,14 +2911,27 @@ function TeachMode({
 
 /* ===== PRACTICE: FLASHCARD ===== */
 function FlashcardPractice({ words, onBack, C, onStateChange }) {
+  const wordsRef = useRef(words);
+  wordsRef.current = words;
+
   const [deck, setDeck] = useState(() => shuffle(words));
   const [idx, setIdx] = useState(0);
   const [flipped, setFlipped] = useState(false);
   const [known, setKnown] = useState(0);
-  const reset = () => { setDeck(shuffle(words)); setIdx(0); setFlipped(false); setKnown(0); };
+
+  const reset = useCallback(() => {
+    setDeck(shuffle(wordsRef.current));
+    setIdx(0);
+    setFlipped(false);
+    setKnown(0);
+  }, []);
 
   const w = deck[idx];
-  const next = (ok) => { if(ok) setKnown(k=>k+1); setFlipped(false); setTimeout(()=>setIdx(i=>i+1), 120); };
+  const next = useCallback((ok) => {
+    if (ok) setKnown(k => k + 1);
+    setFlipped(false);
+    setTimeout(() => setIdx(i => i + 1), 120);
+  }, []);
 
   useEffect(() => {
     if (onStateChange) {
@@ -2935,63 +2945,86 @@ function FlashcardPractice({ words, onBack, C, onStateChange }) {
         reset,
       });
     }
-  }, [idx, deck.length, flipped, onStateChange]);
+  }, [idx, deck.length, flipped, onStateChange, next, reset]);
 
   if (idx >= deck.length) return (
-    <div className="fade-in" style={{ textAlign:"center", padding:40, color:C.text }}>
-      <div style={{ fontSize:48, marginBottom:16 }}>🎉</div>
-      <div style={{ fontSize:26, fontWeight:700, marginBottom:8 }}>练习完成！</div>
-      <div style={{ fontSize:16, color:C.muted, marginBottom:28 }}>已掌握 {known} / {deck.length} 个单词</div>
-      <div style={{ width:200, height:8, background:C.borderLight, borderRadius:4, margin:"0 auto 24px" }}>
-        <div style={{ width:`${(known/deck.length)*100}%`, height:8, background: known===deck.length?C.green:C.primary, borderRadius:4, transition:"width 0.5s" }}/>
+    <div className="fade-in" style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:40, color:C.text }}>
+      <div style={{ fontSize:64, marginBottom:16 }}>🎉</div>
+      <div style={{ fontSize:32, fontWeight:800, marginBottom:10 }}>练习完成！</div>
+      <div style={{ fontSize:18, color:C.muted, marginBottom:32 }}>已掌握 {known} / {deck.length} 个单词（正确率 {Math.round(known / deck.length * 100)}%）</div>
+      <div style={{ width:320, maxWidth:"80vw", height:12, background:C.borderLight, borderRadius:6, margin:"0 auto 36px", overflow:"hidden" }}>
+        <div style={{ width:`${(known/deck.length)*100}%`, height:"100%", background: known===deck.length?C.green:C.primary, borderRadius:6, transition:"width 0.5s" }}/>
       </div>
-      <div style={{ display:"flex", gap:12, justifyContent:"center" }}>
-        <button onClick={reset} style={sBtn(C.primary, "#fff", {fontWeight:700})}>🔄 再来一次</button>
-        <button onClick={onBack} style={sBtn(C.bg, C.text, {border:`1px solid ${C.border}`})}>返回</button>
+      <div style={{ display:"flex", gap:16, justifyContent:"center" }}>
+        <button onClick={reset} style={sBtn(C.primary, "#fff", {fontWeight:700, padding:"12px 32px", fontSize:16, borderRadius:12})}>🔄 再来一次</button>
+        <button onClick={onBack} style={sBtn(C.bg, C.text, {border:`1.5px solid ${C.border}`, padding:"12px 32px", fontSize:16, borderRadius:12})}>返回</button>
       </div>
     </div>
   );
 
   return (
-    <div style={{ flex:1, minHeight:0, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"20px 36px" }}>
-      <div style={{ color:C.muted, fontSize:14, marginBottom:22 }}>闪卡记忆　{idx+1} / {deck.length}</div>
+    <div style={{ flex:1, minHeight:0, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"space-between", padding:"16px 28px 24px" }}>
+      <div style={{ color:C.muted, fontSize:15, fontWeight:700, letterSpacing:1 }}>闪卡记忆 · 第 {idx+1} 题 / 共 {deck.length} 题</div>
+      
       <div onClick={()=>setFlipped(!flipped)} className={flipped?"fade-in":""}
-        style={{ width:500, maxWidth:"88vw", maxHeight:420, background:C.card, borderRadius:22, padding:28, cursor:"pointer",
-          display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", textAlign:"center",
-          border:`1.5px solid ${flipped?"rgba(200,64,45,0.2)":C.borderLight}`, boxShadow:"0 6px 24px rgba(0,0,0,0.06)", transition:"border-color 0.3s", position:"relative" }}>
+        style={{
+          width: "min(1080px, 94vw)",
+          flex: 1,
+          minHeight: "min(460px, 58vh)",
+          maxHeight: "68vh",
+          background: C.card,
+          borderRadius: 28,
+          padding: "36px 48px",
+          cursor: "pointer",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          textAlign: "center",
+          border: `1.5px solid ${flipped ? "rgba(200,64,45,0.25)" : C.borderLight}`,
+          boxShadow: "0 14px 48px rgba(0,0,0,0.07)",
+          transition: "all 0.25s ease",
+          position: "relative",
+          userSelect: "none"
+        }}>
         {!flipped ? (
           <>
-            <div style={{ fontSize:48, fontWeight:700, fontFamily:SF, color:C.text }}>{w.kanji || w.kana}</div>
-            {w.kanji && <div style={{ fontSize:22, color:C.muted, marginTop:8, fontFamily:SF }}>{w.kana}</div>}
-            <div style={{ position:"absolute", bottom:18, color:C.hint, fontSize:12 }}>👆 点击翻面查看释义</div>
+            <div style={{ fontSize:"clamp(52px, 6.5vw, 84px)", fontWeight:800, fontFamily:SF, color:C.text, lineHeight:1.15 }}>{w.kanji || w.kana}</div>
+            {w.kanji && <div style={{ fontSize:"clamp(24px, 2.6vw, 36px)", color:C.blue || "#2D5B88", marginTop:16, fontFamily:SF, fontWeight:700 }}>{w.kana}</div>}
+            <div style={{ position:"absolute", bottom:20, color:C.hint, fontSize:13, fontWeight:600 }}>👆 点击卡片翻面查看中文释义</div>
           </>
         ) : (
           <>
             {w.imageUrl && (
-              <div style={{ width:130, maxHeight:80, background:"rgba(255,255,255,0.03)", borderRadius:12, marginBottom:14, display:"flex", alignItems:"center", justifyContent:"center", overflow:"hidden" }}>
-                <img src={w.imageUrl} alt="" style={{ width:"100%", maxHeight:80, objectFit:"contain", borderRadius:12 }} onError={e=>e.currentTarget.parentElement.style.display="none"}/>
+              <div style={{ width:180, maxHeight:110, background:"rgba(255,255,255,0.03)", borderRadius:14, marginBottom:16, display:"flex", alignItems:"center", justifyContent:"center", overflow:"hidden" }}>
+                <img src={w.imageUrl} alt="" style={{ width:"100%", maxHeight:110, objectFit:"contain", borderRadius:14 }} onError={e=>e.currentTarget.parentElement.style.display="none"}/>
               </div>
             )}
-            <div style={{ fontSize:28, fontWeight:700, color:C.primary, marginBottom:6 }}>{w.meaning}</div>
-            <div style={{ fontSize:14, color:C.muted }}>{w.pos}{w.accent?` · 声调 ${w.accent}`:""}</div>
+            <div style={{ fontSize:"clamp(34px, 4.2vw, 54px)", fontWeight:800, color:C.primary, marginBottom:8 }}>{w.meaning}</div>
+            <div style={{ fontSize:"clamp(15px, 1.8vw, 18px)", color:C.muted, marginBottom:14 }}>{w.pos}{w.accent?` · 声调 ${w.accent}`:""}</div>
             {w.examples.filter(e=>e.ja).length > 0 && (
-              <div style={{ marginTop:16, fontSize:16, color:C.muted, fontFamily:SF, lineHeight:1.6 }}>{w.examples[0].ja}</div>
+              <div style={{ marginTop:12, fontSize:"clamp(18px, 2vw, 24px)", color:C.muted, fontFamily:SF, lineHeight:1.6, maxWidth:"90%" }}>{w.examples[0].ja}</div>
             )}
           </>
         )}
       </div>
-      {flipped && (
-        <div className="slide-up" style={{ display:"flex", gap:14, marginTop:14 }}>
-          <button onClick={()=>next(false)} style={{ padding:"10px 28px", background:"rgba(209,67,67,0.06)", color:C.wrong, border:`1.5px solid rgba(209,67,67,0.2)`, borderRadius:12, cursor:"pointer", fontSize:16, fontWeight:600, transition:"all 0.15s" }}
-            onMouseEnter={e=>e.currentTarget.style.background="rgba(209,67,67,0.08)"} onMouseLeave={e=>e.currentTarget.style.background="rgba(209,67,67,0.06)"}>
-            还没记住 😣
-          </button>
-          <button onClick={()=>next(true)} style={{ padding:"10px 28px", background:C.greenLight, color:C.green, border:`1.5px solid rgba(58,125,92,0.25)`, borderRadius:12, cursor:"pointer", fontSize:16, fontWeight:600, transition:"all 0.15s" }}
-            onMouseEnter={e=>e.currentTarget.style.background="#DDF4E6"} onMouseLeave={e=>e.currentTarget.style.background=C.greenLight}>
-            已掌握 ✌️
-          </button>
-        </div>
-      )}
+
+      <div style={{ minHeight:54, display:"flex", alignItems:"center", justifyContent:"center", marginTop:16 }}>
+        {flipped ? (
+          <div className="slide-up" style={{ display:"flex", gap:20 }}>
+            <button onClick={()=>next(false)} style={{ padding:"14px 44px", background:"rgba(209,67,67,0.06)", color:C.wrong, border:`1.5px solid rgba(209,67,67,0.25)`, borderRadius:14, cursor:"pointer", fontSize:17, fontWeight:700, transition:"all 0.15s" }}
+              onMouseEnter={e=>e.currentTarget.style.background="rgba(209,67,67,0.12)"} onMouseLeave={e=>e.currentTarget.style.background="rgba(209,67,67,0.06)"}>
+              还没记住 😣
+            </button>
+            <button onClick={()=>next(true)} style={{ padding:"14px 44px", background:C.greenLight, color:C.green, border:`1.5px solid rgba(58,125,92,0.3)`, borderRadius:14, cursor:"pointer", fontSize:17, fontWeight:700, transition:"all 0.15s" }}
+              onMouseEnter={e=>e.currentTarget.style.background="#DDF4E6"} onMouseLeave={e=>e.currentTarget.style.background=C.greenLight}>
+              已掌握 ✌️
+            </button>
+          </div>
+        ) : (
+          <div style={{ height:52 }} />
+        )}
+      </div>
     </div>
   );
 }
@@ -2999,24 +3032,42 @@ function FlashcardPractice({ words, onBack, C, onStateChange }) {
 /* ===== PRACTICE: CHOICE ===== */
 function ChoicePractice({ words, onBack, C, onStateChange }) {
   const [mode, setMode] = useState("ja2cn");
-  const [questions, setQuestions] = useState([]);
+  const wordsRef = useRef(words);
+  wordsRef.current = words;
+
+  const generate = useCallback((m, wordList = wordsRef.current) => {
+    if (!wordList || wordList.length === 0) return [];
+    return shuffle(wordList).map(w => {
+      const pool = wordList.filter(x => x.id !== w.id);
+      const wrongs = shuffle(pool).slice(0, Math.min(3, pool.length));
+      const opts = shuffle([
+        { label: m === "cn2ja" ? w.kana : w.meaning, correct: true },
+        ...wrongs.map(x => ({ label: m === "cn2ja" ? x.kana : x.meaning, correct: false }))
+      ]);
+      return { word: w, options: opts };
+    });
+  }, []);
+
+  // 惰性初始化题目，避免初次挂载时 questions 为空并在此后通过 useEffect 再次触发洗牌与二次刷新
+  const [questions, setQuestions] = useState(() => generate("ja2cn", words));
   const [qi, setQi] = useState(0);
   const [sel, setSel] = useState(null);
   const [score, setScore] = useState(0);
 
-  const generate = useCallback((m) => {
-    return shuffle(words).map(w => {
-      const pool = words.filter(x=>x.id!==w.id);
-      const wrongs = shuffle(pool).slice(0, Math.min(3, pool.length));
-      const opts = shuffle([
-        { label: m==="cn2ja"?(w.kanji||w.kana):w.meaning, correct:true },
-        ...wrongs.map(x => ({ label: m==="cn2ja"?(x.kanji||x.kana):x.meaning, correct:false }))
-      ]);
-      return { word:w, options:opts };
-    });
-  }, [words]);
+  const handleModeChange = useCallback((newMode) => {
+    setMode(newMode);
+    setQuestions(generate(newMode, wordsRef.current));
+    setQi(0);
+    setSel(null);
+    setScore(0);
+  }, [generate]);
 
-  useEffect(() => { setQuestions(generate(mode)); setQi(0); setSel(null); setScore(0); }, [mode, generate]);
+  const handleReset = useCallback(() => {
+    setQuestions(generate(mode, wordsRef.current));
+    setQi(0);
+    setSel(null);
+    setScore(0);
+  }, [generate, mode]);
 
   useEffect(() => {
     if (onStateChange) {
@@ -3025,22 +3076,22 @@ function ChoicePractice({ words, onBack, C, onStateChange }) {
         progressText: qi >= questions.length ? "练习已完成" : `${qi + 1} / ${questions.length}`,
         isDone: qi >= questions.length,
         mode,
-        setMode,
-        reset: () => { setQuestions(generate(mode)); setQi(0); setSel(null); setScore(0); },
+        setMode: handleModeChange,
+        reset: handleReset,
       });
     }
-  }, [qi, questions.length, mode, onStateChange, generate]);
+  }, [qi, questions.length, mode, onStateChange, handleModeChange, handleReset]);
 
   if (!questions.length) return null;
 
   if (qi >= questions.length) return (
-    <div className="fade-in" style={{ textAlign:"center", padding:40, color:C.text }}>
-      <div style={{ fontSize:48, marginBottom:16 }}>{score>=questions.length*0.8?"🏆":score>=questions.length*0.5?"👍":"💪"}</div>
-      <div style={{ fontSize:26, fontWeight:700, marginBottom:8 }}>得分：{score} / {questions.length}</div>
-      <div style={{ fontSize:16, color:C.muted, marginBottom:28 }}>正确率 {Math.round(score/questions.length*100)}%</div>
-      <div style={{ display:"flex", gap:12, justifyContent:"center" }}>
-        <button onClick={()=>{setQuestions(generate(mode));setQi(0);setSel(null);setScore(0)}} style={sBtn(C.primary,"#fff",{fontWeight:700})}>🔄 再来一次</button>
-        <button onClick={onBack} style={sBtn(C.bg,C.text,{border:`1px solid ${C.border}`})}>返回</button>
+    <div className="fade-in" style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:40, color:C.text }}>
+      <div style={{ fontSize:64, marginBottom:16 }}>{score>=questions.length*0.8?"🏆":score>=questions.length*0.5?"👍":"💪"}</div>
+      <div style={{ fontSize:32, fontWeight:800, marginBottom:10 }}>得分：{score} / {questions.length}</div>
+      <div style={{ fontSize:18, color:C.muted, marginBottom:32 }}>正确率 {Math.round(score/questions.length*100)}%</div>
+      <div style={{ display:"flex", gap:16, justifyContent:"center" }}>
+        <button onClick={handleReset} style={sBtn(C.primary,"#fff",{fontWeight:700, padding:"12px 32px", fontSize:16, borderRadius:12})}>🔄 再来一次</button>
+        <button onClick={onBack} style={sBtn(C.bg,C.text,{border:`1.5px solid ${C.border}`, padding:"12px 32px", fontSize:16, borderRadius:12})}>返回</button>
       </div>
     </div>
   );
@@ -3054,32 +3105,70 @@ function ChoicePractice({ words, onBack, C, onStateChange }) {
   };
 
   return (
-    <div style={{ flex:1, minHeight:0, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"16px 36px" }}>
-      <div style={{ display:"flex", gap:8, marginBottom:10 }}>
-        {[["ja2cn","日语 → 中文"],["cn2ja","中文 → 日语"]].map(([k,l])=>(
-          <button key={k} onClick={()=>setMode(k)} style={{ padding:"7px 18px", borderRadius:8, border:`1.5px solid ${mode===k?"rgba(200,64,45,0.2)":C.border}`, background:mode===k?C.primaryLight:"transparent", color:mode===k?C.primary:C.muted, cursor:"pointer", fontSize:13, fontWeight:600, transition:"all 0.15s" }}>{l}</button>
-        ))}
+    <div style={{ flex:1, minHeight:0, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"space-between", padding:"14px 28px 20px" }}>
+      <div style={{ width:"min(1160px, 94vw)", display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:12 }}>
+        <div style={{ display:"flex", gap:10 }}>
+          {[["ja2cn","假名 → 中文"],["cn2ja","中文 → 假名"]].map(([k,l])=>(
+            <button key={k} onClick={()=>handleModeChange(k)} style={{ padding:"8px 22px", borderRadius:10, border:`1.5px solid ${mode===k?"rgba(200,64,45,0.25)":C.border}`, background:mode===k?C.primaryLight:"transparent", color:mode===k?C.primary:C.muted, cursor:"pointer", fontSize:14, fontWeight:700, transition:"all 0.15s" }}>{l}</button>
+          ))}
+        </div>
+        <div style={{ color:C.muted, fontSize:15, fontWeight:700 }}>第 {qi+1} 题 / 共 {questions.length} 题</div>
       </div>
-      <div style={{ color:C.muted, fontSize:14, marginBottom:18 }}>选择题　{qi+1} / {questions.length}</div>
-      <div className="fade-in" key={qi} style={{ background:C.card, borderRadius:22, padding:"22px 30px", width:520, maxWidth:"88vw", textAlign:"center", border:`1px solid ${C.borderLight}` }}>
-        {mode==="ja2cn" && q.word.imageUrl && (
-          <div style={{ width:170, maxHeight:100, background:"rgba(255,255,255,0.03)", borderRadius:14, margin:"0 auto 18px", display:"flex", alignItems:"center", justifyContent:"center", overflow:"hidden" }}>
-            <img src={q.word.imageUrl} alt="" style={{ width:"100%", maxHeight:100, objectFit:"contain", borderRadius:14 }} onError={e=>e.currentTarget.parentElement.style.display="none"}/>
+
+      <div className="fade-in" key={qi} style={{
+        width: "min(1160px, 94vw)",
+        flex: 1,
+        minHeight: "min(480px, 62vh)",
+        background: C.card,
+        borderRadius: 28,
+        padding: "36px 48px",
+        textAlign: "center",
+        border: `1.5px solid ${C.borderLight}`,
+        boxShadow: "0 14px 48px rgba(0,0,0,0.07)",
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "space-between"
+      }}>
+        <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", minHeight:120 }}>
+          {mode==="ja2cn" && q.word.imageUrl && (
+            <div style={{ width:200, maxHeight:120, background:"rgba(255,255,255,0.03)", borderRadius:14, margin:"0 auto 16px", display:"flex", alignItems:"center", justifyContent:"center", overflow:"hidden" }}>
+              <img src={q.word.imageUrl} alt="" style={{ width:"100%", maxHeight:120, objectFit:"contain", borderRadius:14 }} onError={e=>e.currentTarget.parentElement.style.display="none"}/>
+            </div>
+          )}
+          <div style={{ fontSize:"clamp(46px, 5.8vw, 76px)", fontWeight:800, fontFamily:mode==="cn2ja"?CN_FONT:SF, color:C.text, lineHeight:1.15 }}>
+            {mode==="cn2ja"?q.word.meaning:q.word.kana}
           </div>
-        )}
-        <div style={{ fontSize:34, fontWeight:700, fontFamily:mode==="cn2ja"?CN_FONT:SF, color:C.text, marginBottom:14 }}>{mode==="cn2ja"?q.word.meaning:(q.word.kanji||q.word.kana)}</div>
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+        </div>
+
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:16, width:"100%", marginTop:24 }}>
           {q.options.map((opt,i) => {
             let bg=C.bg, bdr=C.border, clr=C.text;
             if (sel !== null) {
-              if (opt.correct) { bg="rgba(58,125,92,0.12)"; bdr="rgba(58,125,92,0.3)"; clr=C.green; }
-              else if (i===sel && !opt.correct) { bg="rgba(209,67,67,0.08)"; bdr="rgba(209,67,67,0.2)"; clr=C.wrong; }
+              if (opt.correct) { bg="rgba(58,125,92,0.14)"; bdr="rgba(58,125,92,0.35)"; clr=C.green; }
+              else if (i===sel && !opt.correct) { bg="rgba(209,67,67,0.08)"; bdr="rgba(209,67,67,0.25)"; clr=C.wrong; }
             }
             return (
               <button key={i} onClick={()=>pick(i)}
-                style={{ padding:"10px 14px", background:bg, border:`1.5px solid ${bdr}`, borderRadius:12, cursor:sel!==null?"default":"pointer", color:clr, fontSize:15, fontWeight:500, fontFamily:mode==="cn2ja"?SF:CN_FONT, transition:"all 0.2s", animation:sel===i&&!q.options[i].correct?"shake 0.3s":"none" }}
-                onMouseEnter={e=>{if(sel===null)e.currentTarget.style.background=C.borderLight}}
-                onMouseLeave={e=>{if(sel===null)e.currentTarget.style.background=C.bg}}>
+                style={{
+                  minHeight: 76,
+                  padding: "16px 24px",
+                  background: bg,
+                  border: `2px solid ${bdr}`,
+                  borderRadius: 16,
+                  cursor: sel!==null ? "default" : "pointer",
+                  color: clr,
+                  fontSize: "clamp(20px, 2.2vw, 28px)",
+                  fontWeight: 600,
+                  fontFamily: mode==="cn2ja"?SF:CN_FONT,
+                  transition: "all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1)",
+                  animation: sel===i&&!q.options[i].correct ? "shake 0.3s" : "none",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  textAlign: "center"
+                }}
+                onMouseEnter={e=>{if(sel===null){e.currentTarget.style.background=C.borderLight;e.currentTarget.style.transform="scale(1.01)";}}}
+                onMouseLeave={e=>{if(sel===null){e.currentTarget.style.background=C.bg;e.currentTarget.style.transform="none";}}}>
                 {opt.label}
               </button>
             );
@@ -3092,6 +3181,9 @@ function ChoicePractice({ words, onBack, C, onStateChange }) {
 
 /* ===== PRACTICE: MATCH ===== */
 function MatchPractice({ words, onBack, C, onStateChange }) {
+  const wordsRef = useRef(words);
+  wordsRef.current = words;
+
   const [items, setItems] = useState(() => shuffle(words).slice(0, Math.min(6, words.length)));
   const [leftOrd] = useState(() => shuffle([...Array(Math.min(6,words.length)).keys()]));
   const [rightOrd] = useState(() => shuffle([...Array(Math.min(6,words.length)).keys()]));
@@ -3112,10 +3204,10 @@ function MatchPractice({ words, onBack, C, onStateChange }) {
       setTimeout(() => { setWrong(null); setSelL(null); }, 550);
     }
   };
-  const reset = () => {
-    const ni = shuffle(words).slice(0,Math.min(6,words.length));
+  const reset = useCallback(() => {
+    const ni = shuffle(wordsRef.current).slice(0, Math.min(6, wordsRef.current.length));
     setItems(ni); setMatched(new Set()); setSelL(null); setWrong(null); setDone(false);
-  };
+  }, []);
 
   useEffect(() => {
     if (onStateChange) {
@@ -3126,56 +3218,107 @@ function MatchPractice({ words, onBack, C, onStateChange }) {
         reset,
       });
     }
-  }, [matched.size, items.length, done, onStateChange]);
+  }, [matched.size, items.length, done, onStateChange, reset]);
 
   if (done) return (
-    <div className="fade-in" style={{ textAlign:"center", padding:40, color:C.text }}>
-      <div style={{ fontSize:48, marginBottom:16 }}>✨</div>
-      <div style={{ fontSize:26, fontWeight:700, marginBottom:24 }}>全部配对成功！</div>
-      <div style={{ display:"flex", gap:12, justifyContent:"center" }}>
-        <button onClick={reset} style={sBtn(C.primary,"#fff",{fontWeight:700})}>🔄 再来一次</button>
-        <button onClick={onBack} style={sBtn(C.bg,C.text,{border:`1px solid ${C.border}`})}>返回</button>
+    <div className="fade-in" style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:40, color:C.text }}>
+      <div style={{ fontSize:64, marginBottom:16 }}>✨</div>
+      <div style={{ fontSize:32, fontWeight:800, marginBottom:28 }}>全部配对成功！</div>
+      <div style={{ display:"flex", gap:16, justifyContent:"center" }}>
+        <button onClick={reset} style={sBtn(C.primary,"#fff",{fontWeight:700, padding:"12px 32px", fontSize:16, borderRadius:12})}>🔄 再来一次</button>
+        <button onClick={onBack} style={sBtn(C.bg,C.text,{border:`1.5px solid ${C.border}`, padding:"12px 32px", fontSize:16, borderRadius:12})}>返回</button>
       </div>
     </div>
   );
 
   return (
-    <div style={{ flex:1, minHeight:0, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:"16px 36px" }}>
-      <div style={{ color:C.muted, fontSize:14, marginBottom:22 }}>配对连线　已完成 {matched.size} / {items.length}</div>
-      <div style={{ display:"flex", gap:44, width:640, maxWidth:"92vw", justifyContent:"center" }}>
-        <div style={{ flex:1, display:"flex", flexDirection:"column", gap:7 }}>
-          <div style={{ fontSize:12, color:C.hint, fontWeight:600, textAlign:"center", marginBottom:4 }}>日本語</div>
-          {leftOrd.map(i => {
-            const w=items[i]; const m=matched.has(i); const s=selL===i;
-            return (
-              <button key={i} onClick={()=>clickL(i)} disabled={m}
-                style={{ padding:"10px 14px", background:m?C.greenLight:s?C.primaryLight:C.bg,
-                  border:`1.5px solid ${m?"rgba(58,125,92,0.25)":s?"rgba(200,64,45,0.3)":C.border}`,
-                  borderRadius:12, cursor:m?"default":"pointer", fontSize:17, fontFamily:SF,
-                  color:m?C.green:s?C.primary:C.text, transition:"all 0.2s", opacity:m?0.6:1 }}>
-                {w.kanji||w.kana}
-              </button>
-            );
-          })}
+    <div style={{ flex:1, minHeight:0, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"space-between", padding:"14px 28px 20px" }}>
+      <div style={{ color:C.muted, fontSize:15, fontWeight:700, marginBottom:10 }}>配对连线 · 已完成 {matched.size} / {items.length}</div>
+      
+      <div style={{
+        width: "min(1240px, 95vw)",
+        flex: 1,
+        minHeight: "min(480px, 64vh)",
+        background: C.card,
+        borderRadius: 28,
+        padding: "32px 48px",
+        border: `1.5px solid ${C.borderLight}`,
+        boxShadow: "0 14px 48px rgba(0,0,0,0.07)",
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "space-between"
+      }}>
+        <div style={{ display:"flex", gap:"clamp(36px, 6vw, 80px)", width:"100%", flex:1, alignItems:"stretch" }}>
+          <div style={{ flex:1, display:"flex", flexDirection:"column", justifyContent:"space-between" }}>
+            <div style={{ fontSize:18, color:C.muted, fontWeight:800, textAlign:"center", marginBottom:12, letterSpacing:2 }}>假 名</div>
+            <div style={{ flex:1, display:"flex", flexDirection:"column", justifyContent:"space-around", gap:10 }}>
+              {leftOrd.map(i => {
+                const w=items[i]; const m=matched.has(i); const s=selL===i;
+                return (
+                  <button key={i} onClick={()=>clickL(i)} disabled={m}
+                    style={{
+                      flex: 1,
+                      minHeight: 56,
+                      padding: "12px 20px",
+                      background: m ? C.greenLight : s ? C.primaryLight : C.bg,
+                      border: `2px solid ${m ? "rgba(58,125,92,0.35)" : s ? "rgba(200,64,45,0.4)" : C.border}`,
+                      borderRadius: 14,
+                      cursor: m ? "default" : "pointer",
+                      fontSize: "clamp(22px, 2.5vw, 30px)",
+                      fontFamily: SF,
+                      fontWeight: 700,
+                      color: m ? C.green : s ? C.primary : C.text,
+                      transition: "all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1)",
+                      opacity: m ? 0.45 : 1,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      transform: s ? "scale(1.02)" : "none",
+                      boxShadow: s ? `0 4px 16px ${C.primary}33` : "none"
+                    }}>
+                    {w.kana}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div style={{ flex:1, display:"flex", flexDirection:"column", justifyContent:"space-between" }}>
+            <div style={{ fontSize:18, color:C.muted, fontWeight:800, textAlign:"center", marginBottom:12, letterSpacing:2 }}>中 文</div>
+            <div style={{ flex:1, display:"flex", flexDirection:"column", justifyContent:"space-around", gap:10 }}>
+              {rightOrd.map(i => {
+                const w=items[i]; const m=matched.has(i); const isW=wrong===i;
+                return (
+                  <button key={i} onClick={()=>clickR(i)} disabled={m}
+                    style={{
+                      flex: 1,
+                      minHeight: 56,
+                      padding: "12px 20px",
+                      background: m ? C.greenLight : isW ? "rgba(209,67,67,0.08)" : C.bg,
+                      border: `2px solid ${m ? "rgba(58,125,92,0.35)" : isW ? "rgba(209,67,67,0.3)" : C.border}`,
+                      borderRadius: 14,
+                      cursor: m ? "default" : "pointer",
+                      fontSize: "clamp(18px, 2.1vw, 26px)",
+                      fontWeight: 600,
+                      fontFamily: CN_FONT,
+                      color: m ? C.green : isW ? C.wrong : C.text,
+                      transition: "all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1)",
+                      opacity: m ? 0.45 : 1,
+                      animation: isW ? "shake 0.35s" : "none",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center"
+                    }}>
+                    {w.meaning}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
-        <div style={{ flex:1, display:"flex", flexDirection:"column", gap:7 }}>
-          <div style={{ fontSize:12, color:C.hint, fontWeight:600, textAlign:"center", marginBottom:4 }}>中 文</div>
-          {rightOrd.map(i => {
-            const w=items[i]; const m=matched.has(i); const isW=wrong===i;
-            return (
-              <button key={i} onClick={()=>clickR(i)} disabled={m}
-                style={{ padding:"10px 14px", background:m?C.greenLight:isW?"rgba(209,67,67,0.08)":C.bg,
-                  border:`1.5px solid ${m?"rgba(58,125,92,0.25)":isW?"rgba(209,67,67,0.2)":C.border}`,
-                  borderRadius:12, cursor:m?"default":"pointer", fontSize:15, fontWeight:500,
-                  color:m?C.green:isW?C.wrong:C.text, transition:"all 0.2s", opacity:m?0.6:1,
-                  animation:isW?"shake 0.35s":"none" }}>
-                {w.meaning}
-              </button>
-            );
-          })}
-        </div>
+
+        <div style={{ color:C.hint, fontSize:14, fontWeight:600, marginTop:16, textAlign:"center" }}>💡 提示：先点击左侧假名，再点击右侧对应中文释义完成配对</div>
       </div>
-      <div style={{ color:C.hint, fontSize:12, marginTop:10 }}>提示：先点击左侧日语，再点击右侧对应中文释义</div>
     </div>
   );
 }
@@ -3183,7 +3326,10 @@ function MatchPractice({ words, onBack, C, onStateChange }) {
 /* ===== PRACTICE WRAPPER ===== */
 function PracticeMode({ groups, gid: curGid, chalkboardMode, onPracticeStateChange }) {
   const group = groups.find(g => g.id === curGid);
-  const practiceWords = (group?.words || []).filter(w => w.hidden !== true);
+  // 使用 useMemo 稳定缓存 practiceWords 数组引用，杜绝父子组件循环重渲染
+  const practiceWords = useMemo(() => {
+    return (group?.words || []).filter(w => w.hidden !== true);
+  }, [group]);
   const hiddenCount = (group?.words || []).filter(w => w.hidden === true).length;
   const [type, setType] = useState(null);
   const [subPracticeState, setSubPracticeState] = useState(null);
@@ -3220,32 +3366,47 @@ function PracticeMode({ groups, gid: curGid, chalkboardMode, onPracticeStateChan
         });
       }
     }
-  }, [type, subPracticeState, group, practiceWords.length, hiddenCount, onPracticeStateChange]);
+  }, [type, subPracticeState, group?.name, practiceWords.length, hiddenCount, onPracticeStateChange]);
 
   if (!group || practiceWords.length < 2) return (
-    <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%", overflow:"hidden", background:C.bg, color:C.muted, fontSize:16 }}>
+    <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%", overflow:"hidden", background:C.bg, color:C.muted, fontSize:18, fontWeight:600 }}>
       请选择一个包含至少 2 个未隐藏单词的单词组进行练习
     </div>
   );
 
   if (!type) return (
-    <div style={{ height:"100%", overflow:"hidden", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center" }}>
-      <div style={{ textAlign:"center" }}>
-        <div style={{ fontSize:14, color:C.muted, marginBottom:10 }}>{group.name} · {practiceWords.length} 个单词{hiddenCount ? ` · 已过滤 ${hiddenCount} 个隐藏词` : ""}</div>
-        <h2 style={{ color:C.text, fontSize:28, fontWeight:700, marginBottom:36, margin:"0 0 36px" }}>选择练习方式</h2>
-        <div style={{ display:"flex", gap:18, flexWrap:"wrap", justifyContent:"center" }}>
+    <div style={{ height:"100%", overflow:"hidden", background:C.bg, display:"flex", alignItems:"center", justifyContent:"center", padding:"24px" }}>
+      <div style={{ textAlign:"center", width:"min(1100px, 94vw)" }}>
+        <div style={{ fontSize:15, color:C.muted, fontWeight:700, marginBottom:12 }}>{group.name} · 共 {practiceWords.length} 个练习单词{hiddenCount ? ` · 已过滤 ${hiddenCount} 个隐藏词` : ""}</div>
+        <h2 style={{ color:C.text, fontSize:"clamp(28px, 3.2vw, 40px)", fontWeight:800, marginBottom:48, margin:"0 0 48px" }}>选择练习方式</h2>
+        <div style={{ display:"flex", gap:24, flexWrap:"wrap", justifyContent:"center" }}>
           {[
-            { key:"flash", icon:"🃏", title:"闪卡记忆", desc:"逐张翻面 · 自我检测" },
-            { key:"choice", icon:"✅", title:"选择题", desc:"四选一 · 快速判断" },
-            { key:"match", icon:"🔗", title:"配对连线", desc:"左右匹配 · 强化关联" },
+            { key:"flash", icon:"🃏", title:"闪卡记忆", desc:"逐张翻面 · 自我检测与攻克" },
+            { key:"choice", icon:"✅", title:"选择题", desc:"假名释义 · 四选一快速判断" },
+            { key:"match", icon:"🔗", title:"配对连线", desc:"假名中文 · 左右配对强化" },
           ].map(t => (
             <button key={t.key} onClick={()=>setType(t.key)}
-              style={{ width:170, padding:"22px 18px", background:C.card, border:`1.5px solid ${C.borderLight}`, borderRadius:18, cursor:"pointer", textAlign:"center", transition:"all 0.25s" }}
-              onMouseEnter={e=>{e.currentTarget.style.borderColor="rgba(200,64,45,0.25)";e.currentTarget.style.transform="translateY(-5px)";e.currentTarget.style.boxShadow="0 8px 24px rgba(0,0,0,0.08)";}}
-              onMouseLeave={e=>{e.currentTarget.style.borderColor=C.borderLight;e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="none";}}>
-              <div style={{ fontSize:40, marginBottom:12 }}>{t.icon}</div>
-              <div style={{ fontSize:17, fontWeight:700, color:C.text, marginBottom:6 }}>{t.title}</div>
-              <div style={{ fontSize:12, color:C.muted, lineHeight:1.5 }}>{t.desc}</div>
+              style={{
+                width: "clamp(240px, 26vw, 320px)",
+                minHeight: 220,
+                padding: "36px 28px",
+                background: C.card,
+                border: `1.5px solid ${C.borderLight}`,
+                borderRadius: 24,
+                cursor: "pointer",
+                textAlign: "center",
+                transition: "all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1)",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                boxShadow: "0 8px 30px rgba(0,0,0,0.05)"
+              }}
+              onMouseEnter={e=>{e.currentTarget.style.borderColor="rgba(200,64,45,0.35)";e.currentTarget.style.transform="translateY(-6px)";e.currentTarget.style.boxShadow="0 14px 40px rgba(200,64,45,0.12)";}}
+              onMouseLeave={e=>{e.currentTarget.style.borderColor=C.borderLight;e.currentTarget.style.transform="none";e.currentTarget.style.boxShadow="0 8px 30px rgba(0,0,0,0.05)";}}>
+              <div style={{ fontSize:56, marginBottom:16 }}>{t.icon}</div>
+              <div style={{ fontSize:22, fontWeight:800, color:C.text, marginBottom:8 }}>{t.title}</div>
+              <div style={{ fontSize:14, color:C.muted, lineHeight:1.6 }}>{t.desc}</div>
             </button>
           ))}
         </div>
@@ -3253,12 +3414,13 @@ function PracticeMode({ groups, gid: curGid, chalkboardMode, onPracticeStateChan
     </div>
   );
 
-  const pp = { words: practiceWords, onBack:()=>setType(null), C, onStateChange: setSubPracticeState };
+  const handleBack = () => setType(null);
+  const pp = { words: practiceWords, onBack: handleBack, C, onStateChange: setSubPracticeState };
   return (
     <div style={{ height:"100%", overflow:"hidden", background:C.bg, display:"flex", flexDirection:"column" }}>
-      <div style={{ padding:"10px 28px", flexShrink:0 }}>
-        <button onClick={()=>setType(null)} style={{ background:C.bg, border:`1px solid ${C.border}`, borderRadius:8, padding:"7px 16px", cursor:"pointer", color:C.muted, fontSize:13, transition:"all 0.15s" }}
-          onMouseEnter={e=>e.currentTarget.style.background=C.borderLight} onMouseLeave={e=>e.currentTarget.style.background=C.bg}>
+      <div style={{ padding:"10px 28px 4px", flexShrink:0, display:"flex", justifyContent:"flex-start" }}>
+        <button onClick={()=>setType(null)} style={{ background:C.card, border:`1.5px solid ${C.border}`, borderRadius:10, padding:"8px 18px", cursor:"pointer", color:C.text, fontSize:14, fontWeight:700, transition:"all 0.15s", boxShadow:"0 2px 8px rgba(0,0,0,0.04)" }}
+          onMouseEnter={e=>e.currentTarget.style.background=C.borderLight} onMouseLeave={e=>e.currentTarget.style.background=C.card}>
           ← 选择其他练习
         </button>
       </div>
@@ -5390,7 +5552,7 @@ function App() {
                 padding: "0 12px"
               })}
             >
-              🇯🇵 日语 → 🇨🇳 中文
+              🇯🇵 假名 → 🇨🇳 中文
             </button>
             <button
               onClick={() => setPracticeMode("cn2ja")}
@@ -5402,7 +5564,7 @@ function App() {
                 padding: "0 12px"
               })}
             >
-              🇨🇳 中文 → 🇯🇵 日语
+              🇨🇳 中文 → 🇯🇵 假名
             </button>
           </div>
         );
