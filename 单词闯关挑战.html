@@ -41,40 +41,201 @@
         html, body {
             margin: 0;
             padding: 0;
-            height: 100%;
             width: 100%;
+            height: 100%;
+            height: 100dvh;
             background: #EDE8E1;
             font-family: 'PingFang SC', 'Microsoft YaHei', 'Noto Sans JP', sans-serif;
             color: var(--text);
             overflow: hidden;
+            -webkit-text-size-adjust: 100%;
         }
 
-        /* 现代手机竖屏 App 响应式容器（手机满屏，电脑和平板自动居中） */
+        /* 现代多端响应式容器：手机保持紧凑全屏，平板与电脑横屏自动展开为现代化宽幅教学工作台 */
         #app-wrapper {
             width: 100vw;
+            height: 100%;
             height: 100vh;
+            height: 100dvh;
+            height: 100svh;
             display: flex;
             justify-content: center;
             align-items: center;
             background: #E8E2D8;
+            overflow: hidden;
+            padding: 0;
+            transition: padding 0.25s ease;
         }
 
         #app-container {
             width: 100%;
             max-width: 480px;
             height: 100%;
+            height: 100dvh;
+            height: 100svh;
             background: var(--bg);
             position: relative;
             display: flex;
             flex-direction: column;
             overflow: hidden;
-            box-shadow: 0 0 35px rgba(0, 0, 0, 0.08);
+            box-sizing: border-box;
+            transition: max-width 0.25s ease, border-radius 0.25s ease, box-shadow 0.25s ease;
         }
 
-        @media (max-width: 480px) {
+        /* 📱 手机竖屏断点（< 768px）保持原汁原味 */
+        @media (max-width: 767px) {
             #app-container {
                 max-width: 100%;
                 box-shadow: none;
+            }
+        }
+
+        /* 💻 平板横屏与桌面笔记本响应式扩展 (≥ 768px) */
+        @media (min-width: 768px) {
+            #app-wrapper {
+                padding: clamp(12px, 2vh, 24px);
+                background: #DDD5C7;
+            }
+            #app-container {
+                max-width: 1060px;
+                max-height: min(920px, calc(100dvh - clamp(24px, 4vh, 48px)));
+                border-radius: 24px;
+                border: 1.5px solid rgba(0, 0, 0, 0.08);
+                box-shadow: 0 20px 60px rgba(0, 0, 0, 0.14), 0 2px 10px rgba(0, 0, 0, 0.04);
+            }
+        }
+
+        @media (min-width: 1200px) {
+            #app-container {
+                max-width: 1140px;
+            }
+        }
+
+        /* 大厅关卡路线图响应式网格 */
+        .lobby-groups-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        @media (min-width: 768px) {
+            .lobby-groups-grid {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 16px;
+            }
+        }
+
+        /* 单词本总览自测响应式网格（手机2列，电脑大屏3列宽画幅） */
+        .study-summary-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        @media (min-width: 768px) {
+            .study-summary-grid {
+                grid-template-columns: repeat(3, 1fr);
+                gap: 16px;
+            }
+        }
+
+        /* 第 1 关【假名识义】四宫格响应式网格（手机与电脑端均采用沉浸式 2x2 大画幅四宫格） */
+        .stage1-options-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-template-rows: 1fr 1fr;
+            gap: clamp(6px, 1.2vh, 10px);
+            width: 100%;
+            flex: 1;
+            min-height: 0;
+            margin-bottom: 2px;
+        }
+        @media (min-width: 768px) {
+            .stage1-options-grid {
+                grid-template-columns: 1fr 1fr;
+                grid-template-rows: 1fr 1fr;
+                gap: clamp(12px, 2vh, 18px);
+                max-width: 880px;
+                margin: 0 auto;
+                padding: 4px 10px 8px;
+            }
+        }
+
+        /* 游戏主战区自适应容器 */
+        .game-main-arena {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justifyContent: space-between;
+            align-items: center;
+            width: 100%;
+            padding: 2px 0 0;
+            min-height: 0;
+            overflow: hidden;
+        }
+        @media (min-width: 768px) {
+            .game-main-arena {
+                justify-content: center !important;
+            }
+        }
+
+        /* 第 2 关【看义拼词】高质感居中一体化舞台（元素紧凑贴合屏幕正中央） */
+        .stage2-responsive-arena {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            flex: 1;
+            min-height: 0;
+            justify-content: space-between;
+            align-items: center;
+            overflow: hidden;
+        }
+        @media (min-width: 768px) {
+            .stage2-responsive-arena {
+                display: flex;
+                flex-direction: column;
+                justifyContent: center !important;
+                align-items: center;
+                gap: clamp(14px, 2.2vh, 22px);
+                max-width: 780px;
+                margin: 0 auto;
+                height: auto !important;
+                flex: initial !important;
+                padding: 4px 16px;
+            }
+            .stage2-left-card {
+                width: 100% !important;
+                padding: 16px 24px 18px !important;
+                border-radius: 22px !important;
+                margin-bottom: 0 !important;
+                box-shadow: 0 6px 22px rgba(0,0,0,0.04) !important;
+                flex-shrink: 0 !important;
+            }
+            .stage2-left-card .stage2-img-box {
+                height: clamp(190px, 30vh, 280px) !important;
+                width: 100% !important;
+            }
+            .stage2-right-box {
+                width: 100% !important;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                padding-top: 0 !important;
+                flex-shrink: 0 !important;
+            }
+            .stage2-slot-char {
+                width: clamp(52px, 6vw, 62px) !important;
+                height: clamp(58px, 7.5vh, 68px) !important;
+                font-size: clamp(26px, 3.5vh, 32px) !important;
+                margin: 0 5px !important;
+            }
+            .stage2-keyboard-grid {
+                max-width: 500px !important;
+                gap: 10px !important;
+            }
+            .stage2-kana-btn {
+                height: clamp(50px, 6.5vh, 58px) !important;
+                font-size: clamp(22px, 3vh, 26px) !important;
+                border-radius: 16px !important;
             }
         }
         
@@ -187,18 +348,13 @@
         }
         .mask-overlay {
             position: absolute;
-            inset: 0;
-            background: rgba(240, 235, 227, 0.95);
-            backdrop-filter: blur(4px);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: var(--muted);
-            font-size: 12px;
-            font-weight: 700;
-            border: 1.5px dashed var(--border);
-            border-radius: 12px;
+            inset: -2px -4px;
+            background: linear-gradient(135deg, #F0ECE5 0%, #E6E1D7 100%);
+            border: 1.5px solid #DDD7CB;
+            border-radius: 6px;
             z-index: 10;
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.04);
+            pointer-events: none;
         }
 
         /* 缩略图总览卡片 */
@@ -987,6 +1143,7 @@ function App() {
       stage2Correct: 0,
       firstTryCorrect: 0,
       normalCount: studyWords.length * 2,
+      currentScore: 0,
       wordStats: {}
     };
     cheer("(｡･ω･｡)", "第 1/2 关 · 假名识义极速挑战！", "cheer");
@@ -1026,9 +1183,9 @@ function App() {
     setSelectedMeaning(null);
 
     if (q.isRetryVariant) {
-      cheer("(ง •̀_•́)ง", "刚才做错的单词，再来攻克一次！", "cheer");
+      cheer("(ง •̀_•́)ง", "错词再测，一举攻克！", "cheer");
     } else {
-      cheer("(｡･ω･｡)", gameStage === 1 ? "看假名迅速反应中文！" : "看中文拼出假名！");
+      cheer("(｡･ω･｡)", gameStage === 1 ? "看假名，选释义" : "看中文，拼假名");
     }
 
     const allWords = wordsPayload?.groups?.flatMap(g => g.words || []) || [];
@@ -1052,6 +1209,28 @@ function App() {
       setSpellPool(chars.sort(() => Math.random() - 0.5));
     }
   }, [view, gameWords, wordIndex, gameStage]);
+
+  // 物理键盘输入监听（针对平板外接键盘与笔记本电脑键盘输入体验优化）
+  useEffect(() => {
+    if (view !== "game" || gameStage !== 2 || errorFeedback) return;
+    const handleKeyDown = (e) => {
+      if (["INPUT", "TEXTAREA"].includes(e.target?.tagName)) return;
+      if (e.key === "Backspace" || e.key === "Delete") {
+        e.preventDefault();
+        if (currentSpell.length > 0) {
+          handleUndoSpell(currentSpell.length - 1);
+        }
+      } else if (e.key && e.key.length === 1) {
+        const inputChar = e.key;
+        if (spellPool.includes(inputChar)) {
+          e.preventDefault();
+          handleSpellClick(inputChar);
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [view, gameStage, errorFeedback, currentSpell, spellPool, targetSpell]);
 
   // 选择题作答处理（单步清晰验证）
   const handleChoiceClick = (type, val, correct) => {
@@ -1121,11 +1300,18 @@ function App() {
     }
   };
 
-  // 本题通关
+  // 本题通关（动态百分制算分 + 闭包防丢分机制）
   const handleWin = () => {
     const currentQ = gameWords[wordIndex];
+    const totalQ = sessionRef.current.normalCount || (studyWords.length * 2) || 20;
+    const basePtsPerQ = 100 / totalQ;
+
+    let nextScore = Number.isFinite(sessionRef.current.currentScore) ? sessionRef.current.currentScore : 0;
+
     if (!hasErrorOnCurrent && !currentQ.isRetryVariant) {
-      setScore(prev => prev + 5);
+      nextScore = Math.min(100, nextScore + basePtsPerQ);
+      sessionRef.current.currentScore = nextScore;
+      setScore(Math.round(nextScore));
       sessionRef.current.firstTryCorrect += 1;
       if (gameStage === 1) {
         sessionRef.current.stage1Correct += 1;
@@ -1133,8 +1319,11 @@ function App() {
         sessionRef.current.stage2Correct += 1;
       }
     } else if (currentQ.isRetryVariant && !hasErrorOnCurrent) {
-      // 变异错词重测一次通过给予挽回补偿分
-      setScore(prev => prev + 2);
+      // 变异错词重测一次通过给予挽回补偿分（补回该题 50% 分值）
+      const rescuePts = basePtsPerQ * 0.5;
+      nextScore = Math.min(100, nextScore + rescuePts);
+      sessionRef.current.currentScore = nextScore;
+      setScore(Math.round(nextScore));
     }
 
     soundEffects.correct();
@@ -1150,18 +1339,22 @@ function App() {
           setStageTransition(true);
           cheer("٩(ˊᗜˋ*)و", "第 1 关【假名识义】全通！准备进入第 2 关！", "cheer");
         } else {
-          // 第二小关通关，大关卡通关结算！
-          handleLevelComplete();
+          // 第二小关通关，大关卡通关结算！传入最新得分，彻底杜绝闭包延迟
+          handleLevelComplete(nextScore);
         }
       }
     }, 750);
   };
 
-  // 答错处理（扣4分惩罚 + 弹出即时错因对比卡 + 错题打乱插入后续队列）
+  // 答错处理（扣分惩罚 + 弹出即时错因对比卡 + 错题打乱插入后续队列）
   const handleWrong = (errorType = "unknown", userChoice = "", correctChoice = "") => {
     setHasErrorOnCurrent(true);
-    // 答错即时扣 4 分（最低扣至 0 分）
-    setScore(prev => Math.max(0, prev - 4));
+    const totalQ = sessionRef.current.normalCount || (studyWords.length * 2) || 20;
+    const basePtsPerQ = 100 / totalQ;
+    const penalty = basePtsPerQ * 0.8;
+    const nextScore = Math.max(0, (sessionRef.current.currentScore || 0) - penalty);
+    sessionRef.current.currentScore = nextScore;
+    setScore(Math.round(nextScore));
 
     const currentQ = gameWords[wordIndex];
     const word = currentQ?.data;
@@ -1209,9 +1402,19 @@ function App() {
   };
 
   // 通关结算（基于学生标签及教师设定的及格达标分进行分层通关判定与学情统计）
-  const handleLevelComplete = async () => {
+  const handleLevelComplete = async (providedScore) => {
     const session = sessionRef.current;
-    const finalScore = score;
+    
+    // 计算最终通关得分：全员首答正确直接保底 100 分满分，否则以同步记录或传入分数为准
+    let finalScore;
+    if (session.firstTryCorrect === session.normalCount && session.normalCount > 0) {
+      finalScore = 100;
+    } else if (Number.isFinite(providedScore)) {
+      finalScore = Math.min(100, Math.max(0, Math.round(providedScore)));
+    } else {
+      finalScore = Math.min(100, Math.max(0, Math.round(session.currentScore ?? score)));
+    }
+    setScore(finalScore);
     
     // 1. 获取当前学生的等级标签与教师设定的达标及格线
     const studentTag = String(currentUser?.tag || "").trim().toUpperCase();
@@ -1529,7 +1732,7 @@ function App() {
             </button>
           </header>
           
-          <div style={{ flex: 1, overflowY: "auto", padding: "16px 14px" }}>
+          <div style={{ flex: 1, overflowY: "auto", padding: "16px 14px", paddingBottom: "max(40px, calc(28px + env(safe-area-inset-bottom, 0px)))" }}>
             <div style={{ background: "#fff", border: "1.5px solid var(--border)", borderRadius: 14, padding: "12px 14px", marginBottom: 14, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div>
                 <div style={{ fontSize: 11, color: "var(--muted)", fontWeight: 800 }}>🏅 我的荣誉墙</div>
@@ -1570,7 +1773,7 @@ function App() {
             })()}
             
             {getVisibleGroups().length > 0 ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div className="lobby-groups-grid">
                 {getVisibleGroups().map((g, idx) => {
                   const unlocked = isLevelUnlocked(idx, getVisibleGroups());
                   const key = g.id || g.name;
@@ -1773,7 +1976,7 @@ function App() {
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
               <div>
                 <div style={{ fontSize: 16, fontWeight: 800, color: "var(--text)" }}>📋 单词本总览自测</div>
-                <div style={{ fontSize: 11, color: "var(--muted)" }}>轻触卡片弹窗精读 · 切换模式专注专项自查</div>
+                <div style={{ fontSize: 11, color: "var(--muted)" }}>轻触卡片查看精读 · 切换模式专项自测</div>
               </div>
               <button
                 onClick={() => setView("lobby")}
@@ -1786,10 +1989,10 @@ function App() {
             {/* 四合一多维自测切换栏（等宽4列网格，免滑动完整呈现） */}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 5, width: "100%", marginBottom: 6 }}>
               {[
-                { mode: "none", label: "👁️ 全显", tip: "完整显示汉字、读音与释义" },
-                { mode: "mask_kanji", label: "🙈 纯假名", tip: "只留纯假名 · 强训读音识义" },
-                { mode: "mask_kana", label: "🙈 仅汉字", tip: "只留日文汉字 · 强训拼读发音" },
-                { mode: "mask_meaning", label: "🙈 遮中文", tip: "仅遮中文释义 · 基础看词测意" }
+                { mode: "none", label: "👁️ 全显", tip: "完整展示汉字、读音与释义" },
+                { mode: "mask_kanji", label: "🙈 遮汉字", tip: "遮挡汉字与释义 · 练读音识义" },
+                { mode: "mask_kana", label: "🙈 遮读音", tip: "遮挡读音与释义 · 练看词拼读" },
+                { mode: "mask_meaning", label: "🙈 遮释义", tip: "遮挡中文释义 · 练看词识意" }
               ].map(m => {
                 const isActive = summaryMaskMode === m.mode;
                 return (
@@ -1818,16 +2021,16 @@ function App() {
 
             {/* 选中模式教学说明小提示 */}
             <div style={{ fontSize: 11, color: "var(--muted)", textAlign: "center", minHeight: 16 }}>
-              {summaryMaskMode === "none" && "💡 完整模式：全景通读所有汉字、读音与释义"}
-              {summaryMaskMode === "mask_kanji" && "💡 纯假名模式：只留假名，遮汉字与中文，练读音识义"}
-              {summaryMaskMode === "mask_kana" && "💡 仅汉字模式：只留汉字，遮读音与中文，练看汉字拼音"}
-              {summaryMaskMode === "mask_meaning" && "💡 测释义模式：留汉字与假名，遮中文释义"}
+              {summaryMaskMode === "none" && "💡 完整展示汉字、读音与释义"}
+              {summaryMaskMode === "mask_kanji" && "💡 遮挡汉字与释义 · 练读音识义"}
+              {summaryMaskMode === "mask_kana" && "💡 遮挡读音与释义 · 练看词拼读"}
+              {summaryMaskMode === "mask_meaning" && "💡 遮挡中文释义 · 练看词识意"}
             </div>
           </div>
 
           {/* 缩略图网格流 */}
           <div style={{ flex: 1, overflowY: "auto", padding: "4px 2px" }}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div className="study-summary-grid">
               {studyWords.map((w, idx) => {
                 const hasKanji = !!w.kanji && w.kanji !== w.kana;
                 const isKanjiMasked = summaryMaskMode === "mask_kanji" && hasKanji;
@@ -1846,22 +2049,28 @@ function App() {
                       setSummaryModalMaskExample(false);
                       setSummaryModalIdx(idx);
                     }}
-                    style={{ cursor: "pointer", position: "relative", transition: "transform 0.12s, box-shadow 0.12s" }}
+                    style={{
+                      cursor: "pointer",
+                      position: "relative",
+                      padding: "clamp(10px, 1.4vh, 14px) clamp(10px, 1.4vw, 14px)",
+                      borderRadius: 14,
+                      transition: "transform 0.12s, box-shadow 0.12s"
+                    }}
                   >
                     <div style={{ position: "absolute", top: 6, right: 6, fontSize: 10, color: "var(--primary)", background: "var(--primary-light)", padding: "1px 5px", borderRadius: 4, fontWeight: 700 }}>
                       🔍 详情
                     </div>
                     {w.imageUrl && (
                       <div style={{
-                        height: 78,
+                        height: "clamp(80px, 15vh, 125px)",
                         width: "100%",
                         background: "#F8FAFC",
-                        borderRadius: 8,
+                        borderRadius: 10,
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
-                        marginBottom: 6,
-                        padding: "4px",
+                        marginBottom: 10,
+                        padding: "4px 8px",
                         overflow: "hidden"
                       }}>
                         <img
@@ -1871,48 +2080,76 @@ function App() {
                             maxHeight: "100%",
                             maxWidth: "100%",
                             objectFit: "contain",
-                            filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.04))"
+                            filter: "drop-shadow(0 2px 5px rgba(0,0,0,0.05))"
                           }}
                         />
                       </div>
                     )}
 
-                    {/* 汉字区域 */}
-                    {hasKanji ? (
-                      <div style={{ fontSize: 16, fontWeight: 800, color: "var(--text)", position: "relative" }}>
-                        {w.kanji}
-                        {isKanjiMasked && (
-                          <div className="mask-overlay" style={{ fontSize: 10, borderRadius: 4 }}>
-                            🙈 汉字
+                    {/* 底部信息左右双栏排布（向中间紧凑凝聚贴合，消除两端分散） */}
+                    <div style={{
+                      display: "flex",
+                      justifyContent: "center",
+                      alignItems: "center",
+                      gap: "clamp(10px, 1.8vw, 18px)",
+                      width: "100%",
+                      padding: "2px 4px 0"
+                    }}>
+                      {/* 左侧：假名注音在上，单词汉字在下（右对齐贴向中线） */}
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", textAlign: "right", flexShrink: 0, position: "relative" }}>
+                        {hasKanji ? (
+                          <>
+                            {/* 上方：假名注音（振假名标准教学排布） */}
+                            <div style={{ fontSize: "clamp(12px, 1.7vh, 14px)", color: "var(--primary)", fontWeight: 700, marginBottom: 2, position: "relative", lineHeight: 1.2 }}>
+                              {w.kana}
+                              {isKanaMasked && (
+                                <div className="mask-overlay" style={{ borderRadius: 4 }} />
+                              )}
+                            </div>
+                            {/* 下方：单词汉字 */}
+                            <div style={{ fontSize: "clamp(17px, 2.3vh, 22px)", fontWeight: 900, color: "var(--text)", position: "relative", lineHeight: 1.25 }}>
+                              {w.kanji}
+                              {isKanjiMasked && (
+                                <div className="mask-overlay" style={{ borderRadius: 4 }} />
+                              )}
+                            </div>
+                          </>
+                        ) : (
+                          <div style={{ fontSize: "clamp(17px, 2.3vh, 22px)", fontWeight: 900, color: "var(--text)", position: "relative", lineHeight: 1.25 }}>
+                            {w.kana}
+                            {isKanaMasked && (
+                              <div className="mask-overlay" style={{ borderRadius: 4 }} />
+                            )}
                           </div>
                         )}
                       </div>
-                    ) : (
-                      <div style={{ fontSize: 16, fontWeight: 800, color: "var(--text)", position: "relative" }}>
-                        {w.kana}
-                      </div>
-                    )}
 
-                    {/* 假名读音区域（当有汉字时独立展示） */}
-                    {hasKanji && (
-                      <div style={{ fontSize: 12, color: "var(--primary)", fontWeight: 700, marginTop: 2, position: "relative" }}>
-                        {w.kana}
-                        {isKanaMasked && (
-                          <div className="mask-overlay" style={{ fontSize: 10, borderRadius: 4 }}>
-                            🙈 读音
-                          </div>
-                        )}
-                      </div>
-                    )}
+                      {/* 中间精致淡雅微分隔线 */}
+                      <div style={{ width: "1.5px", height: "clamp(24px, 3.5vh, 30px)", background: "var(--border)", flexShrink: 0, opacity: 0.8 }} />
 
-                    {/* 中文释义区域 */}
-                    <div style={{ fontSize: 12, color: "var(--green)", fontWeight: 700, marginTop: 4, position: "relative" }}>
-                      {w.meaning}
-                      {isMeaningMasked && (
-                        <div className="mask-overlay" style={{ fontSize: 10, borderRadius: 4 }}>
-                          🙈 释义
+                      {/* 右侧：中文释义（左对齐贴向中线） */}
+                      <div style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "flex-start",
+                        textAlign: "left",
+                        flexShrink: 0,
+                        position: "relative"
+                      }}>
+                        <div style={{
+                          fontSize: "clamp(14px, 2vh, 18px)",
+                          color: "var(--green)",
+                          fontWeight: 800,
+                          lineHeight: 1.3,
+                          maxWidth: 160
+                        }}>
+                          {w.meaning}
+                          {isMeaningMasked && (
+                            <div className="mask-overlay" style={{ borderRadius: 4 }} />
+                          )}
                         </div>
-                      )}
+                      </div>
+
                     </div>
                   </div>
                 );
@@ -1921,7 +2158,7 @@ function App() {
           </div>
 
           {/* 底部操作：直接进入两阶段正式闯关 */}
-          <div style={{ flexShrink: 0, paddingTop: 10, paddingBottom: "max(6px, env(safe-area-inset-bottom))" }}>
+          <div style={{ flexShrink: 0, paddingTop: 10, paddingBottom: "max(12px, env(safe-area-inset-bottom, 12px))" }}>
             <button
               onClick={startActualGameChallenge}
               style={{
@@ -1937,7 +2174,7 @@ function App() {
                 boxShadow: "0 4px 14px rgba(45,142,90,0.28)"
               }}
             >
-              ⚔️ 正式进入闯关（共 2 关 · 假名识义 + 看义拼词）
+              ⚔️ 开始闯关挑战 (共 2 关)
             </button>
           </div>
 
@@ -2034,15 +2271,13 @@ function App() {
                           }}
                         >
                           <div style={{ fontSize: 9, color: "var(--muted)", fontWeight: 700, marginBottom: 1 }}>
-                            🏛️ 汉字书写（点击遮罩）
+                            🏛️ 汉字书写
                           </div>
                           <div style={{ fontSize: 26, fontWeight: 900, color: "var(--text)", letterSpacing: "1px", lineHeight: 1.2 }}>
                             {curWord.kanji}
                           </div>
                           {summaryModalMaskKanji && (
-                            <div className="mask-overlay" style={{ fontSize: 11 }}>
-                              🙈 汉字已遮罩 · 点击查看
-                            </div>
+                            <div className="mask-overlay" style={{ borderRadius: 8 }} />
                           )}
                         </div>
                       )}
@@ -2059,7 +2294,7 @@ function App() {
                         }}
                       >
                         <div style={{ fontSize: 9, color: "var(--blue)", fontWeight: 700, marginBottom: 1 }}>
-                          🔊 假名发音与声调（点击遮罩）
+                          🔊 假名读音
                         </div>
                         <div style={{ fontSize: hasKanji ? 20 : 26, fontWeight: 800, color: "var(--blue)", letterSpacing: "1px", lineHeight: 1.2 }}>
                           【{curWord.kana}】
@@ -2077,9 +2312,7 @@ function App() {
                           )}
                         </div>
                         {summaryModalMaskKana && (
-                          <div className="mask-overlay" style={{ fontSize: 11 }}>
-                            🙈 假名读音已遮罩 · 点击查看
-                          </div>
+                          <div className="mask-overlay" style={{ borderRadius: 8 }} />
                         )}
                       </div>
                     </div>
@@ -2099,7 +2332,7 @@ function App() {
                       }}
                     >
                       <div style={{ fontSize: 9, color: "var(--green)", fontWeight: 700, marginBottom: 1 }}>
-                        🇨🇳 中文释义（点击遮罩）
+                        🀄️ 中文释义
                       </div>
                       <div style={{ fontSize: 17, fontWeight: 800, color: "#1D6F44", lineHeight: 1.3 }}>
                         {curWord.meaning}
@@ -2110,9 +2343,7 @@ function App() {
                         </div>
                       )}
                       {summaryModalMaskMeaning && (
-                        <div className="mask-overlay" style={{ fontSize: 11 }}>
-                          🙈 中文释义已遮罩 · 点击查看
-                        </div>
+                        <div className="mask-overlay" style={{ borderRadius: 10 }} />
                       )}
                     </div>
 
@@ -2131,7 +2362,7 @@ function App() {
                         }}
                       >
                         <div style={{ fontSize: 9, color: "var(--accent-gold)", fontWeight: 700, marginBottom: 2 }}>
-                          📝 例句研读（点击遮罩中文）
+                          📝 精选例句
                         </div>
                         {ex.ja && (
                           <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", lineHeight: 1.35 }}>
@@ -2142,9 +2373,7 @@ function App() {
                           <div style={{ fontSize: 12, color: "var(--muted)", marginTop: 3, position: "relative" }}>
                             {ex.cn}
                             {summaryModalMaskExample && (
-                              <div className="mask-overlay" style={{ fontSize: 11 }}>
-                                🙈 点击查看译文
-                              </div>
+                              <div className="mask-overlay" style={{ borderRadius: 6 }} />
                             )}
                           </div>
                         )}
@@ -2299,10 +2528,20 @@ function App() {
 
       {/* ===== 视图 6：阶段 3【实战闯关与错词救援】 ===== */}
       {view === "game" && gameWords.length > 0 && wordIndex < gameWords.length && (
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", height: "100%", padding: gameStage === 2 ? "10px 8px" : "12px 14px" }}>
+        <div style={{
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          height: "100%",
+          maxHeight: "100%",
+          padding: "clamp(6px, 1.2vh, 10px) clamp(8px, 2.5vw, 14px)",
+          paddingBottom: "max(clamp(6px, 1.2vh, 10px), env(safe-area-inset-bottom, 0px))",
+          boxSizing: "border-box",
+          overflow: "hidden"
+        }}>
           
           {/* 关卡状态栏 */}
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0, marginBottom: 8, padding: "0 2px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0, marginBottom: "clamp(4px, 1vh, 8px)", padding: "0 2px" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <button
                 onClick={() => {
@@ -2323,8 +2562,8 @@ function App() {
                 ✕ 退出
               </button>
               <span style={{ fontSize: 12, fontWeight: 800, color: gameWords[wordIndex].isRetryVariant ? "#E67E22" : "var(--text)" }}>
-                {gameStage === 1 ? "🎯 第 1/2 关 · 假名识义" : "🧩 第 2/2 关 · 看义拼词"}
-                {gameWords[wordIndex].isRetryVariant ? " (🔄 错题重做)" : ""} · {wordIndex + 1} / {gameWords.length}
+                {gameStage === 1 ? "🎯 关卡 1/2 · 假名识义" : "🧩 关卡 2/2 · 看义拼词"}
+                {gameWords[wordIndex].isRetryVariant ? " (🔄 错题重测)" : ""} · {wordIndex + 1} / {gameWords.length}
               </span>
             </div>
             <div style={{ fontSize: 12, color: "var(--primary)", fontWeight: 800 }}>
@@ -2332,60 +2571,171 @@ function App() {
             </div>
           </div>
 
-          <div className={`mascot-wrap ${mascot.mood === "cheer" ? "cheer" : ""}`} style={{ margin: "0 0 6px" }}>
-            <div className="mascot-message">{mascot.message}</div>
-            <div className="mascot-face">{mascot.face}</div>
+          <div className={`mascot-wrap ${mascot.mood === "cheer" ? "cheer" : ""}`} style={{ margin: "0 0 clamp(2px, 0.6vh, 6px)", minHeight: "clamp(26px, 4vh, 34px)" }}>
+            <div className="mascot-message" style={{ padding: "4px 12px", fontSize: "clamp(11px, 1.6vh, 13px)" }}>{mascot.message}</div>
+            <div className="mascot-face" style={{ fontSize: "clamp(18px, 2.5vh, 22px)" }}>{mascot.face}</div>
           </div>
           
-          {/* ===== 屏幕主战区（自适应饱满布局，消除上下闲置留白） ===== */}
-          <div style={{
+          {/* ===== 屏幕主战区（高弹性多端自适应布局，手机紧凑竖屏，平板/电脑居中紧凑沉浸） ===== */}
+          <div className="game-main-arena" style={{
             flex: 1,
             display: "flex",
             flexDirection: "column",
-            justifyContent: gameStage === 1 ? "space-between" : "center",
+            justifyContent: "space-between",
             alignItems: "center",
             width: "100%",
-            padding: "2px 0 4px",
-            minHeight: 0
+            padding: "2px 0 0",
+            minHeight: 0,
+            overflow: "hidden"
           }}>
             
-            {/* 1. 题目展示主卡片舞台 */}
-            <div style={{
-              background: "#fff",
-              border: "1.5px solid var(--border)",
-              borderRadius: 20,
-              padding: gameStage === 1 ? "10px 14px" : "8px 6px 12px",
-              width: "100%",
-              boxShadow: "0 4px 14px rgba(0,0,0,0.02)",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              marginBottom: 12,
-              flexShrink: 0
-            }}>
-              {/* 1.1 第 1 关：假名识义核心题干（纯假名大字） */}
-              {gameStage === 1 && (
-                <h1 style={{ fontSize: 36, fontWeight: 900, color: "var(--text)", margin: "4px 0 6px", letterSpacing: "2.5px" }}>
-                  {gameWords[wordIndex].data.kana}
-                </h1>
-              )}
+            {/* ===== 第 1 关【假名识义】主战区 ===== */}
+            {gameStage === 1 && (
+              <>
+                {/* 题目展示主卡片舞台 */}
+                <div style={{
+                  background: "#fff",
+                  border: "1.5px solid var(--border)",
+                  borderRadius: 16,
+                  padding: "clamp(6px, 1.2vh, 10px) 16px",
+                  width: "100%",
+                  maxWidth: 680,
+                  boxShadow: "0 4px 14px rgba(0,0,0,0.02)",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  marginBottom: "clamp(4px, 1vh, 8px)",
+                  flexShrink: 0
+                }}>
+                  <h1 style={{ fontSize: "clamp(26px, 4.5vh, 40px)", fontWeight: 900, color: "var(--text)", margin: "2px 0 4px", letterSpacing: "2px" }}>
+                    {gameWords[wordIndex].data.kana}
+                  </h1>
+                </div>
 
-              {/* 1.2 第 2 关：看义拼词专属主舞台（大画幅极窄贴边插画 + 紧凑释义大字） */}
-              {gameStage === 2 && (
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", width: "100%" }}>
-                  {/* 高清插画展示（大尺寸画幅呈现，图片尺寸最大化） */}
+                {/* 四宫格图文卡片（手机与电脑端均采用沉浸式 2x2 饱满大画幅） */}
+                <div className="stage1-options-grid">
+                  {meaningOpts.map((opt, idx) => {
+                    const optMeaning = typeof opt === "object" ? opt.meaning : opt;
+                    const optImg = typeof opt === "object" ? opt.imageUrl : null;
+                    const isCorrect = optMeaning === gameWords[wordIndex].data.meaning;
+                    const isSelected = selectedMeaning === optMeaning;
+
+                    return (
+                      <div
+                        key={idx}
+                        onClick={() => handleChoiceClick("meaning", optMeaning, gameWords[wordIndex].data.meaning)}
+                        className={`opt-btn ${isSelected ? (isCorrect ? "correct" : "wrong") : ""}`}
+                        style={{
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          padding: "clamp(6px, 1.2vh, 12px) clamp(8px, 1.2vw, 14px)",
+                          borderRadius: 16,
+                          height: "100%",
+                          minHeight: 0,
+                          cursor: "pointer",
+                          background: isSelected ? (isCorrect ? "var(--green-light)" : "#FDF2F2") : "#fff",
+                          border: `2px solid ${isSelected ? (isCorrect ? "var(--green)" : "var(--wrong)") : "var(--border)"}`,
+                          boxShadow: "0 4px 12px rgba(0,0,0,0.03)",
+                          transition: "all 0.12s ease",
+                          overflow: "hidden"
+                        }}
+                      >
+                        {/* 大画幅插画容器（2x2 大视口饱满展示） */}
+                        {optImg ? (
+                          <div style={{
+                            flex: 1,
+                            width: "100%",
+                            background: "#F8FAFC",
+                            borderRadius: 12,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            marginBottom: "clamp(3px, 0.8vh, 8px)",
+                            padding: "clamp(3px, 0.8vh, 8px)",
+                            overflow: "hidden",
+                            minHeight: 0
+                          }}>
+                            <img
+                              src={optImg}
+                              alt="选项配图"
+                              style={{
+                                maxHeight: "100%",
+                                maxWidth: "100%",
+                                objectFit: "contain",
+                                filter: "drop-shadow(0 3px 8px rgba(0,0,0,0.06))"
+                              }}
+                            />
+                          </div>
+                        ) : (
+                          <div style={{
+                            flex: 1,
+                            width: "100%",
+                            background: "#F8FAFC",
+                            borderRadius: 12,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            marginBottom: "clamp(3px, 0.8vh, 8px)",
+                            fontSize: "clamp(26px, 4vh, 44px)",
+                            minHeight: 0
+                          }}>
+                            🖼️
+                          </div>
+                        )}
+
+                        {/* 选项中文释义（显著放大字号，清晰大字） */}
+                        <div style={{
+                          fontSize: "clamp(14px, 2.2vh, 20px)",
+                          fontWeight: 900,
+                          color: isSelected ? (isCorrect ? "var(--green)" : "var(--wrong)") : "var(--text)",
+                          textAlign: "center",
+                          lineHeight: 1.25,
+                          flexShrink: 0,
+                          padding: "clamp(2px, 0.5vh, 4px) 0"
+                        }}>
+                          {optMeaning}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+
+            {/* ===== 第 2 关【看义拼词】主战区（手机紧凑竖屏，平板/电脑居中一体化大画幅） ===== */}
+            {gameStage === 2 && (
+              <div className="stage2-responsive-arena">
+                
+                {/* 核心舞台：插画与释义 */}
+                <div className="stage2-left-card" style={{
+                  background: "#fff",
+                  border: "1.5px solid var(--border)",
+                  borderRadius: 16,
+                  padding: "clamp(6px, 1vh, 12px) 12px clamp(8px, 1.2vh, 14px)",
+                  width: "100%",
+                  boxShadow: "0 4px 14px rgba(0,0,0,0.02)",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  marginBottom: "clamp(4px, 0.8vh, 8px)",
+                  flexShrink: 0
+                }}>
+                  {/* 高清插画展示 */}
                   {gameWords[wordIndex].data.imageUrl ? (
-                    <div style={{
+                    <div className="stage2-img-box" style={{
                       background: "#F8FAFC",
                       border: "1px solid #E2E8F0",
-                      borderRadius: 16,
+                      borderRadius: 14,
                       width: "100%",
-                      height: 225,
+                      height: "clamp(90px, 18vh, 160px)",
                       display: "flex",
                       justifyContent: "center",
                       alignItems: "center",
-                      padding: "4px 4px",
+                      padding: "6px",
                       boxShadow: "inset 0 1px 4px rgba(0,0,0,0.03)",
                       overflow: "hidden"
                     }}>
@@ -2396,174 +2746,86 @@ function App() {
                           maxHeight: "100%",
                           maxWidth: "100%",
                           objectFit: "contain",
-                          filter: "drop-shadow(0 6px 14px rgba(0,0,0,0.08))"
+                          filter: "drop-shadow(0 4px 10px rgba(0,0,0,0.08))"
                         }}
                       />
                     </div>
                   ) : (
-                    <div style={{
+                    <div className="stage2-img-box" style={{
                       background: "#F8FAFC",
-                      borderRadius: 16,
+                      borderRadius: 14,
                       width: "100%",
-                      height: 150,
+                      height: "clamp(70px, 12vh, 110px)",
                       display: "flex",
                       justifyContent: "center",
                       alignItems: "center",
-                      fontSize: 54
+                      fontSize: "clamp(32px, 4.5vh, 44px)"
                     }}>
                       🖼️
                     </div>
                   )}
 
-                  {/* 中文释义大字（紧随插画底座，排布紧凑有力） */}
-                  <h1 style={{ fontSize: 28, fontWeight: 900, color: "var(--text)", margin: "10px 0 2px", lineHeight: 1.2, textAlign: "center" }}>
+                  {/* 中文释义大字 */}
+                  <h1 style={{ fontSize: "clamp(22px, 3.5vh, 32px)", fontWeight: 900, color: "var(--text)", margin: "8px 0 2px", lineHeight: 1.2, textAlign: "center" }}>
                     {gameWords[wordIndex].data.meaning}
                   </h1>
 
                   {/* 对应汉字骨架提示 */}
                   {gameWords[wordIndex].data.kanji && gameWords[wordIndex].data.kanji !== gameWords[wordIndex].data.kana && (
-                    <div style={{ fontSize: 13, color: "var(--muted)", background: "#F1F5F9", padding: "3px 14px", borderRadius: 8, marginTop: 4, display: "inline-block" }}>
-                      🏛️ 对应汉字：<strong style={{ color: "var(--text)", fontSize: 14 }}>{gameWords[wordIndex].data.kanji}</strong>
+                    <div style={{ fontSize: "clamp(12px, 1.8vh, 14px)", color: "var(--muted)", background: "#F1F5F9", padding: "3px 12px", borderRadius: 8, marginTop: 4, display: "inline-block" }}>
+                      🏛️ 对应汉字：<strong style={{ color: "var(--text)", fontSize: "clamp(13px, 2vh, 16px)" }}>{gameWords[wordIndex].data.kanji}</strong>
                     </div>
                   )}
                 </div>
-              )}
-            </div>
 
-            {/* 2. 紧密协同的交互区（选项 / 拼写操作台） */}
-            {/* 2.1 第 1 关【假名识义】自适应大画幅四宫格图文卡片（撑满视野，沉浸通透） */}
-            {gameStage === 1 && (
-              <div style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gridTemplateRows: "1fr 1fr",
-                gap: 12,
-                width: "100%",
-                flex: 1,
-                minHeight: 0
-              }}>
-                {meaningOpts.map((opt, idx) => {
-                  const optMeaning = typeof opt === "object" ? opt.meaning : opt;
-                  const optImg = typeof opt === "object" ? opt.imageUrl : null;
-                  const isCorrect = optMeaning === gameWords[wordIndex].data.meaning;
-                  const isSelected = selectedMeaning === optMeaning;
-
-                  return (
-                    <div
-                      key={idx}
-                      onClick={() => handleChoiceClick("meaning", optMeaning, gameWords[wordIndex].data.meaning)}
-                      className={`opt-btn ${isSelected ? (isCorrect ? "correct" : "wrong") : ""}`}
-                      style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        padding: "10px 8px",
-                        borderRadius: 18,
-                        height: "100%",
-                        cursor: "pointer",
-                        background: isSelected ? (isCorrect ? "var(--green-light)" : "#FDF2F2") : "#fff",
-                        border: `2px solid ${isSelected ? (isCorrect ? "var(--green)" : "var(--wrong)") : "var(--border)"}`,
-                        boxShadow: "0 4px 12px rgba(0,0,0,0.03)",
-                        transition: "all 0.12s ease"
-                      }}
-                    >
-                      {/* 大画幅插画容器（自适应拉伸高度） */}
-                      {optImg ? (
-                        <div style={{
-                          flex: 1,
-                          width: "100%",
-                          background: "#F8FAFC",
-                          borderRadius: 12,
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          marginBottom: 8,
-                          padding: "6px",
-                          overflow: "hidden",
-                          minHeight: 80
-                        }}>
-                          <img
-                            src={optImg}
-                            alt="选项配图"
-                            style={{
-                              maxHeight: "100%",
-                              maxWidth: "100%",
-                              objectFit: "contain",
-                              filter: "drop-shadow(0 2px 6px rgba(0,0,0,0.05))"
-                            }}
-                          />
+                {/* 沉浸控制台：拟物立体卡槽 + 5列大键帽假名池 */}
+                <div className="stage2-right-box" style={{ width: "100%", display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0, paddingTop: 2 }}>
+                  {/* 拟物立体卡槽 */}
+                  <div style={{ display: "flex", justifyContent: "center", minHeight: "clamp(40px, 5.5vh, 48px)", marginBottom: "clamp(8px, 1.5vh, 14px)" }}>
+                    {Array.from({ length: targetSpell.length }).map((_, i) => {
+                      const c = currentSpell[i] || "";
+                      return (
+                        <div
+                          key={i}
+                          onClick={() => c && handleUndoSpell(i)}
+                          className={`furi-char stage2-slot-char ${c ? "filled" : ""}`}
+                          style={{
+                            width: "clamp(36px, 9vw, 44px)",
+                            height: "clamp(42px, 5.5vh, 48px)",
+                            fontSize: "clamp(18px, 2.5vh, 22px)",
+                            margin: "0 3px"
+                          }}
+                        >
+                          {c}
                         </div>
-                      ) : (
-                        <div style={{
-                          flex: 1,
-                          width: "100%",
-                          background: "#F8FAFC",
-                          borderRadius: 12,
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          marginBottom: 8,
-                          fontSize: 36,
-                          minHeight: 80
-                        }}>
-                          🖼️
-                        </div>
-                      )}
-
-                      {/* 选项中文释义（清晰大字） */}
-                      <div style={{
-                        fontSize: 16,
-                        fontWeight: 900,
-                        color: isSelected ? (isCorrect ? "var(--green)" : "var(--wrong)") : "var(--text)",
-                        textAlign: "center",
-                        lineHeight: 1.25,
-                        flexShrink: 0
-                      }}>
-                        {optMeaning}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* 2.2 第 2 关【假名拼写】大画幅立体控制台（拟物立体卡槽 + 5列大键帽气泡池） */}
-            {gameStage === 2 && (
-              <div style={{ width: "100%", display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0, paddingTop: 4 }}>
-                {/* 拟物立体卡槽 */}
-                <div style={{ display: "flex", justifyContent: "center", minHeight: 56, marginBottom: 14 }}>
-                  {Array.from({ length: targetSpell.length }).map((_, i) => {
-                    const c = currentSpell[i] || "";
-                    return (
+                      );
+                    })}
+                  </div>
+                  
+                  {/* 5列大按键假名池 */}
+                  <div className="stage2-keyboard-grid" style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "clamp(4px, 1vw, 6px)", width: "100%", maxWidth: 380 }}>
+                    {spellPool.map((c, idx) => (
                       <div
-                        key={i}
-                        onClick={() => c && handleUndoSpell(i)}
-                        className={`furi-char ${c ? "filled" : ""}`}
+                        key={idx}
+                        onClick={() => handleSpellClick(c)}
+                        className="kana-block stage2-kana-btn"
+                        style={{
+                          height: "clamp(38px, 5vh, 46px)",
+                          fontSize: "clamp(17px, 2.3vh, 20px)",
+                          minWidth: 0
+                        }}
                       >
                         {c}
                       </div>
-                    );
-                  })}
-                </div>
-                
-                {/* 5列大按键假名池 */}
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 8, width: "100%", maxWidth: 380 }}>
-                  {spellPool.map((c, idx) => (
-                    <div
-                      key={idx}
-                      onClick={() => handleSpellClick(c)}
-                      className="kana-block"
-                    >
-                      {c}
-                    </div>
-                  ))}
+                    ))}
+                  </div>
+
+                  {/* 辅助交互提示 */}
+                  <div style={{ fontSize: "clamp(11px, 1.5vh, 13px)", color: "var(--muted)", marginTop: 6, textAlign: "center" }}>
+                    💡 轻触卡槽可撤销 · 支持实体键盘输入
+                  </div>
                 </div>
 
-                {/* 辅助交互提示 */}
-                <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 10, textAlign: "center" }}>
-                  💡 拼写错误？轻触上方卡槽即可撤销假名
-                </div>
               </div>
             )}
 
@@ -2704,27 +2966,27 @@ function App() {
       {/* ===== 视图 7：关卡结算 ===== */}
       {view === "result" && (
         <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", padding: "20px 16px", textAlign: "center", overflowY: "auto" }}>
-          <div className="fade-in" style={{ width: "100%", maxWidth: 420 }}>
+          <div className="fade-in" style={{ width: "100%", maxWidth: 520 }}>
             <div style={{ fontSize: 50, marginBottom: 8 }}>{resultSummary?.medalIcon || "🏅"}</div>
             
             {resultSummary?.isPassed ? (
               <>
                 <h2 style={{ fontSize: 22, fontWeight: 900, color: "var(--green)", margin: "0 0 4px" }}>🎉 恭喜通关！</h2>
-                <div style={{ color: resultSummary?.medal === "gold" ? "#D97706" : resultSummary?.medal === "silver" ? "#2563EB" : "#16A34A", fontSize: 16, fontWeight: 800, marginBottom: 12 }}>
+                <div style={{ color: resultSummary?.medal === "gold" ? "#D97706" : resultSummary?.medal === "silver" ? "#2563EB" : "#16A34A", fontSize: 16, fontWeight: 800, marginBottom: 10 }}>
                   {resultSummary?.medal === "gold" ? "🏆 斩获金杯 · 完美精通" : resultSummary?.medal === "silver" ? "🏅 斩获银杯 · 熟练达标" : "🥉 斩获铜杯 · 顺利通关"}
                 </div>
                 <div style={{ fontSize: 12, color: "var(--muted)", fontWeight: 700, marginBottom: 14 }}>
-                  已达到 {resultSummary?.studentTag ? `${resultSummary.studentTag} 级` : ""}及格达标线（≥{resultSummary?.requiredPassingScore || 80} 分）
+                  已达到{resultSummary?.studentTag ? ` ${resultSummary.studentTag} 级` : ""}达标线（≥{resultSummary?.requiredPassingScore || 80} 分）
                 </div>
               </>
             ) : (
               <>
                 <h2 style={{ fontSize: 22, fontWeight: 900, color: "var(--wrong)", margin: "0 0 4px" }}>💔 未达标，需重新挑战！</h2>
                 <div style={{ color: "var(--wrong)", fontSize: 15, fontWeight: 800, marginBottom: 6 }}>
-                  距离您的{resultSummary?.studentTag ? ` ${resultSummary.studentTag} 级` : ""}达标线（{resultSummary?.requiredPassingScore} 分）还差 <strong style={{ fontSize: 18 }}>{resultSummary?.scoreDiff}</strong> 分
+                  距离{resultSummary?.studentTag ? ` ${resultSummary.studentTag} 级` : ""}达标线（{resultSummary?.requiredPassingScore} 分）还差 <strong style={{ fontSize: 18 }}>{resultSummary?.scoreDiff}</strong> 分
                 </div>
                 <div style={{ fontSize: 12, color: "var(--muted)", fontWeight: 600, marginBottom: 14 }}>
-                  别灰心！查漏补缺复习做错的单词，再战一次必定过关！
+                  复习做错的单词，再战一次必定通关！
                 </div>
               </>
             )}
@@ -2746,17 +3008,28 @@ function App() {
             </div>
 
             {/* 答题明细卡 */}
-            <div style={{ fontSize: 13, color: "var(--muted)", lineHeight: 1.8, marginBottom: 16, textAlign: "left", background: "#fff", border: "1px solid var(--border)", borderRadius: 14, padding: "12px 16px" }}>
-              <div>🎯 <strong>第 1 关【假名识义】首答：</strong>{sessionRef.current.stage1Correct || 0} / {sessionRef.current.stage1Total || 0}</div>
-              <div>🧩 <strong>第 2 关【看义拼词】首答：</strong>{sessionRef.current.stage2Correct || 0} / {sessionRef.current.stage2Total || 0}</div>
-              <div>⚡ <strong>综合首答正确数：</strong>{resultSummary?.firstTryCorrect || 0} / {resultSummary?.total || 0}</div>
-              {resultSummary?.rescuedCount > 0 && <div style={{ color: "var(--green)" }}>🛟 <strong>后置重测消灭错题：</strong>已攻克 {resultSummary.rescuedCount} 个错词</div>}
+            <div style={{
+              fontSize: 13,
+              color: "var(--muted)",
+              lineHeight: 1.9,
+              marginBottom: 16,
+              textAlign: "center",
+              background: "#fff",
+              border: "1px solid var(--border)",
+              borderRadius: 16,
+              padding: "14px 20px",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.02)"
+            }}>
+              <div>🎯 <strong>关卡 1【假名识义】首答：</strong>{sessionRef.current.stage1Correct || 0} / {sessionRef.current.stage1Total || 0}</div>
+              <div>🧩 <strong>关卡 2【看义拼词】首答：</strong>{sessionRef.current.stage2Correct || 0} / {sessionRef.current.stage2Total || 0}</div>
+              <div>⚡ <strong>综合首答正确数：</strong>{resultSummary?.firstTryCorrect || 0} / {resultSummary?.total || 0} ({Math.round((resultSummary?.firstTryRate || 0) * 100)}%)</div>
+              {resultSummary?.rescuedCount > 0 && <div style={{ color: "var(--green)" }}>🛟 <strong>错词重测：</strong>已攻克 {resultSummary.rescuedCount} 个错词</div>}
             </div>
 
             {/* 若未达标且有错词，直接展示错词强化速记卡片 */}
             {!resultSummary?.isPassed && resultSummary?.mistakeWords?.length > 0 && (
-              <div style={{ background: "#FFFBEB", border: "1.5px solid #FDE68A", borderRadius: 14, padding: 12, marginBottom: 16, textAlign: "left" }}>
-                <div style={{ fontSize: 12, fontWeight: 800, color: "#B45309", marginBottom: 8, display: "flex", alignItems: "center", gap: 4 }}>
+              <div style={{ background: "#FFFBEB", border: "1.5px solid #FDE68A", borderRadius: 16, padding: "12px 16px", marginBottom: 16, textAlign: "center" }}>
+                <div style={{ fontSize: 12, fontWeight: 800, color: "#B45309", marginBottom: 8, display: "flex", justifyContent: "center", alignItems: "center", gap: 4 }}>
                   <span>📌</span> 本关失误单词快速复习（轻触可朗读）：
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 130, overflowY: "auto" }}>
@@ -2764,7 +3037,7 @@ function App() {
                     <div
                       key={idx}
                       onClick={() => speak(w.kana || w.kanji)}
-                      style={{ background: "#fff", border: "1px solid #FEE3A2", borderRadius: 8, padding: "6px 10px", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}
+                      style={{ background: "#fff", border: "1px solid #FEE3A2", borderRadius: 10, padding: "8px 12px", display: "flex", justifyContent: "space-between", alignItems: "center", cursor: "pointer" }}
                     >
                       <div>
                         <strong style={{ color: "var(--text)", fontSize: 13 }}>{w.kanji ? `${w.kanji}【${w.kana}】` : w.kana}</strong>
