@@ -194,7 +194,7 @@
             .stage2-responsive-arena {
                 display: flex;
                 flex-direction: column;
-            justify-content: center !important;
+                justify-content: center !important;
                 align-items: center;
                 gap: clamp(14px, 2.2vh, 22px);
                 max-width: 780px;
@@ -230,13 +230,12 @@
                 margin: 0 5px !important;
             }
             .stage2-keyboard-grid {
-                max-width: 500px !important;
+                max-width: 440px !important;
                 gap: 10px !important;
             }
             .stage2-kana-btn {
-                height: clamp(50px, 6.5vh, 58px) !important;
-                font-size: clamp(22px, 3vh, 26px) !important;
-                border-radius: 16px !important;
+                border-radius: 18px !important;
+                box-shadow: 0 4px 0 #CBD5E1 !important;
             }
         }
         
@@ -272,28 +271,26 @@
         .opt-btn.correct { background: var(--green-light) !important; color: var(--green) !important; border-color: var(--green) !important; }
         .opt-btn.wrong { background: #FDF2F2 !important; color: var(--wrong) !important; border-color: var(--wrong) !important; }
         
-        /* 假名拼写按键（立体高质感大触控键） */
+        /* 假名拼写按键（1:1 圆角方形立体高质感大触控键） */
         .kana-block {
             background: #fff;
             border: 1.5px solid #CBD5E1;
-            border-radius: 14px;
-            font-size: 24px;
-            font-weight: 800;
+            border-radius: clamp(10px, 2.5vw, 16px);
             display: flex;
             align-items: center;
             justify-content: center;
             cursor: pointer;
-            box-shadow: 0 4px 0 #CBD5E1;
-            height: 54px;
+            box-shadow: 0 3.5px 0 #CBD5E1;
             width: 100%;
-            min-width: 48px;
-            max-width: 64px;
+            aspect-ratio: 1 / 1;
+            height: auto;
             color: var(--text);
             transition: all 0.08s ease;
             user-select: none;
+            box-sizing: border-box;
         }
         .kana-block:active {
-            transform: translateY(3px);
+            transform: translateY(2.5px);
             box-shadow: 0 1px 0 #CBD5E1;
             background: #F8FAFC;
         }
@@ -733,6 +730,14 @@ const requestJson = async (url, options = {}, timeoutMs = 10000) => {
     clearTimeout(timer);
   }
 };
+
+// 促音、拗音等特殊小假名集合（用于字号对比区分）
+const SMALL_KANA_SET = new Set([
+  'っ', 'ッ', 'ゃ', 'ャ', 'ゅ', 'ュ', 'ょ', 'ョ', 
+  'ぁ', 'ァ', 'ぃ', 'ィ', 'ぅ', 'ゥ', 'ぇ', 'ェ', 'ぉ', 'ォ', 
+  'ゎ', 'ヮ'
+]);
+const isSmallKana = (char) => typeof char === "string" && SMALL_KANA_SET.has(char.trim());
 
 function App() {
   const groupId = useRef(parseGroupIdFromUrl()).current;
@@ -2782,43 +2787,66 @@ function App() {
                 {/* 沉浸控制台：拟物立体卡槽 + 5列大键帽假名池 */}
                 <div className="stage2-right-box" style={{ width: "100%", display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0, paddingTop: 2 }}>
                   {/* 拟物立体卡槽 */}
-                  <div style={{ display: "flex", justifyContent: "center", minHeight: "clamp(40px, 5.5vh, 48px)", marginBottom: "clamp(8px, 1.5vh, 14px)" }}>
+                  <div style={{ display: "flex", justifyContent: "center", minHeight: "clamp(42px, 5.8vh, 52px)", marginBottom: "clamp(8px, 1.5vh, 14px)" }}>
                     {Array.from({ length: targetSpell.length }).map((_, i) => {
                       const c = currentSpell[i] || "";
+                      const isSmall = isSmallKana(c);
                       return (
                         <div
                           key={i}
                           onClick={() => c && handleUndoSpell(i)}
                           className={`furi-char stage2-slot-char ${c ? "filled" : ""}`}
                           style={{
-                            width: "clamp(36px, 9vw, 44px)",
-                            height: "clamp(42px, 5.5vh, 48px)",
-                            fontSize: "clamp(18px, 2.5vh, 22px)",
-                            margin: "0 3px"
+                            width: "clamp(40px, 9.5vw, 48px)",
+                            height: "clamp(46px, 6vh, 54px)",
+                            margin: "0 3px",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center"
                           }}
                         >
-                          {c}
+                          <span style={{
+                            fontSize: isSmall ? "clamp(15px, 3.2vw, 20px)" : "clamp(22px, 4.8vw, 28px)",
+                            fontWeight: 900,
+                            lineHeight: 1,
+                            transform: isSmall ? "translateY(2px)" : "none"
+                          }}>
+                            {c}
+                          </span>
                         </div>
                       );
                     })}
                   </div>
                   
-                  {/* 5列大按键假名池 */}
-                  <div className="stage2-keyboard-grid" style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "clamp(4px, 1vw, 6px)", width: "100%", maxWidth: 380 }}>
-                    {spellPool.map((c, idx) => (
-                      <div
-                        key={idx}
-                        onClick={() => handleSpellClick(c)}
-                        className="kana-block stage2-kana-btn"
-                        style={{
-                          height: "clamp(38px, 5vh, 46px)",
-                          fontSize: "clamp(17px, 2.3vh, 20px)",
-                          minWidth: 0
-                        }}
-                      >
-                        {c}
-                      </div>
-                    ))}
+                  {/* 5列 1:1 圆角方形大按键假名池 */}
+                  <div className="stage2-keyboard-grid" style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "clamp(6px, 1.8vw, 10px)", width: "100%", maxWidth: 380 }}>
+                    {spellPool.map((c, idx) => {
+                      const isSmall = isSmallKana(c);
+                      return (
+                        <div
+                          key={idx}
+                          onClick={() => handleSpellClick(c)}
+                          className="kana-block stage2-kana-btn"
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            minWidth: 0,
+                            padding: 0
+                          }}
+                        >
+                          <span style={{
+                            fontSize: isSmall ? "clamp(15px, 3.2vw, 20px)" : "clamp(23px, 5.2vw, 30px)",
+                            fontWeight: 900,
+                            lineHeight: 1,
+                            transform: isSmall ? "translateY(2px)" : "none",
+                            opacity: isSmall ? 0.9 : 1
+                          }}>
+                            {c}
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
 
                   {/* 辅助交互提示 */}
