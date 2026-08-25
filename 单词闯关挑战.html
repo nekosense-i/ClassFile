@@ -165,7 +165,7 @@
             flex: 1;
             display: flex;
             flex-direction: column;
-            justifyContent: space-between;
+          justify-content: space-between;
             align-items: center;
             width: 100%;
             padding: 2px 0 0;
@@ -185,15 +185,16 @@
             width: 100%;
             flex: 1;
             min-height: 0;
-            justify-content: space-between;
+            justify-content: center;
             align-items: center;
+            gap: clamp(10px, 2vh, 18px);
             overflow: hidden;
         }
         @media (min-width: 768px) {
             .stage2-responsive-arena {
                 display: flex;
                 flex-direction: column;
-                justifyContent: center !important;
+            justify-content: center !important;
                 align-items: center;
                 gap: clamp(14px, 2.2vh, 22px);
                 max-width: 780px;
@@ -2057,7 +2058,7 @@ function App() {
                       transition: "transform 0.12s, box-shadow 0.12s"
                     }}
                   >
-                    <div style={{ position: "absolute", top: 6, right: 6, fontSize: 10, color: "var(--primary)", background: "var(--primary-light)", padding: "1px 5px", borderRadius: 4, fontWeight: 700 }}>
+                    <div style={{ position: "absolute", top: 6, right: 6, zIndex: 20, fontSize: 10, color: "var(--primary)", background: "var(--primary-light)", padding: "1px 6px", borderRadius: 4, fontWeight: 700, boxShadow: "0 1px 4px rgba(0,0,0,0.08)", pointerEvents: "none" }}>
                       🔍 详情
                     </div>
                     {w.imageUrl && (
@@ -2721,7 +2722,7 @@ function App() {
                   flexDirection: "column",
                   alignItems: "center",
                   justifyContent: "center",
-                  marginBottom: "clamp(4px, 0.8vh, 8px)",
+                  marginBottom: 0,
                   flexShrink: 0
                 }}>
                   {/* 高清插画展示 */}
