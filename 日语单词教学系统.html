@@ -1835,6 +1835,8 @@ function TeachMode({
   const lastClickedBtnRef = useRef(false);
   const lastShortcutAtRef = useRef(0);
   const countdownTimerRef = useRef(null);
+  // 记录最近抽取过的单词 ID 历史队列（用于跨次去重，实现至少 5 次内不重复抽取）
+  const recentPickedWordIdsRef = useRef([]);
   const restoreHiddenWords = useCallback(() => {
     if (!group || hiddenCount === 0) return;
     setGroups(groups.map(g => g.id === group.id ? { ...g, words:(g.words || []).map(w => w.hidden ? { ...w, hidden:false } : w) } : g));
@@ -2102,6 +2104,7 @@ function TeachMode({
     setSelectedCard(null);
     setCardStatus({});
     setQuizWords([]);
+    recentPickedWordIdsRef.current = [];
   };
   const goPage = (n) => {
     setPage(Math.max(0, Math.min(n, totalPages - 1)));
@@ -2167,9 +2170,59 @@ function TeachMode({
     if (safePage < totalPages - 1) goPage(safePage + 1);
   };
   const pickRandomCard = () => {
-    const pending = currentWords.map((_, i) => i).filter(i => cardStatus[i] === "pending");
+    // 待抽选（未揭示）的有效卡片列表
+    const pending = currentWords
+      .map((word, i) => ({ index: i, word, id: word?.id || String(i) }))
+      .filter(item => cardStatus[item.index] === "pending");
+
     if (pending.length === 0) return;
-    setSelectedCard(pending[Math.floor(Math.random() * pending.length)]);
+
+    // 仅剩 1 张时直接选中
+    if (pending.length === 1) {
+      const onlyOne = pending[0];
+      setSelectedCard(onlyOne.index);
+      recentPickedWordIdsRef.current = [...recentPickedWordIdsRef.current.filter(id => id !== onlyOne.id), onlyOne.id].slice(-10);
+      return;
+    }
+
+    const recentIds = recentPickedWordIdsRef.current;
+    // 动态限制防重窗口：最多5次；若当前剩余待选词数不足6，窗口自动设为待选词数-1，防止候选被全部过滤
+    const maxHistoryLimit = Math.min(5, Math.max(1, pending.length - 1));
+    const effectiveRecent = recentIds.slice(-maxHistoryLimit);
+
+    // 第一优先级：排除最近 5 次内抽过的词，并且坚决排除当前已选中的卡片
+    let candidates = pending.filter(item => {
+      const isCurrentlySelected = selectedCard === item.index;
+      const isRecent = effectiveRecent.includes(item.id);
+      return !isCurrentlySelected && !isRecent;
+    });
+
+    // 第二优先级：若无可用候选，放宽条件，但依然杜绝与当前选中的卡片连续重复
+    if (candidates.length === 0) {
+      candidates = pending.filter(item => item.index !== selectedCard);
+    }
+
+    // 极端兜底
+    if (candidates.length === 0) {
+      candidates = pending;
+    }
+
+    // 在候选列表中，优先挑选在历史记录中“出现时间最久远”（LRU策略）的词
+    candidates.sort((a, b) => {
+      const lastIdxA = recentIds.lastIndexOf(a.id);
+      const lastIdxB = recentIds.lastIndexOf(b.id);
+      return lastIdxA - lastIdxB;
+    });
+
+    const minScore = recentIds.lastIndexOf(candidates[0].id);
+    const bestCandidates = candidates.filter(c => recentIds.lastIndexOf(c.id) === minScore);
+    const chosen = bestCandidates[Math.floor(Math.random() * bestCandidates.length)];
+
+    if (chosen) {
+      setSelectedCard(chosen.index);
+      // 记录最新抽中的词 ID，保持队列长度在 10 以内
+      recentPickedWordIdsRef.current = [...recentIds.filter(id => id !== chosen.id), chosen.id].slice(-10);
+    }
   };
   const revealQuizCard = (i) => {
     if (!["kana","reverse"].includes(quizPhase) || cardStatus[i] !== "pending") return;
