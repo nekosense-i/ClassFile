@@ -247,7 +247,7 @@
             }
         }
 
-        /* 第 2 关【看义拼词】高质感居中一体化舞台（自适应各端垂直视口高度，100%防止平板上下裁切） */
+        /* 第 2 关【看义拼词】经典垂直一体化舞台（自适应扩展插画与按键面积，比例饱满协调） */
         .stage2-responsive-arena {
             display: flex;
             flex-direction: column;
@@ -259,80 +259,88 @@
             gap: clamp(6px, 1.2vh, 14px);
             overflow: hidden;
         }
+
+        .stage2-right-box {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            flex-shrink: 0;
+            padding-top: 2px;
+        }
+
+        /* 💻 平板及桌面宽屏（≥ 768px）：保持上下单列结构，适度扩展图片与键盘占比 */
         @media (min-width: 768px) {
             .stage2-responsive-arena {
-                display: flex;
-                flex-direction: column;
+                display: flex !important;
+                flex-direction: column !important;
                 justify-content: center !important;
-                align-items: center;
-                gap: clamp(6px, 1.2vh, 12px) !important;
-                max-width: 640px;
+                align-items: center !important;
+                gap: clamp(8px, 1.4vh, 16px) !important;
+                max-width: 680px !important;
                 margin: 0 auto;
                 height: 100% !important;
                 flex: 1 !important;
                 min-height: 0 !important;
-                padding: 2px 14px;
+                padding: clamp(2px, 0.8vh, 8px) 16px !important;
+                box-sizing: border-box;
             }
+            
+            /* 上方卡片：适度扩展宽度与高度占比 */
             .stage2-left-card {
                 width: 100% !important;
-                max-width: 520px !important;
-                padding: clamp(6px, 1.2vh, 12px) clamp(14px, 2vw, 20px) !important;
-                border-radius: 18px !important;
-                margin-bottom: 0 !important;
-                box-shadow: 0 4px 16px rgba(0,0,0,0.03) !important;
+                max-width: 620px !important;
+                height: auto !important;
+                background: #fff !important;
+                border: 1.5px solid var(--border) !important;
+                border-radius: 20px !important;
+                padding: clamp(8px, 1.5vh, 14px) clamp(16px, 2.2vw, 24px) !important;
+                box-shadow: 0 4px 16px rgba(0, 0, 0, 0.03) !important;
+                display: flex !important;
+                flex-direction: column !important;
+                align-items: center !important;
+                justify-content: center !important;
                 flex-shrink: 1 !important;
                 min-height: 0 !important;
+                box-sizing: border-box;
             }
             .stage2-left-card .stage2-img-box {
-                height: clamp(100px, 20vh, 175px) !important;
-                max-height: 22vh !important;
                 width: 100% !important;
-                padding: 4px !important;
+                height: clamp(120px, 21vh, 190px) !important;
+                max-height: 24vh !important;
+                border-radius: 14px !important;
+                padding: 6px 10px !important;
+                margin-bottom: clamp(4px, 0.8vh, 8px) !important;
             }
+            
+            /* 下方控制台：适度放大卡槽与键盘按键面积 */
             .stage2-right-box {
                 width: 100% !important;
-                max-width: 520px !important;
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                padding-top: 0 !important;
+                max-width: 620px !important;
+                background: transparent !important;
+                border: none !important;
+                box-shadow: none !important;
+                padding: 0 !important;
+                display: flex !important;
+                flex-direction: column !important;
+                align-items: center !important;
                 flex-shrink: 0 !important;
                 min-height: 0 !important;
             }
             .stage2-slot-char {
-                width: clamp(38px, 4.8vw, 48px) !important;
-                height: clamp(42px, 5.2vh, 52px) !important;
-                font-size: clamp(20px, 2.8vh, 26px) !important;
-                margin: 0 3.5px !important;
+                width: clamp(44px, 5.2vw, 54px) !important;
+                height: clamp(48px, 6vh, 58px) !important;
+                font-size: clamp(22px, 3vh, 28px) !important;
+                margin: 0 4px !important;
             }
             .stage2-keyboard-grid {
-                max-width: 360px !important;
-                gap: clamp(6px, 1vh, 8px) !important;
+                max-width: 440px !important;
+                width: 100% !important;
+                gap: clamp(8px, 1.2vw, 12px) !important;
             }
             .stage2-kana-btn {
-                border-radius: 14px !important;
-                box-shadow: 0 3px 0 #CBD5E1 !important;
-            }
-        }
-
-        /* 针对平板横屏或较矮屏幕（高度 ≤ 720px）的极致视口保护 */
-        @media (max-height: 720px) {
-            .stage2-responsive-arena {
-                gap: 4px !important;
-            }
-            .stage2-left-card {
-                padding: 4px 12px 6px !important;
-            }
-            .stage2-left-card .stage2-img-box {
-                height: clamp(80px, 16vh, 130px) !important;
-                max-height: 18vh !important;
-            }
-            .stage2-slot-char {
-                height: clamp(36px, 4.8vh, 44px) !important;
-            }
-            .stage2-keyboard-grid {
-                max-width: 320px !important;
-                gap: 5px !important;
+                border-radius: 16px !important;
+                box-shadow: 0 3.5px 0 #CBD5E1 !important;
             }
         }
 
