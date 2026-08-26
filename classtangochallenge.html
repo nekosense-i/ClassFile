@@ -346,6 +346,11 @@
 
         .fade-in { animation: fadeIn 0.3s ease; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        
+        @keyframes modalPop {
+            from { opacity: 0; transform: scale(0.94) translateY(12px); }
+            to { opacity: 1; transform: scale(1) translateY(0); }
+        }
 
         @keyframes spin-breathe {
             0% { transform: scale(1); }
@@ -1164,8 +1169,8 @@ function App() {
   const [activeGroupKey, setActiveGroupKey] = useState(null);
   const [activeCycle, setActiveCycle] = useState(null);
   const [activeSubLevel, setActiveSubLevel] = useState(null);
-  // 大关卡展开状态（手风琴式展开子关卡列表，支持自由选关挑战）
-  const [expandedGroupKey, setExpandedGroupKey] = useState(null);
+  // 大关卡选关浮动面板状态（方案一：向下浮动弹层选择小关卡，保持网格整齐稳定）
+  const [selectedModalGroup, setSelectedModalGroup] = useState(null);
 
   // ===== 阶段 1：前置背记学习状态 =====
   const [studyWords, setStudyWords] = useState([]);
@@ -1590,6 +1595,14 @@ function App() {
       cheer("(｡･ω･｡)", gameStage === 1 ? "意味を選んでね！" : "仮名を並べよう！");
     }
 
+    // 第一小关【看假名选单词】：进入每道题后，先自动播放该题单词的读音音频
+    let autoAudioTimer = null;
+    if (gameStage === 1 && d) {
+      autoAudioTimer = setTimeout(() => {
+        playWordAudio(d, { isAuto: true, isMuted });
+      }, 200);
+    }
+
     const allWords = wordsPayload?.groups?.flatMap(g => g.words || []) || [];
 
     if (q.type === "kana_to_meaning") {
@@ -1610,6 +1623,10 @@ function App() {
       }
       setSpellPool(chars.sort(() => Math.random() - 0.5));
     }
+
+    return () => {
+      if (autoAudioTimer) clearTimeout(autoAudioTimer);
+    };
   }, [view, gameWords, wordIndex, gameStage]);
 
   // 物理键盘输入监听（针对平板外接键盘与笔记本电脑键盘输入体验优化）
@@ -1730,11 +1747,10 @@ function App() {
 
     soundEffects.correct();
     fireConfetti();
-    if (currentQ?.data) {
-      playWordAudio(currentQ.data, { isAuto: true, isMuted });
-    }
 
     const isLastWord = wordIndex + 1 >= gameWords.length;
+    // 答对快速轻快推进，无需重复等待音频
+    const nextDelay = isLastWord ? 200 : 400;
     setTimeout(() => {
       if (!isLastWord) {
         setWordIndex(prev => prev + 1);
@@ -1749,10 +1765,10 @@ function App() {
           handleLevelComplete(nextScore);
         }
       }
-    }, isLastWord ? 200 : 500);
+    }, nextDelay);
   };
 
-  // 答错处理（扣分惩罚 + 弹出即时错因对比卡 + 错题打乱插入后续队列）
+  // 答错处理（扣分惩罚 + 弹出即时错因对比卡 + 错题打乱插入后续队列 + 重新播放正确发音）
   const handleWrong = (errorType = "unknown", userChoice = "", correctChoice = "") => {
     setHasErrorOnCurrent(true);
     const totalQ = sessionRef.current.normalCount || (studyWords.length * 2) || 20;
@@ -1766,6 +1782,11 @@ function App() {
     const word = currentQ?.data;
 
     if (word) {
+      // 答错后：重新播放一遍正确单词音频，强化读音印象
+      setTimeout(() => {
+        playWordAudio(word, { isAuto: true, isMuted });
+      }, 150);
+
       const key = String(word.id || `${word.kanji || ""}_${word.kana || ""}_${wordIndex}`);
       const previous = sessionRef.current.wordStats[key] || { word, errors: {}, errorCount: 0, hasInsertedVariant: false };
       previous.errors[errorType] = Number(previous.errors[errorType] || 0) + 1;
@@ -2201,194 +2222,76 @@ function App() {
                   const activeWords = (g.words || []).filter(w => !w.hidden);
                   const totalSubLevels = getSubLevelCount(activeWords.length);
                   const completedSubLevels = Math.min(Number(scoreInfo?.completedSubLevels || 0), totalSubLevels);
-                  const isExpanded = expandedGroupKey === key || (expandedGroupKey === null && idx === 0 && unlocked);
                   const isAllCleared = completedSubLevels >= totalSubLevels && totalSubLevels > 0;
 
                   return (
                     <div
                       key={key}
+                      onClick={() => {
+                        if (!unlocked) return;
+                        soundEffects.click();
+                        setSelectedModalGroup(g);
+                      }}
                       style={{
                         background: unlocked ? "#fff" : "rgba(0,0,0,0.03)",
-                        border: `1.5px solid ${isExpanded ? "var(--primary)" : (unlocked ? "var(--border)" : "transparent")}`,
+                        border: `1.5px solid ${unlocked ? "var(--border)" : "transparent"}`,
                         borderRadius: 18,
-                        overflow: "hidden",
-                        boxShadow: isExpanded ? "0 6px 18px rgba(200,64,45,0.08)" : (unlocked ? "0 2px 6px rgba(0,0,0,0.02)" : "none"),
-                        transition: "all 0.2s ease"
+                        padding: "14px 16px",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        cursor: unlocked ? "pointer" : "not-allowed",
+                        boxShadow: unlocked ? "0 2px 6px rgba(0,0,0,0.02)" : "none",
+                        transition: "all 0.15s ease"
                       }}
+                      onMouseDown={e => unlocked && (e.currentTarget.style.transform = "scale(0.985)")}
+                      onMouseUp={e => unlocked && (e.currentTarget.style.transform = "scale(1)")}
+                      onMouseLeave={e => unlocked && (e.currentTarget.style.transform = "scale(1)")}
                     >
-                      {/* 大关卡头部：点击展开/收起 */}
-                      <div
-                        onClick={() => {
-                          if (!unlocked) return;
-                          soundEffects.click();
-                          setExpandedGroupKey(isExpanded ? "__none__" : key);
-                        }}
-                        style={{
-                          padding: "14px 16px",
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                          cursor: unlocked ? "pointer" : "not-allowed",
-                          background: isExpanded ? "rgba(200,64,45,0.02)" : "transparent"
-                        }}
-                      >
-                        <div>
-                          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
-                            <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 800 }}>LEVEL {idx + 1}</span>
-                            {isAllCleared && <span style={{ fontSize: 10, background: "var(--green-light)", color: "var(--green)", padding: "1px 6px", borderRadius: 10, fontWeight: 800 }}>已全通</span>}
-                          </div>
-                          <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "4px 8px" }}>
-                            <span style={{ fontSize: 16, fontWeight: 900, color: "var(--text)" }}>{g.name}</span>
-                            <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 700 }}>
-                              共 {activeWords.length} 词
-                            </span>
-                            <span style={{
-                              fontSize: 10,
-                              fontWeight: 800,
-                              background: isAllCleared ? "var(--green-light)" : "rgba(0, 0, 0, 0.05)",
-                              color: isAllCleared ? "var(--green)" : "var(--muted)",
-                              padding: "1px 6px",
-                              borderRadius: 6,
-                              fontVariantNumeric: "tabular-nums"
-                            }}>
-                              已通关 {completedSubLevels}/{totalSubLevels}
-                            </span>
-                          </div>
+                      <div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
+                          <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 800 }}>LEVEL {idx + 1}</span>
+                          {isAllCleared && <span style={{ fontSize: 10, background: "var(--green-light)", color: "var(--green)", padding: "1px 6px", borderRadius: 10, fontWeight: 800 }}>已全通</span>}
                         </div>
-
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                          {unlocked ? (
-                            <div style={{
-                              width: 28,
-                              height: 28,
-                              borderRadius: "50%",
-                              background: isExpanded ? "var(--primary-light)" : "rgba(0, 0, 0, 0.04)",
-                              color: isExpanded ? "var(--primary)" : "var(--muted)",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              transition: "all 0.2s ease"
-                            }}>
-                              <svg
-                                width="14"
-                                height="14"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2.6"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                style={{
-                                  transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)",
-                                  transition: "transform 0.25s cubic-bezier(0.4, 0, 0.2, 1)"
-                                }}
-                              >
-                                <polyline points="6 9 12 15 18 9" />
-                              </svg>
-                            </div>
-                          ) : (
-                            <span style={{ fontSize: 16 }}>🔒</span>
-                          )}
+                        <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "4px 8px" }}>
+                          <span style={{ fontSize: 16, fontWeight: 900, color: "var(--text)" }}>{g.name}</span>
+                          <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 700 }}>
+                            共 {activeWords.length} 词
+                          </span>
+                          <span style={{
+                            fontSize: 10,
+                            fontWeight: 800,
+                            background: isAllCleared ? "var(--green-light)" : "rgba(0, 0, 0, 0.05)",
+                            color: isAllCleared ? "var(--green)" : "var(--muted)",
+                            padding: "1px 6px",
+                            borderRadius: 6,
+                            fontVariantNumeric: "tabular-nums"
+                          }}>
+                            已通关 {completedSubLevels}/{totalSubLevels}
+                          </span>
                         </div>
                       </div>
 
-                      {/* 展开的小关卡自由选择列表 */}
-                      {unlocked && isExpanded && (
-                        <div style={{
-                          padding: "0 12px 14px",
-                          background: "#FAFAF9",
-                          borderTop: "1px dashed var(--border)",
-                          display: "flex",
-                          flexDirection: "column",
-                          gap: 8,
-                          paddingTop: 12
-                        }}>
-                          <div style={{ fontSize: 11, fontWeight: 800, color: "var(--muted)", marginBottom: 2 }}>
-                            👇 点击任意小关卡自由开启学习与闯关：
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                        {unlocked ? (
+                          <div style={{
+                            width: 28,
+                            height: 28,
+                            borderRadius: "50%",
+                            background: "rgba(0, 0, 0, 0.04)",
+                            color: "var(--muted)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontSize: 15,
+                            fontWeight: 900
+                          }}>
+                            ➔
                           </div>
-                          {Array.from({ length: totalSubLevels }).map((_, subIdx) => {
-                            const subLevelNumber = subIdx + 1;
-                            const bounds = getSubLevelBounds(activeWords.length, subLevelNumber);
-                            const subWords = activeWords.slice(bounds.start, bounds.end);
-                            const recordKey = `${key}_sub_${subLevelNumber}`;
-                            const subRecord = currentUser?.gameProfile?.chapterRecords?.[recordKey] || {};
-
-                            const studentTag = String(currentUser?.tag || "").trim().toUpperCase();
-                            const passingScoresConfig = studentsPayload?.challengeSettings?.passingScoresByTag || {};
-                            const configuredThreshold = Number(passingScoresConfig[studentTag]);
-                            const defaultThreshold = Number(passingScoresConfig.default);
-                            const userTargetScore = Number.isFinite(configuredThreshold) && configuredThreshold > 0
-                              ? configuredThreshold
-                              : (studentTag === "A" ? 90 : studentTag === "B" ? 80 : studentTag === "C" ? 60 : (Number.isFinite(defaultThreshold) && defaultThreshold > 0 ? defaultThreshold : 80));
-
-                            const isSubCleared = !!subRecord.isPassed || (subRecord.bestMedal && subRecord.bestMedal !== "unpassed") || !!subRecord.completedAt;
-                            const isSubAttemptedUnpassed = !isSubCleared && (subRecord.attempts > 0 || subRecord.bestScore > 0 || subRecord.bestMedal === "unpassed");
-
-                            return (
-                              <div
-                                key={subLevelNumber}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  startStudyLevel(key, subWords, null, {
-                                    index: subLevelNumber,
-                                    total: totalSubLevels,
-                                    startNum: bounds.start + 1,
-                                    endNum: bounds.end
-                                  });
-                                }}
-                                style={{
-                                  background: "#fff",
-                                  border: `1.5px solid ${isSubCleared ? "#86EFAC" : isSubAttemptedUnpassed ? "#FCA5A5" : "var(--border)"}`,
-                                  borderRadius: 14,
-                                  padding: "10px 14px",
-                                  display: "flex",
-                                  justifyContent: "space-between",
-                                  alignItems: "center",
-                                  cursor: "pointer",
-                                  boxShadow: "0 2px 5px rgba(0,0,0,0.02)",
-                                  transition: "transform 0.1s, border-color 0.15s"
-                                }}
-                                onMouseDown={e => e.currentTarget.style.transform = "scale(0.99)"}
-                                onMouseUp={e => e.currentTarget.style.transform = "scale(1)"}
-                              >
-                                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                                    <span style={{ fontSize: 13, fontWeight: 900, color: "var(--text)" }}>
-                                      第 {subLevelNumber} 小关
-                                    </span>
-                                    <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 700 }}>
-                                      共 {subWords.length} 词
-                                    </span>
-                                    {isSubCleared ? (
-                                      <span style={{ fontSize: 14, lineHeight: 1, display: "inline-flex", alignItems: "center" }} title={subRecord.bestMedal === "gold" ? "金杯通关" : subRecord.bestMedal === "silver" ? "银杯通关" : "铜杯通关"}>
-                                        {subRecord.bestMedal === "gold" ? "🏆" : subRecord.bestMedal === "silver" ? "🏅" : "🥉"}
-                                      </span>
-                                    ) : isSubAttemptedUnpassed ? (
-                                      <span style={{ fontSize: 10, background: "#FEF2F2", color: "var(--wrong)", border: "1px solid #FECACA", padding: "1px 6px", borderRadius: 8, fontWeight: 800 }}>
-                                        ⚠️ {subRecord.bestScore || 0}分 (目标≥{userTargetScore}分)
-                                      </span>
-                                    ) : null}
-                                  </div>
-
-                                <button
-                                  style={{
-                                    background: isSubCleared ? "#F0FDF4" : isSubAttemptedUnpassed ? "#FEF2F2" : "var(--primary)",
-                                    border: isSubCleared ? "1px solid #86EFAC" : isSubAttemptedUnpassed ? "1px solid #FCA5A5" : "none",
-                                    color: isSubCleared ? "#15803D" : isSubAttemptedUnpassed ? "var(--wrong)" : "#fff",
-                                    padding: "6px 12px",
-                                    borderRadius: 12,
-                                    fontSize: 12,
-                                    fontWeight: 800,
-                                    cursor: "pointer",
-                                    boxShadow: isSubCleared ? "none" : "0 2px 6px rgba(200,64,45,0.2)"
-                                  }}
-                                >
-                                  {isSubCleared ? "再练一次" : isSubAttemptedUnpassed ? "重测挑战 ⚡" : "开启挑战 ▶"}
-                                </button>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
+                        ) : (
+                          <span style={{ fontSize: 16 }}>🔒</span>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
@@ -2410,6 +2313,180 @@ function App() {
                 </div>
               </div>
             )}
+
+            {/* ===== 大关卡浮动选关弹层面板（向下浮动弹层，保持大厅网格永远整齐无单侧留白） ===== */}
+            {selectedModalGroup && (() => {
+              const g = selectedModalGroup;
+              const key = g.id || g.name;
+              const groupIdx = getVisibleGroups().findIndex(item => (item.id || item.name) === key);
+              const scoreInfo = currentUser?.progress?.[key] || {};
+              const activeWords = (g.words || []).filter(w => !w.hidden);
+              const totalSubLevels = getSubLevelCount(activeWords.length);
+              const completedSubLevels = Math.min(Number(scoreInfo?.completedSubLevels || 0), totalSubLevels);
+              const isAllCleared = completedSubLevels >= totalSubLevels && totalSubLevels > 0;
+
+              return (
+                <div
+                  onClick={() => setSelectedModalGroup(null)}
+                  style={{
+                    position: "fixed",
+                    inset: 0,
+                    background: "rgba(0, 0, 0, 0.45)",
+                    backdropFilter: "blur(5px)",
+                    WebkitBackdropFilter: "blur(5px)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: "16px",
+                    zIndex: 1100,
+                    animation: "fadeIn 0.2s ease"
+                  }}
+                >
+                  <div
+                    onClick={e => e.stopPropagation()}
+                    style={{
+                      background: "#FFFFFF",
+                      width: "100%",
+                      maxWidth: 480,
+                      borderRadius: 24,
+                      padding: "20px 18px",
+                      boxShadow: "0 20px 50px rgba(0,0,0,0.22)",
+                      border: "1.5px solid rgba(0,0,0,0.06)",
+                      display: "flex",
+                      flexDirection: "column",
+                      maxHeight: "85vh",
+                      animation: "modalPop 0.25s cubic-bezier(0.16, 1, 0.3, 1)",
+                      boxSizing: "border-box"
+                    }}
+                  >
+                    {/* 弹层头部 */}
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
+                      <div>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                          <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 800 }}>LEVEL {groupIdx + 1}</span>
+                          {isAllCleared && <span style={{ fontSize: 10, background: "var(--green-light)", color: "var(--green)", padding: "1px 6px", borderRadius: 10, fontWeight: 800 }}>已全通</span>}
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "6px 8px" }}>
+                          <span style={{ fontSize: 18, fontWeight: 900, color: "var(--text)" }}>{g.name}</span>
+                          <span style={{ fontSize: 12, color: "var(--muted)", fontWeight: 700 }}>
+                            共 {activeWords.length} 词
+                          </span>
+                          <span style={{
+                            fontSize: 11,
+                            fontWeight: 800,
+                            background: isAllCleared ? "var(--green-light)" : "rgba(0, 0, 0, 0.05)",
+                            color: isAllCleared ? "var(--green)" : "var(--muted)",
+                            padding: "1px 7px",
+                            borderRadius: 6,
+                            fontVariantNumeric: "tabular-nums"
+                          }}>
+                            已通关 {completedSubLevels}/{totalSubLevels}
+                          </span>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => setSelectedModalGroup(null)}
+                        className="macos-close-btn"
+                        title="关闭"
+                      >
+                        ✕
+                      </button>
+                    </div>
+
+                    <div style={{ fontSize: 11, fontWeight: 800, color: "var(--muted)", marginBottom: 10 }}>
+                      👇 点击小关卡开启学习与闯关：
+                    </div>
+
+                    {/* 小关卡滚动列表 */}
+                    <div style={{ overflowY: "auto", display: "flex", flexDirection: "column", gap: 9, paddingRight: 2 }}>
+                      {Array.from({ length: totalSubLevels }).map((_, subIdx) => {
+                        const subLevelNumber = subIdx + 1;
+                        const bounds = getSubLevelBounds(activeWords.length, subLevelNumber);
+                        const subWords = activeWords.slice(bounds.start, bounds.end);
+                        const recordKey = `${key}_sub_${subLevelNumber}`;
+                        const subRecord = currentUser?.gameProfile?.chapterRecords?.[recordKey] || {};
+
+                        const studentTag = String(currentUser?.tag || "").trim().toUpperCase();
+                        const passingScoresConfig = studentsPayload?.challengeSettings?.passingScoresByTag || {};
+                        const configuredThreshold = Number(passingScoresConfig[studentTag]);
+                        const defaultThreshold = Number(passingScoresConfig.default);
+                        const userTargetScore = Number.isFinite(configuredThreshold) && configuredThreshold > 0
+                          ? configuredThreshold
+                          : (studentTag === "A" ? 90 : studentTag === "B" ? 80 : studentTag === "C" ? 60 : (Number.isFinite(defaultThreshold) && defaultThreshold > 0 ? defaultThreshold : 80));
+
+                        const isSubCleared = !!subRecord.isPassed || (subRecord.bestMedal && subRecord.bestMedal !== "unpassed") || !!subRecord.completedAt;
+                        const isSubAttemptedUnpassed = !isSubCleared && (subRecord.attempts > 0 || subRecord.bestScore > 0 || subRecord.bestMedal === "unpassed");
+
+                        return (
+                          <div
+                            key={subLevelNumber}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedModalGroup(null);
+                              startStudyLevel(key, subWords, null, {
+                                index: subLevelNumber,
+                                total: totalSubLevels,
+                                startNum: bounds.start + 1,
+                                endNum: bounds.end
+                              });
+                            }}
+                            style={{
+                              background: "#FAFAF9",
+                              border: `1.5px solid ${isSubCleared ? "#86EFAC" : isSubAttemptedUnpassed ? "#FCA5A5" : "var(--border)"}`,
+                              borderRadius: 14,
+                              padding: "10px 14px",
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              cursor: "pointer",
+                              transition: "transform 0.1s, border-color 0.15s"
+                            }}
+                            onMouseDown={e => e.currentTarget.style.transform = "scale(0.99)"}
+                            onMouseUp={e => e.currentTarget.style.transform = "scale(1)"}
+                          >
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                              <span style={{ fontSize: 13, fontWeight: 900, color: "var(--text)" }}>
+                                第 {subLevelNumber} 小关
+                              </span>
+                              <span style={{ fontSize: 11, color: "var(--muted)", fontWeight: 700 }}>
+                                共 {subWords.length} 词
+                              </span>
+                              {isSubCleared ? (
+                                <span style={{ fontSize: 14, lineHeight: 1, display: "inline-flex", alignItems: "center" }} title={subRecord.bestMedal === "gold" ? "金杯通关" : subRecord.bestMedal === "silver" ? "银杯通关" : "铜杯通关"}>
+                                  {subRecord.bestMedal === "gold" ? "🏆" : subRecord.bestMedal === "silver" ? "🏅" : "🥉"}
+                                </span>
+                              ) : isSubAttemptedUnpassed ? (
+                                <span style={{ fontSize: 10, background: "#FEF2F2", color: "var(--wrong)", border: "1px solid #FECACA", padding: "1px 6px", borderRadius: 8, fontWeight: 800 }}>
+                                  ⚠️ {subRecord.bestScore || 0}分 (目标≥{userTargetScore}分)
+                                </span>
+                              ) : null}
+                            </div>
+
+                            <button
+                              style={{
+                                background: isSubCleared ? "#F0FDF4" : isSubAttemptedUnpassed ? "#FEF2F2" : "var(--primary)",
+                                border: isSubCleared ? "1px solid #86EFAC" : isSubAttemptedUnpassed ? "1px solid #FCA5A5" : "none",
+                                color: isSubCleared ? "#15803D" : isSubAttemptedUnpassed ? "var(--wrong)" : "#fff",
+                                padding: "6px 14px",
+                                borderRadius: 12,
+                                fontSize: 12,
+                                fontWeight: 800,
+                                cursor: "pointer",
+                                boxShadow: isSubCleared ? "none" : "0 2px 6px rgba(200,64,45,0.2)"
+                              }}
+                            >
+                              {isSubCleared ? "再练一次" : isSubAttemptedUnpassed ? "重测挑战 ⚡" : "开启挑战 ▶"}
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
           </div>
         </div>
       )}
@@ -2608,14 +2685,46 @@ function App() {
                           padding: "2px 2px 0",
                           boxSizing: "border-box"
                         }}>
-                          {/* 内部紧凑流式整体居中组：日文单词 + 弹性自适应分隔线 + 中文释义 */}
+                          {/* 内部紧凑流式整体居中组：发音喇叭 + 日文单词 + 弹性自适应分隔线 + 中文释义 */}
                           <div style={{
                             display: "inline-flex",
                             alignItems: "center",
                             justifyContent: "center",
                             maxWidth: "100%",
-                            gap: "clamp(6px, 1.2vw, 10px)"
+                            gap: "clamp(5px, 1vw, 8px)"
                           }}>
+                            {/* 第一小关同款：单词读音播放喇叭按钮（阻止冒泡，避免触发详情弹窗） */}
+                            <button
+                              type="button"
+                              aria-label="播放读音"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                playWordAudio(w);
+                              }}
+                              style={{
+                                background: "rgba(200,64,45,0.09)",
+                                border: "none",
+                                borderRadius: "50%",
+                                width: "clamp(20px, 2.4vh, 24px)",
+                                height: "clamp(20px, 2.4vh, 24px)",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                cursor: "pointer",
+                                color: "var(--primary)",
+                                flexShrink: 0,
+                                padding: 0,
+                                transition: "transform 0.1s ease, background 0.12s ease"
+                              }}
+                              onMouseDown={e => e.currentTarget.style.transform = "scale(0.88)"}
+                              onMouseUp={e => e.currentTarget.style.transform = "scale(1)"}
+                              title="朗读发音"
+                            >
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" />
+                              </svg>
+                            </button>
+
                             {/* 左侧：假名注音在上，单词汉字在下（紧随文字宽度，右对齐贴向分隔线） */}
                             <div style={{
                               display: "flex",
@@ -2675,7 +2784,7 @@ function App() {
                             </div>
 
                             {/* 中间灵活自适应分隔线（自然跟随，不被锁死在绝对50%中线） */}
-                            <div style={{ width: "1px", height: "clamp(20px, 3vh, 26px)", background: "var(--border)", flexShrink: 0, opacity: 0.7 }} />
+                            <div style={{ width: "1px", height: "clamp(18px, 2.8vh, 24px)", background: "var(--border)", flexShrink: 0, opacity: 0.7 }} />
 
                             {/* 右侧：中文释义（紧随分隔线，左对齐） */}
                             <div style={{
