@@ -10,7 +10,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/react/17.0.2/umd/react.production.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/17.0.2/umd/react-dom.production.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.24.7/babel.min.js"></script>
-    
+
     <style>
         :root {
             --bg: #F7F3ED;
@@ -31,13 +31,13 @@
             --accent-gold: #D48806;
             --accent-gold-bg: #FFFBE6;
         }
-        
+
         * {
             box-sizing: border-box;
             user-select: none;
             -webkit-tap-highlight-color: transparent;
         }
-        
+
         html, body {
             margin: 0;
             padding: 0;
@@ -247,7 +247,7 @@
             }
         }
 
-        /* 第 2 关【看义拼词】高质感居中一体化舞台（元素紧凑贴合屏幕正中央） */
+        /* 第 2 关【看义拼词】高质感居中一体化舞台（自适应各端垂直视口高度，100%防止平板上下裁切） */
         .stage2-responsive-arena {
             display: flex;
             flex-direction: column;
@@ -256,7 +256,7 @@
             min-height: 0;
             justify-content: center;
             align-items: center;
-            gap: clamp(10px, 2vh, 18px);
+            gap: clamp(6px, 1.2vh, 14px);
             overflow: hidden;
         }
         @media (min-width: 768px) {
@@ -265,58 +265,86 @@
                 flex-direction: column;
                 justify-content: center !important;
                 align-items: center;
-                gap: clamp(14px, 2.2vh, 22px);
-                max-width: 780px;
+                gap: clamp(6px, 1.2vh, 12px) !important;
+                max-width: 640px;
                 margin: 0 auto;
-                height: auto !important;
-                flex: initial !important;
-                padding: 4px 16px;
+                height: 100% !important;
+                flex: 1 !important;
+                min-height: 0 !important;
+                padding: 2px 14px;
             }
             .stage2-left-card {
                 width: 100% !important;
-                padding: 16px 24px 18px !important;
-                border-radius: 22px !important;
+                max-width: 520px !important;
+                padding: clamp(6px, 1.2vh, 12px) clamp(14px, 2vw, 20px) !important;
+                border-radius: 18px !important;
                 margin-bottom: 0 !important;
-                box-shadow: 0 6px 22px rgba(0,0,0,0.04) !important;
-                flex-shrink: 0 !important;
+                box-shadow: 0 4px 16px rgba(0,0,0,0.03) !important;
+                flex-shrink: 1 !important;
+                min-height: 0 !important;
             }
             .stage2-left-card .stage2-img-box {
-                height: clamp(285px, 42vh, 400px) !important;
+                height: clamp(100px, 20vh, 175px) !important;
+                max-height: 22vh !important;
                 width: 100% !important;
+                padding: 4px !important;
             }
             .stage2-right-box {
                 width: 100% !important;
+                max-width: 520px !important;
                 display: flex;
                 flex-direction: column;
                 align-items: center;
                 padding-top: 0 !important;
                 flex-shrink: 0 !important;
+                min-height: 0 !important;
             }
             .stage2-slot-char {
-                width: clamp(52px, 6vw, 62px) !important;
-                height: clamp(58px, 7.5vh, 68px) !important;
-                font-size: clamp(26px, 3.5vh, 32px) !important;
-                margin: 0 5px !important;
+                width: clamp(38px, 4.8vw, 48px) !important;
+                height: clamp(42px, 5.2vh, 52px) !important;
+                font-size: clamp(20px, 2.8vh, 26px) !important;
+                margin: 0 3.5px !important;
             }
             .stage2-keyboard-grid {
-                max-width: 440px !important;
-                gap: 10px !important;
+                max-width: 360px !important;
+                gap: clamp(6px, 1vh, 8px) !important;
             }
             .stage2-kana-btn {
-                border-radius: 18px !important;
-                box-shadow: 0 4px 0 #CBD5E1 !important;
+                border-radius: 14px !important;
+                box-shadow: 0 3px 0 #CBD5E1 !important;
             }
         }
-        
+
+        /* 针对平板横屏或较矮屏幕（高度 ≤ 720px）的极致视口保护 */
+        @media (max-height: 720px) {
+            .stage2-responsive-arena {
+                gap: 4px !important;
+            }
+            .stage2-left-card {
+                padding: 4px 12px 6px !important;
+            }
+            .stage2-left-card .stage2-img-box {
+                height: clamp(80px, 16vh, 130px) !important;
+                max-height: 18vh !important;
+            }
+            .stage2-slot-char {
+                height: clamp(36px, 4.8vh, 44px) !important;
+            }
+            .stage2-keyboard-grid {
+                max-width: 320px !important;
+                gap: 5px !important;
+            }
+        }
+
         .fade-in { animation: fadeIn 0.3s ease; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-        
+
         @keyframes spin-breathe {
             0% { transform: scale(1); }
             50% { transform: scale(1.15); }
             100% { transform: scale(1); }
         }
-        
+
         /* macOS 风格高质感红色圆形退出按钮 */
         .macos-close-btn {
             width: 24px;
@@ -353,7 +381,7 @@
         /* 洒落七彩纸屑 */
         .confetti { position: fixed; width: 8px; height: 8px; z-index: 999; pointer-events: none; animation: fall linear forwards; }
         @keyframes fall { to { transform: translateY(100vh) rotate(720deg); opacity: 0; } }
-        
+
         /* 选项按钮（自适应触控） */
         .opt-btn {
             background: #fff;
@@ -376,7 +404,7 @@
         .opt-btn:active { transform: scale(0.97); }
         .opt-btn.correct { background: var(--green-light) !important; color: var(--green) !important; border-color: var(--green) !important; }
         .opt-btn.wrong { background: #FDF2F2 !important; color: var(--wrong) !important; border-color: var(--wrong) !important; }
-        
+
         /* 假名拼写按键（1:1 圆角方形立体高质感大触控键） */
         .kana-block {
             background: #fff;
@@ -400,7 +428,7 @@
             box-shadow: 0 1px 0 #CBD5E1;
             background: #F8FAFC;
         }
-        
+
         /* 拟物立体拼写卡槽（Slot Box） */
         .furi-char {
             width: 48px;
@@ -669,6 +697,94 @@
 <script type="text/babel">
 const { useState, useEffect, useRef, useCallback } = React;
 
+/* ===== GLOBAL SINGLETON AUDIO CONTROLLER (WordAudioPlayer) ===== */
+let currentPlayToken = 0;
+let activeGlobalAudio = null;
+
+function fallbackSpeechSynthesis(text) {
+  if (!window.speechSynthesis || !text) return;
+  try {
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = "ja-JP";
+    const voices = window.speechSynthesis.getVoices ? window.speechSynthesis.getVoices() : [];
+    const jaVoice = voices.find(v => v.lang === "ja-JP" || v.lang.startsWith("ja"));
+    if (jaVoice) utterance.voice = jaVoice;
+    window.speechSynthesis.speak(utterance);
+  } catch (e) {
+    console.warn("SpeechSynthesis fallback failed:", e);
+  }
+}
+
+function playWordAudio(word, options = {}) {
+  if (!word) return;
+  const wordObj = typeof word === "string" ? { kana: word, text: word } : word;
+  const currentToken = ++currentPlayToken;
+
+  // 1. 立即停止上一音频实例并废弃
+  if (activeGlobalAudio) {
+    activeGlobalAudio.pause();
+    activeGlobalAudio.src = "";
+    activeGlobalAudio = null;
+  }
+  if (window.speechSynthesis) {
+    window.speechSynthesis.cancel();
+  }
+
+  // 2. 静音状态联动：自动发音且处于静音时禁止播放
+  if (options.isAuto && options.isMuted) {
+    return;
+  }
+
+  let completed = false;
+  let timer = null;
+
+  const finishWithFallback = () => {
+    if (completed || currentToken !== currentPlayToken) return;
+    completed = true;
+    if (timer) clearTimeout(timer);
+    if (activeGlobalAudio) {
+      activeGlobalAudio.pause();
+      activeGlobalAudio.src = "";
+      activeGlobalAudio = null;
+    }
+    window.speechSynthesis.cancel();
+    fallbackSpeechSynthesis(wordObj.kana || wordObj.kanji || wordObj.text);
+  };
+
+  if (wordObj.audioUrl && /^https?:\/\//i.test(wordObj.audioUrl)) {
+    const audio = new Audio();
+    audio.preload = "none";
+    activeGlobalAudio = audio;
+
+    // 8 秒超时保护
+    timer = setTimeout(finishWithFallback, 8000);
+
+    audio.onplay = () => {
+      if (currentToken === currentPlayToken && timer) clearTimeout(timer);
+    };
+    audio.onended = () => {
+      if (currentToken === currentPlayToken) {
+        completed = true;
+        if (timer) clearTimeout(timer);
+        activeGlobalAudio = null;
+      }
+    };
+    audio.onerror = finishWithFallback;
+    audio.src = wordObj.audioUrl;
+
+    audio.play().catch(() => {
+      finishWithFallback();
+    });
+  } else {
+    finishWithFallback();
+  }
+}
+
+function speak(item) {
+  playWordAudio(item);
+}
+
 /* ===== Web Audio 合成音效 ===== */
 let audioCtx = null;
 function playTone(f, t, d, isMuted = false) {
@@ -692,7 +808,7 @@ function playTone(f, t, d, isMuted = false) {
 /* ===== 洒落金粉彩纸动画 ===== */
 function fireConfetti() {
   const colors = ['#ff9aa2', '#ffb7b2', '#ffdac1', '#e2f0cb', '#b5ead7', '#ff5252', '#ffd700'];
-  for (let i = 0; i < 35; i++) { 
+  for (let i = 0; i < 35; i++) {
     const el = document.createElement('div');
     el.className = 'confetti';
     el.style.left = Math.random() * 100 + 'vw';
@@ -713,7 +829,7 @@ const KANA_FULL = HIRAGANA_FULL;
 function generateSmartKanaOptions(correctKana, allKanaList = []) {
   if (!correctKana) return ["あ", "い", "う", "え"];
   const options = new Set([correctKana]);
-  
+
   // 1. 尝试促音混淆（添加或移除促音「っ」）
   if (correctKana.includes("っ")) {
     options.add(correctKana.replace(/っ/g, ""));
@@ -772,19 +888,19 @@ function generateSmartMeaningOptions(correctWord, currentRoundWords = []) {
   if (!correctWord) return [];
   const correctMeaning = typeof correctWord === "object" ? correctWord.meaning : correctWord;
   const correctImg = typeof correctWord === "object" ? correctWord.imageUrl : null;
-  
+
   const map = new Map();
   map.set(correctMeaning, {
     meaning: correctMeaning,
     imageUrl: correctImg || null,
     id: (typeof correctWord === "object" ? correctWord.id : null) || correctMeaning
   });
-  
+
   // 1. 严格只从本轮学习单词集（studyWords）中提取混淆项
   const otherRoundWords = (currentRoundWords || [])
     .filter(w => w && w.meaning && w.meaning !== correctMeaning)
     .sort(() => Math.random() - 0.5);
-  
+
   for (const w of otherRoundWords) {
     if (!map.has(w.meaning)) {
       map.set(w.meaning, {
@@ -828,7 +944,7 @@ function mergeStudentProgress(baseStudent, localCache) {
   if (!merged.password && localCache.password) {
     merged.password = localCache.password;
   }
-  
+
   // 1. 合并 progress (常规关卡)
   const baseProgress = baseStudent.progress || {};
   const localProgress = localCache.progress || {};
@@ -988,8 +1104,8 @@ const requestJson = async (url, options = {}, timeoutMs = 10000) => {
 
 // 促音、拗音等特殊小假名集合（用于字号对比区分）
 const SMALL_KANA_SET = new Set([
-  'っ', 'ッ', 'ゃ', 'ャ', 'ゅ', 'ュ', 'ょ', 'ョ', 
-  'ぁ', 'ァ', 'ぃ', 'ィ', 'ぅ', 'ゥ', 'ぇ', 'ェ', 'ぉ', 'ォ', 
+  'っ', 'ッ', 'ゃ', 'ャ', 'ゅ', 'ュ', 'ょ', 'ョ',
+  'ぁ', 'ァ', 'ぃ', 'ィ', 'ぅ', 'ゥ', 'ぇ', 'ェ', 'ぉ', 'ォ',
   'ゎ', 'ヮ'
 ]);
 const isSmallKana = (char) => typeof char === "string" && SMALL_KANA_SET.has(char.trim());
@@ -999,12 +1115,12 @@ function App() {
   const authStorageKey = useRef(`classtango_student_auth_${groupId}`).current;
   const studentProgressKey = useRef(`classtango_student_progress_${groupId}`).current;
   const legacyAuthStorageKey = groupId === DEFAULT_SYNC_GROUP_ID ? "classtango_student_auth_default" : null;
-  
+
   // 视图控制: login | set_pwd | lobby | study | study_summary | game | result
   const [view, setView] = useState("login");
   const [isLoading, setIsLoading] = useState(true);
   const [initError, setInitError] = useState(null);
-  
+
   // 全局静音控制（支持学校自习课/安静环境使用）
   const [isMuted, setIsMuted] = useState(() => {
     try { return localStorage.getItem("classtango_muted") === "true"; } catch(e) { return false; }
@@ -1029,7 +1145,7 @@ function App() {
   // 核心拉取到的数据状态
   const [studentsPayload, setStudentsPayload] = useState(null);
   const [wordsPayload, setWordsPayload] = useState(null);
-  
+
   // 当前登录学生账号信息
   const [currentUser, setCurrentUser] = useState(null);
   const [usernameInput, setUsernameInput] = useState("");
@@ -1071,7 +1187,7 @@ function App() {
   const [spellPool, setSpellPool] = useState([]);
   const [isRescueMode, setIsRescueMode] = useState(false);
   const [resultSummary, setResultSummary] = useState(null);
-  
+
   // 答错即时对比解析卡状态
   const [errorFeedback, setErrorFeedback] = useState(null);
 
@@ -1250,7 +1366,7 @@ function App() {
 
     const localCachedProgress = getStudentProgressFromLocal(studentProgressKey, student.username);
     const mergedStudent = mergeStudentProgress(student, localCachedProgress);
-    
+
     let localAuth = null;
     try { localAuth = JSON.parse(localStorage.getItem(authStorageKey) || "null"); } catch(e) {}
     const cachedAuthPwd = (localAuth && String(localAuth.username || "").toLowerCase() === normalizedUser) ? localAuth.password : null;
@@ -1290,7 +1406,7 @@ function App() {
     }
     const password = newPasswordVal.trim();
     const optimisticStudent = { ...currentUser, password };
-    
+
     // 1. 本地多重强缓存持久化（即刻生效，退出后绝不丢失）
     try {
       localStorage.setItem(authStorageKey, JSON.stringify({
@@ -1303,13 +1419,13 @@ function App() {
     setCurrentUser(optimisticStudent);
     setStudentsPayload(previous => ({
       ...(previous || {}),
-      students: (previous?.students || []).map(student => 
+      students: (previous?.students || []).map(student =>
         (student.id === currentUser.id || String(student.username || "").toLowerCase() === String(currentUser.username || "").toLowerCase())
           ? optimisticStudent
           : student
       )
     }));
-    
+
     setView("lobby");
     soundEffects.correct();
 
@@ -1476,10 +1592,10 @@ function App() {
       setTargetSpell(d.kana);
       setCurrentSpell("");
       const chars = [...new Set(d.kana.split(''))];
-      
+
       const isKatakanaWord = /[ア-ンー]/.test(d.kana);
       const poolSource = isKatakanaWord ? KATAKANA_FULL : HIRAGANA_FULL;
-      
+
       while (chars.length < 10) {
         let r = poolSource[Math.floor(Math.random() * poolSource.length)];
         if (!chars.includes(r)) chars.push(r);
@@ -1536,7 +1652,7 @@ function App() {
     soundEffects.click();
     const nextSpell = currentSpell + c;
     setCurrentSpell(nextSpell);
-    
+
     if (nextSpell.length === targetSpell.length) {
       if (nextSpell === targetSpell) {
         const q = gameWords[wordIndex];
@@ -1606,7 +1722,10 @@ function App() {
 
     soundEffects.correct();
     fireConfetti();
-    
+    if (currentQ?.data) {
+      playWordAudio(currentQ.data, { isAuto: true, isMuted });
+    }
+
     const isLastWord = wordIndex + 1 >= gameWords.length;
     setTimeout(() => {
       if (!isLastWord) {
@@ -1683,7 +1802,7 @@ function App() {
   // 通关结算（基于学生标签及教师设定的及格达标分进行分层通关判定与学情统计）
   const handleLevelComplete = async (providedScore) => {
     const session = sessionRef.current;
-    
+
     // 计算最终通关得分：全员首答正确直接保底 100 分满分，否则以同步记录或传入分数为准
     let finalScore;
     if (session.firstTryCorrect === session.normalCount && session.normalCount > 0) {
@@ -1694,7 +1813,7 @@ function App() {
       finalScore = Math.min(100, Math.max(0, Math.round(session.currentScore ?? score)));
     }
     setScore(finalScore);
-    
+
     // 1. 获取当前学生的等级标签与教师设定的达标及格线
     const studentTag = String(currentUser?.tag || "").trim().toUpperCase();
     const passingScoresConfig = studentsPayload?.challengeSettings?.passingScoresByTag || {};
@@ -1753,24 +1872,46 @@ function App() {
     const newSubLevelsMap = activeSubLevel
       ? { ...oldSubLevelsMap, [activeSubLevel.index]: nextSubStatus }
       : oldSubLevelsMap;
-    
+
     // 计算已成功达标通关的小关总数
     const completedSubCount = activeSubLevel
       ? Object.values(newSubLevelsMap).filter(item => item && item.isPassed).length
       : Number(prevGroupProg.completedSubLevels || 0);
     const totalSubCount = activeSubLevel?.total || prevGroupProg.totalSubLevels || 1;
 
+    // 当且仅当所有小关均达标通过时，才综合评定大关星级与大关成绩
+    const isAllSubCleared = completedSubCount >= totalSubCount && totalSubCount > 0;
+    let groupStars = 0;
+    let groupScore = Math.max(Number(prevGroupProg.score || 0), finalScore);
+
+    if (isAllSubCleared) {
+      const clearedList = Object.values(newSubLevelsMap).filter(item => item && item.isPassed);
+      if (clearedList.length >= totalSubCount) {
+        const allGold = clearedList.every(item => item.medal === "gold" || Number(item.score || 0) >= 90);
+        const subScores = clearedList.map(item => Number(item.score || 0));
+        const avgScore = subScores.reduce((a, b) => a + b, 0) / (subScores.length || 1);
+        if (allGold) {
+          groupStars = 3;
+        } else if (avgScore >= 80) {
+          groupStars = 2;
+        } else {
+          groupStars = 1;
+        }
+        groupScore = Math.round(avgScore);
+      }
+    }
+
     const updatedProgress = {
       ...(currentUser?.progress || {}),
       ...(!activeCycle ? {
         [activeGroupKey]: {
           ...prevGroupProg,
-          stars: Math.max(Number(prevGroupProg.stars || 0), starsEarned),
-          score: Math.max(Number(prevGroupProg.score || 0), finalScore),
+          stars: groupStars,
+          score: groupScore,
           subLevelsCleared: newSubLevelsMap,
           completedSubLevels: completedSubCount,
           totalSubLevels: totalSubCount,
-          completed_at: completedSubCount >= totalSubCount ? (prevGroupProg.completed_at || Date.now()) : null
+          completed_at: isAllSubCleared ? (prevGroupProg.completed_at || Date.now()) : null
         }
       } : {})
     };
@@ -1904,7 +2045,7 @@ function App() {
             <h2 style={{ fontSize: 22, fontWeight: 800, color: "var(--primary)", margin: "8px 0 4px" }}>ClassTango 单词闯关</h2>
             <div style={{ fontSize: 12, color: "var(--muted)" }}>日语单词自主通关与记忆训练系统</div>
           </div>
-          
+
           <div style={{ background: "#fff", border: "1.5px solid var(--border)", borderRadius: 18, padding: 22, boxShadow: "0 6px 20px rgba(0,0,0,0.02)" }}>
             <div style={{ marginBottom: 14 }}>
               <label style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", marginBottom: 6, display: "block" }}>学生账号 (例: sszz2024b)</label>
@@ -1917,7 +2058,7 @@ function App() {
                 style={{ width: "100%", padding: 12, border: "1.5px solid var(--border)", borderRadius: 10, outline: "none", fontSize: 14 }}
               />
             </div>
-            
+
             <div style={{ marginBottom: 18 }}>
               <label style={{ fontSize: 12, fontWeight: 700, color: "var(--muted)", marginBottom: 6, display: "block" }}>密码 (首次登录无密码)</label>
               <input
@@ -1929,13 +2070,13 @@ function App() {
                 style={{ width: "100%", padding: 12, border: "1.5px solid var(--border)", borderRadius: 10, outline: "none", fontSize: 14 }}
               />
             </div>
-            
+
             {loginError && (
               <div style={{ color: "var(--wrong)", fontSize: 13, fontWeight: 700, marginBottom: 14, textAlign: "center" }}>
                 ⚠️ {loginError}
               </div>
             )}
-            
+
             <button
               onClick={handleLogin}
               style={{ width: "100%", background: "var(--primary)", color: "#fff", border: "none", padding: 13, borderRadius: 12, fontSize: 15, fontWeight: 800, cursor: "pointer", boxShadow: "0 4px 12px rgba(200,64,45,0.2)" }}
@@ -1957,7 +2098,7 @@ function App() {
               为了账号安全，请设定您的专属密码：
             </div>
           </div>
-          
+
           <div style={{ background: "#fff", border: "1.5px solid var(--border)", borderRadius: 18, padding: 22 }}>
             <input
               type="text"
@@ -2002,7 +2143,7 @@ function App() {
               ✕
             </button>
           </header>
-          
+
           <div style={{ flex: 1, overflowY: "auto", padding: "16px 14px", paddingBottom: "max(40px, calc(28px + env(safe-area-inset-bottom, 0px)))" }}>
             <div style={{ background: "#fff", border: "1.5px solid var(--border)", borderRadius: 14, padding: "12px 14px", marginBottom: 14, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div>
@@ -2042,7 +2183,7 @@ function App() {
                 </div>
               );
             })()}
-            
+
             {getVisibleGroups().length > 0 ? (
               <div className="lobby-groups-grid">
                 {getVisibleGroups().map((g, idx) => {
@@ -2054,7 +2195,7 @@ function App() {
                   const completedSubLevels = Math.min(Number(scoreInfo?.completedSubLevels || 0), totalSubLevels);
                   const isExpanded = expandedGroupKey === key || (expandedGroupKey === null && idx === 0 && unlocked);
                   const isAllCleared = completedSubLevels >= totalSubLevels && totalSubLevels > 0;
-                  
+
                   return (
                     <div
                       key={key}
@@ -2163,7 +2304,7 @@ function App() {
                             const subWords = activeWords.slice(bounds.start, bounds.end);
                             const recordKey = `${key}_sub_${subLevelNumber}`;
                             const subRecord = currentUser?.gameProfile?.chapterRecords?.[recordKey] || {};
-                            
+
                             const studentTag = String(currentUser?.tag || "").trim().toUpperCase();
                             const passingScoresConfig = studentsPayload?.challengeSettings?.passingScoresByTag || {};
                             const configuredThreshold = Number(passingScoresConfig[studentTag]);
@@ -2270,7 +2411,7 @@ function App() {
       {/* ===== 视图 5：阶段 2【单词总览与多维独立遮罩自测】 ===== */}
       {view === "study_summary" && (
         <div style={{ flex: 1, display: "flex", flexDirection: "column", height: "100%", padding: "14px 16px", position: "relative" }}>
-          
+
           {/* 顶部标题与多维自测模式胶囊切换栏 */}
           <div style={{ marginBottom: 10, flexShrink: 0 }}>
             {/* 顶栏：纯净无框线透明三栏（左退出 | 中标题 | 右微胶囊） */}
@@ -2288,7 +2429,7 @@ function App() {
               >
                 ✕
               </button>
-              
+
               <div style={{ fontSize: 16, fontWeight: 900, color: "var(--text)", letterSpacing: -0.2 }}>
                 📋 单词本速记
               </div>
@@ -2644,7 +2785,7 @@ function App() {
 
                   {/* 核心研读区域（支持滑动，排版紧凑均衡） */}
                   <div style={{ flex: 1, overflowY: "auto", paddingRight: 2, marginBottom: 10 }}>
-                    
+
                     {/* 1. 顶部大图 Hero 展示区（占比提升，饱满吸睛） */}
                     {curWord.imageUrl ? (
                       <div style={{
@@ -3121,7 +3262,7 @@ function App() {
               {wordIndex + 1} / {gameWords.length}
             </span>
           </div>
-          
+
           {/* ===== 屏幕主战区（高弹性多端自适应布局，手机紧凑竖屏，平板/电脑居中紧凑沉浸） ===== */}
           <div className="game-main-arena" style={{
             flex: 1,
@@ -3134,7 +3275,7 @@ function App() {
             minHeight: 0,
             overflow: "hidden"
           }}>
-            
+
             {/* ===== 第 1 关【假名识义】主战区 ===== */}
             {gameStage === 1 && (
               <>
@@ -3154,9 +3295,33 @@ function App() {
                   marginBottom: "clamp(4px, 1vh, 8px)",
                   flexShrink: 0
                 }}>
-                  <h1 style={{ fontSize: "clamp(26px, 4.5vh, 40px)", fontWeight: 900, color: "var(--text)", margin: "2px 0 4px", letterSpacing: "2px" }}>
-                    {gameWords[wordIndex].data.kana}
-                  </h1>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, justifyContent: "center" }}>
+                    <h1 style={{ fontSize: "clamp(26px, 4.5vh, 40px)", fontWeight: 900, color: "var(--text)", margin: "2px 0 4px", letterSpacing: "2px" }}>
+                      {gameWords[wordIndex].data.kana}
+                    </h1>
+                    <button
+                      type="button"
+                      aria-label="朗读发音"
+                      style={{
+                        background: "rgba(200,64,45,0.08)",
+                        border: "none",
+                        borderRadius: "50%",
+                        width: 36,
+                        height: 36,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        cursor: "pointer",
+                        color: "var(--primary)",
+                        flexShrink: 0
+                      }}
+                      onClick={() => playWordAudio(gameWords[wordIndex].data)}
+                    >
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
 
                 {/* 四宫格图文卡片（手机与电脑端均采用沉浸式 2x2 饱满大画幅） */}
@@ -3254,13 +3419,13 @@ function App() {
             {/* ===== 第 2 关【看义拼词】主战区（手机紧凑竖屏，平板/电脑居中一体化大画幅） ===== */}
             {gameStage === 2 && (
               <div className="stage2-responsive-arena">
-                
+
                 {/* 核心舞台：插画与释义 */}
                 <div className="stage2-left-card" style={{
                   background: "#fff",
                   border: "1.5px solid var(--border)",
                   borderRadius: 16,
-                  padding: "clamp(6px, 1vh, 12px) 12px clamp(8px, 1.2vh, 14px)",
+                  padding: "clamp(6px, 1vh, 10px) 12px clamp(6px, 1vh, 10px)",
                   width: "100%",
                   boxShadow: "0 4px 14px rgba(0,0,0,0.02)",
                   display: "flex",
@@ -3268,22 +3433,24 @@ function App() {
                   alignItems: "center",
                   justifyContent: "center",
                   marginBottom: 0,
-                  flexShrink: 0
+                  flexShrink: 1,
+                  minHeight: 0
                 }}>
-                  {/* 高清插画展示（尺寸增加50%，消除过度留白） */}
+                  {/* 高清插画展示（尺寸弹性自适应，消除截断） */}
                   {gameWords[wordIndex].data.imageUrl ? (
                     <div className="stage2-img-box" style={{
                       background: "#F8FAFC",
                       border: "1px solid #E2E8F0",
                       borderRadius: 14,
                       width: "100%",
-                      height: "clamp(135px, 27vh, 240px)",
+                      height: "clamp(100px, 20vh, 180px)",
                       display: "flex",
                       justifyContent: "center",
                       alignItems: "center",
                       padding: "2px 4px",
                       boxShadow: "inset 0 1px 4px rgba(0,0,0,0.03)",
-                      overflow: "hidden"
+                      overflow: "hidden",
+                      minHeight: 0
                     }}>
                       <img
                         src={gameWords[wordIndex].data.imageUrl}
@@ -3303,25 +3470,26 @@ function App() {
                       background: "#F8FAFC",
                       borderRadius: 14,
                       width: "100%",
-                      height: "clamp(70px, 12vh, 110px)",
+                      height: "clamp(60px, 10vh, 90px)",
                       display: "flex",
                       justifyContent: "center",
                       alignItems: "center",
-                      fontSize: "clamp(32px, 4.5vh, 44px)"
+                      fontSize: "clamp(28px, 4vh, 38px)",
+                      minHeight: 0
                     }}>
                       🖼️
                     </div>
                   )}
 
                   {/* 中文释义大字 */}
-                  <h1 style={{ fontSize: "clamp(22px, 3.5vh, 32px)", fontWeight: 900, color: "var(--text)", margin: "8px 0 2px", lineHeight: 1.2, textAlign: "center" }}>
+                  <h1 style={{ fontSize: "clamp(18px, 2.8vh, 26px)", fontWeight: 900, color: "var(--text)", margin: "clamp(4px, 0.8vh, 6px) 0 2px", lineHeight: 1.2, textAlign: "center" }}>
                     {gameWords[wordIndex].data.meaning}
                   </h1>
 
                   {/* 对应汉字骨架提示 */}
                   {gameWords[wordIndex].data.kanji && gameWords[wordIndex].data.kanji !== gameWords[wordIndex].data.kana && (
-                    <div style={{ fontSize: "clamp(12px, 1.8vh, 14px)", color: "var(--muted)", background: "#F1F5F9", padding: "3px 12px", borderRadius: 8, marginTop: 4, display: "inline-block" }}>
-                      🏛️ 对应汉字：<strong style={{ color: "var(--text)", fontSize: "clamp(13px, 2vh, 16px)" }}>{gameWords[wordIndex].data.kanji}</strong>
+                    <div style={{ fontSize: "clamp(11px, 1.5vh, 13px)", color: "var(--muted)", background: "#F1F5F9", padding: "2px 10px", borderRadius: 8, marginTop: 2, display: "inline-block" }}>
+                      🏛️ 对应汉字：<strong style={{ color: "var(--text)", fontSize: "clamp(12px, 1.8vh, 15px)" }}>{gameWords[wordIndex].data.kanji}</strong>
                     </div>
                   )}
                 </div>
@@ -3358,7 +3526,7 @@ function App() {
                       );
                     })}
                   </div>
-                  
+
                   {/* 5列 1:1 圆角方形大按键假名池 */}
                   <div className="stage2-keyboard-grid" style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "clamp(6px, 1.8vw, 10px)", width: "100%", maxWidth: 380 }}>
                     {spellPool.map((c, idx) => {
@@ -3407,7 +3575,7 @@ function App() {
                 <div style={{ fontSize: 20, fontWeight: 900, color: "var(--green)", marginBottom: 12 }}>
                   第 1 关通关！
                 </div>
-                
+
                 <div style={{
                   background: "var(--green-light)",
                   borderRadius: 12,
@@ -3468,7 +3636,7 @@ function App() {
                 }}>
                   ⚡ 扣除 4 分 · 错题已加入后置重测
                 </div>
-                
+
                 {/* 核心单词大字展示卡 */}
                 <div style={{
                   background: "var(--bg)",
@@ -3637,7 +3805,7 @@ function App() {
               </div>
             </div>
           )}
-          
+
         </div>
       )}
 
@@ -3690,7 +3858,7 @@ function App() {
             <div className="victory-container">
               {/* 一体化白玉荣耀战报大卡 */}
               <div className="victory-card">
-                
+
                 {/* 1. 顶部纯几何发光徽标 */}
                 <div className="victory-emblem-wrap" style={{ width: 72, height: 72, marginBottom: 8 }}>
                   <div className={`victory-emblem-glow ${isGold ? "" : isPassed ? "green" : "red"}`} />
@@ -3820,7 +3988,7 @@ function App() {
                       {resultSummary.mistakeWords.map((w, idx) => (
                         <div
                           key={idx}
-                          onClick={() => speak(w.kana || w.kanji)}
+                          onClick={() => playWordAudio(w)}
                           style={{
                             background: "#FFFFFF",
                             border: "1px solid #FEE3A2",
@@ -3886,7 +4054,7 @@ function App() {
           </div>
         );
       })()}
-      
+
     </div>
   );
 }
