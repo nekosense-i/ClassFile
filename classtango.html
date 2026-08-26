@@ -102,7 +102,7 @@
     height: 100%;
     position: relative;
   }
-  
+
   .flip-card-inner {
     position: relative;
     width: 100%;
@@ -112,11 +112,11 @@
     border-radius: 20px;
     box-shadow: var(--teach-shadow, 0 4px 18px rgba(0,0,0,0.02));
   }
-  
+
   .flip-card-inner.flipped {
     transform: rotateY(180deg);
   }
-  
+
   .flip-card-front, .flip-card-back {
     position: absolute;
     top: 0;
@@ -134,7 +134,7 @@
     background: var(--card-bg, #FFFFFF);
     transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
   }
-  
+
   .flip-card-front {
     transform: translateZ(1px);
   }
@@ -143,7 +143,7 @@
     transform: rotateY(180deg) translateZ(1px);
     z-index: 2;
   }
-  
+
   /* ===== Tactile Card Interaction ===== */
   .tactile-card {
     cursor: pointer;
@@ -285,7 +285,7 @@ const { useState, useEffect, useRef, useCallback, useMemo } = React;
 function getSingleCharInitial(char) {
   if (/[a-zA-Z0-9]/.test(char)) return char.toLowerCase();
   if (char < "\u4e00" || char > "\u9fa5") return "";
-  
+
   const boundaries = [
     { char: '啊', letter: 'a' }, { char: '芭', letter: 'b' }, { char: '擦', letter: 'c' },
     { char: '搭', letter: 'd' }, { char: '蛾', letter: 'e' }, { char: '发', letter: 'f' },
@@ -296,7 +296,7 @@ function getSingleCharInitial(char) {
     { char: '塌', letter: 't' }, { char: '挖', letter: 'w' }, { char: '昔', letter: 'x' },
     { char: '压', letter: 'y' }, { char: '匝', letter: 'z' }
   ];
-  
+
   for (let i = boundaries.length - 1; i >= 0; i--) {
     if (char.localeCompare(boundaries[i].char, 'zh') >= 0) {
       // 包含生僻或非多音字基本覆盖
@@ -346,11 +346,20 @@ const shuffle = (a) => {
 };
 
 const POS_OPTIONS = ["名詞","動詞","い形容詞","な形容詞","副詞","接続詞","感動詞","助詞","連体詞","代名詞","その他"];
-const EMPTY_WORD = { kana:"", kanji:"", accent:"", pos:"名詞", meaning:"", usage:"", examples:[{ja:"",cn:""}], imageUrl:"", hidden:false };
-const EXCEL_HEADERS = ["假名","汉字","声调","词性","中文释义","用法说明","例句1日文","例句1中文","例句2日文","例句2中文","例句3日文","例句3中文","图片URL","是否隐藏"];
+const EMPTY_WORD = {
+  kana: "", kanji: "", accent: "", pos: "名詞", meaning: "", usage: "",
+  examples: [{ ja: "", cn: "" }], imageUrl: "", audioUrl: "", audioSource: "", audioVoice: "", audioVersion: 1, hidden: false
+};
+const EXCEL_HEADERS = [
+  "单词ID", "假名", "汉字", "声调", "词性", "中文释义", "用法说明",
+  "例句1日文", "例句1中文", "例句2日文", "例句2中文", "例句3日文", "例句3中文",
+  "图片URL", "是否隐藏",
+  "音频URL", "音频源假名", "音色", "音频版本",
+  "音频类型", "锁定音频"
+];
 const EXCEL_TEMPLATE_ROWS = [
-  { kana:"たまご", kanji:"卵", accent:"2", pos:"名詞", meaning:"鸡蛋", usage:"日常食材，可做主菜或配料", examples:[{ja:"朝ごはんに卵を食べます。",cn:"早餐吃鸡蛋。"},{ja:"卵はいくつありますか。",cn:"有几个鸡蛋？"}], imageUrl:"https://images.unsplash.com/photo-1518569656558-1f25e69d93d7?w=400&h=260&fit=crop", hidden:false },
-  { kana:"あたらしい", kanji:"新しい", accent:"4", pos:"い形容詞", meaning:"新的", usage:"い形容词，修饰名词时直接接名词", examples:[{ja:"新しい本を買いました。",cn:"买了新书。"},{ja:"この教室は新しいです。",cn:"这间教室是新的。"}], imageUrl:"", hidden:false },
+  { id: "w_egg01", kana:"たまご", kanji:"卵", accent:"2", pos:"名詞", meaning:"鸡蛋", usage:"日常食材，可做主菜或配料", examples:[{ja:"朝ごはんに卵を食べます。",cn:"早餐吃鸡蛋。"},{ja:"卵はいくつありますか。",cn:"有几个鸡蛋？"}], imageUrl:"https://images.unsplash.com/photo-1518569656558-1f25e69d93d7?w=400&h=260&fit=crop", hidden:false, audioUrl:"", audioSource:"たまご", audioVoice:"ja-JP-NanamiNeural", audioVersion:1, audioMode:"tts", audioLocked:false },
+  { id: "w_new02", kana:"あたらしい", kanji:"新しい", accent:"4", pos:"い形容詞", meaning:"新的", usage:"い形容词，修饰名词时直接接名词", examples:[{ja:"新しい本を買いました。",cn:"买了新书。"},{ja:"この教室は新しいです。",cn:"这间教室是新的。"}], imageUrl:"", hidden:false, audioUrl:"", audioSource:"あたらしい", audioVoice:"ja-JP-NanamiNeural", audioVersion:1, audioMode:"tts", audioLocked:false },
 ];
 const getCell = (row, key) => String(row[key] ?? "").trim();
 const parseHiddenFlag = (v) => /^(是|true|yes|y|1|隐藏)$/i.test(String(v ?? "").trim());
@@ -367,9 +376,126 @@ const cleanImageUrl = (v) => {
   const s = String(v ?? "").trim();
   return /^https?:\/\//i.test(s) ? s : "";
 };
+const cleanAudioUrl = (v) => {
+  const s = String(v ?? "").trim();
+  return /^https?:\/\//i.test(s) ? s : "";
+};
+
+/* ===== GLOBAL SINGLETON AUDIO CONTROLLER (WordAudioPlayer) ===== */
+let currentPlayToken = 0;
+let activeGlobalAudio = null;
+
+function notifyAudioState(wordId, state) {
+  try {
+    window.dispatchEvent(new CustomEvent("classtango_audio_state", { detail: { wordId, state, token: currentPlayToken } }));
+  } catch (e) {}
+}
+
+function fallbackSpeechSynthesis(text, wordId, token) {
+  if (!window.speechSynthesis || !text) {
+    notifyAudioState(wordId, "idle");
+    return;
+  }
+  try {
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = "ja-JP";
+    utterance.rate = 0.9;
+    const voices = window.speechSynthesis.getVoices ? window.speechSynthesis.getVoices() : [];
+    const jaVoice = voices.find(v => v.lang === "ja-JP" || v.lang.startsWith("ja"));
+    if (jaVoice) utterance.voice = jaVoice;
+
+    utterance.onstart = () => {
+      if (token === currentPlayToken) notifyAudioState(wordId, "playing");
+    };
+    utterance.onend = () => {
+      if (token === currentPlayToken) notifyAudioState(wordId, "idle");
+    };
+    utterance.onerror = () => {
+      if (token === currentPlayToken) notifyAudioState(wordId, "idle");
+    };
+    window.speechSynthesis.speak(utterance);
+  } catch (e) {
+    console.warn("SpeechSynthesis fallback failed:", e);
+    notifyAudioState(wordId, "idle");
+  }
+}
+
+function playWordAudio(word, options = {}) {
+  if (!word) return;
+  const currentToken = ++currentPlayToken;
+  const wordId = word.id || word.kana;
+
+  // 1. 立即停止上一音频实例并废弃
+  if (activeGlobalAudio) {
+    activeGlobalAudio.pause();
+    activeGlobalAudio.src = "";
+    activeGlobalAudio = null;
+  }
+  if (window.speechSynthesis) {
+    window.speechSynthesis.cancel();
+  }
+  notifyAudioState(wordId, "loading");
+
+  // 2. 静音状态拦截
+  if (options.isAuto && typeof isGlobalMuted === "function" && isGlobalMuted()) {
+    notifyAudioState(wordId, "idle");
+    return;
+  }
+
+  let completed = false;
+  let timer = null;
+
+  const finishWithFallback = () => {
+    if (completed || currentToken !== currentPlayToken) return;
+    completed = true;
+    if (timer) clearTimeout(timer);
+    if (activeGlobalAudio) {
+      activeGlobalAudio.pause();
+      activeGlobalAudio.src = "";
+      activeGlobalAudio = null;
+    }
+    window.speechSynthesis.cancel();
+    fallbackSpeechSynthesis(word.kana || word.kanji || word.text, wordId, currentToken);
+  };
+
+  if (word.audioUrl && /^https?:\/\//i.test(word.audioUrl)) {
+    const audio = new Audio();
+    audio.preload = "none";
+    activeGlobalAudio = audio;
+
+    // 8 秒超时保护
+    timer = setTimeout(finishWithFallback, 8000);
+
+    audio.onplay = () => {
+      if (currentToken === currentPlayToken) {
+        if (timer) clearTimeout(timer);
+        notifyAudioState(wordId, "playing");
+      }
+    };
+    audio.onended = () => {
+      if (currentToken === currentPlayToken) {
+        completed = true;
+        if (timer) clearTimeout(timer);
+        activeGlobalAudio = null;
+        notifyAudioState(wordId, "idle");
+      }
+    };
+    audio.onerror = finishWithFallback;
+    audio.src = word.audioUrl;
+
+    audio.play().catch(() => {
+      finishWithFallback();
+    });
+  } else {
+    finishWithFallback();
+  }
+}
+
 const wordToExcelRow = (w) => {
   const ex = Array.isArray(w.examples) ? w.examples : [];
   return {
+    "单词ID": w.id || "",
     "假名": w.kana || "",
     "汉字": w.kanji || "",
     "声调": w.accent || "",
@@ -384,8 +510,29 @@ const wordToExcelRow = (w) => {
     "例句3中文": ex[2]?.cn || "",
     "图片URL": w.imageUrl || "",
     "是否隐藏": w.hidden ? "是" : "否",
+    "音频URL": w.audioUrl || "",
+    "音频源假名": w.audioSource || "",
+    "音色": w.audioVoice || "",
+    "音频版本": w.audioVersion || (w.audioUrl ? 1 : ""),
+    "音频类型": w.audioMode || (w.audioUrl && !w.audioSource ? "manual" : "tts"),
+    "锁定音频": w.audioLocked ? "是" : "否",
+    "音频引擎": w.audioEngine || "",
+    "音频引擎版本": w.audioEngineVersion || "",
+    "音频模型UUID": w.audioModelUuid || "",
+    "音频模型版本": w.audioModelVersion || "",
+    "音频话者UUID": w.audioSpeakerUuid || "",
+    "音频风格ID": w.audioStyleId !== undefined && w.audioStyleId !== null ? w.audioStyleId : "",
+    "音频风格名称": w.audioStyleName || "",
+    "音频档案": w.audioProfile || "",
+    "合成文本": w.audioSpeakText || "",
+    "韵律配置JSON": w.audioSynthesisParams || "",
+    "音频格式": w.audioContainer || "",
+    "重音假名": w.audioAccentKana || "",
+    "音频配置指纹": w.audioConfigFingerprint || "",
+    "音频资产指纹": w.audioFingerprint || ""
   };
 };
+
 const excelRowToWord = (row, rowNumber) => {
   const kana = getCell(row, "假名");
   const meaning = getCell(row, "中文释义");
@@ -393,9 +540,16 @@ const excelRowToWord = (row, rowNumber) => {
   if (!meaning) return { skipped:true, rowNumber, reason:"中文释义为空" };
   const examples = [1,2,3].map(i => ({ ja:getCell(row, `例句${i}日文`), cn:getCell(row, `例句${i}中文`) }))
     .filter(e => e.ja || e.cn);
+  const existingId = getCell(row, "单词ID") || getCell(row, "id");
+  const audioUrl = cleanAudioUrl(row["音频URL"] || row["audioUrl"]);
+  const rawAudioMode = String(row["音频类型"] || row["audioMode"] || "").trim().toLowerCase();
+  const rawLocked = row["锁定音频"] !== undefined ? row["锁定音频"] : row["audioLocked"];
+  const audioMode = rawAudioMode === "manual" ? "manual" : (audioUrl && !getCell(row, "音频源假名") ? "manual" : "tts");
+  const audioLocked = rawLocked !== undefined ? parseHiddenFlag(rawLocked) : (audioMode === "manual");
+
   return {
     word: {
-      id: gid(),
+      id: existingId || gid(),
       kana,
       kanji: getCell(row, "汉字"),
       accent: cleanAccent(row["声调"]),
@@ -404,7 +558,27 @@ const excelRowToWord = (row, rowNumber) => {
       usage: getCell(row, "用法说明"),
       examples: examples.length ? examples : [{ja:"",cn:""}],
       imageUrl: cleanImageUrl(row["图片URL"]),
+      audioUrl: audioUrl,
+      audioSource: getCell(row, "音频源假名") || (audioMode === "tts" && audioUrl ? kana : ""),
+      audioVoice: getCell(row, "音色") || (audioMode === "tts" && audioUrl ? "ja-JP-NanamiNeural" : ""),
+      audioVersion: Number(row["音频版本"]) || (audioUrl ? 1 : 0),
+      audioMode: audioMode,
+      audioLocked: audioLocked,
       hidden: parseHiddenFlag(row["是否隐藏"]),
+      audioEngine: getCell(row, "音频引擎") || getCell(row, "audioEngine"),
+      audioEngineVersion: getCell(row, "音频引擎版本") || getCell(row, "audioEngineVersion"),
+      audioModelUuid: getCell(row, "音频模型UUID") || getCell(row, "audioModelUuid"),
+      audioModelVersion: getCell(row, "音频模型版本") || getCell(row, "audioModelVersion"),
+      audioSpeakerUuid: getCell(row, "音频话者UUID") || getCell(row, "audioSpeakerUuid"),
+      audioStyleId: getCell(row, "音频风格ID") || getCell(row, "audioStyleId"),
+      audioStyleName: getCell(row, "音频风格名称") || getCell(row, "audioStyleName"),
+      audioProfile: getCell(row, "音频档案") || getCell(row, "audioProfile"),
+      audioSpeakText: getCell(row, "合成文本") || getCell(row, "audioSpeakText"),
+      audioSynthesisParams: getCell(row, "韵律配置JSON") || getCell(row, "audioSynthesisParams"),
+      audioContainer: getCell(row, "音频格式") || getCell(row, "audioContainer"),
+      audioAccentKana: getCell(row, "重音假名") || getCell(row, "audioAccentKana"),
+      audioConfigFingerprint: getCell(row, "音频配置指纹") || getCell(row, "audioConfigFingerprint"),
+      audioFingerprint: getCell(row, "音频资产指纹") || getCell(row, "audioFingerprint") || getCell(row, "音频指纹")
     }
   };
 };
@@ -556,10 +730,10 @@ const mergeGroups = (localGroups, remoteGroups, localTombstones, remoteTombstone
         if (delTime >= Math.max(localTime, remoteTime)) continue;
       }
     }
-    
+
     const remoteG = remoteGroups.find(x => x.id === g.id);
     const localG = localGroups.find(x => x.id === g.id);
-    
+
     if (remoteG && localG) {
       const wordMap = new Map();
       (remoteG.words || []).forEach(w => {
@@ -932,6 +1106,84 @@ function WordForm({ word, onSave, onCancel, themeC = C }) {
         {w.imageUrl && <img src={w.imageUrl} alt="" style={{ marginTop:8, maxHeight:110, borderRadius:8, objectFit:"cover" }} onError={e=>e.target.style.display="none"}/>}
       </div>
       <div style={{ marginBottom:14 }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:4 }}>
+          <label style={{...labelStyle, marginBottom:0}}>标准发音音频 (URL)</label>
+          <label style={{ display:"inline-flex", alignItems:"center", gap:4, fontSize:12, color: w.audioLocked ? C.primary : C.muted, cursor:"pointer", userSelect:"none" }}>
+            <input
+              type="checkbox"
+              checked={!!w.audioLocked}
+              onChange={e => {
+                const locked = e.target.checked;
+                setW(prev => ({
+                  ...prev,
+                  audioLocked: locked,
+                  audioMode: locked ? "manual" : "tts"
+                }));
+              }}
+            />
+            <span>🔒 锁定音频 (防止自动TTS覆盖)</span>
+          </label>
+        </div>
+        <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+          <input
+            style={{...inputStyle, flex:1}}
+            value={w.audioUrl || ""}
+            onChange={e => {
+              const val = e.target.value;
+              if (val.trim()) {
+                setW(prev => ({
+                  ...prev,
+                  audioUrl: val,
+                  audioMode: "manual",
+                  audioLocked: true,
+                  audioSource: "",
+                  audioVoice: "",
+                  audioVersion: 1
+                }));
+              } else {
+                setW(prev => ({
+                  ...prev,
+                  audioUrl: "",
+                  audioMode: "tts",
+                  audioLocked: false,
+                  audioSource: "",
+                  audioVoice: "",
+                  audioVersion: 1
+                }));
+              }
+            }}
+            placeholder="留空或粘贴外部/手工 MP3 链接"
+          />
+          <button
+            type="button"
+            onClick={()=>playWordAudio(w)}
+            style={sBtnSm("rgba(200,64,45,0.1)", C.primary, {whiteSpace:"nowrap", display:"inline-flex", alignItems:"center", gap:4})}
+          >
+            🔊 试听
+          </button>
+          {w.audioUrl && (
+            <button
+              type="button"
+              onClick={() => {
+                setW(prev => ({
+                  ...prev,
+                  audioUrl: "",
+                  audioMode: "tts",
+                  audioLocked: false,
+                  audioSource: "",
+                  audioVoice: "",
+                  audioVersion: 1
+                }));
+              }}
+              style={sBtnSm(C.bg, C.muted, {whiteSpace:"nowrap", fontSize:11, border:`1px dashed ${C.border}`})}
+              title="清除当前音频并解除锁定，允许自动化工具重新合成标准发音"
+            >
+              ✨ 交还给系统TTS
+            </button>
+          )}
+        </div>
+      </div>
+      <div style={{ marginBottom:14 }}>
         <label style={labelStyle}>例句</label>
         {w.examples.map((ex,i) => (
           <div key={i} style={{ display:"flex", gap:8, marginBottom:8, alignItems:"start" }}>
@@ -1043,7 +1295,7 @@ function EditMode({ groups, setGroups, categories, setCategories, gid: curGid, s
     let shouldDeleteCategory = false;
     let shouldDeleteGroups = false;
     let shouldMoveGroupsToUncategorized = false;
-    
+
     if (count > 0) {
       const confirmAllDelete = confirm(`确定删除“${category}”分类及其中 ${count} 个单词组吗？\n点击确定将删除分类和所有单词组，点击取消可保留单词组。`);
       if (confirmAllDelete) {
@@ -1066,13 +1318,13 @@ function EditMode({ groups, setGroups, categories, setCategories, gid: curGid, s
         return;
       }
     }
-    
+
     if (shouldDeleteCategory) {
       const nextCategories = displayCategories.filter(cat => cat !== category);
       if (!nextCategories.includes("未分类")) nextCategories.push("未分类");
       setCategories(nextCategories);
     }
-    
+
     if (shouldDeleteGroups) {
       const deletedGroupIds = new Set(groups.filter(g => inferWordSetCategory(g) === category).map(g => g.id));
       const nextGroups = groups.filter(g => !deletedGroupIds.has(g.id));
@@ -1083,7 +1335,7 @@ function EditMode({ groups, setGroups, categories, setCategories, gid: curGid, s
     } else if (shouldMoveGroupsToUncategorized) {
       setGroups(groups.map(g => inferWordSetCategory(g) === category ? { ...g, category: "未分类" } : g));
     }
-    
+
     setExpandedCats(prev => {
       const next = { ...prev };
       if (shouldMoveGroupsToUncategorized) {
@@ -1203,8 +1455,31 @@ function EditMode({ groups, setGroups, categories, setCategories, gid: curGid, s
             <span style={{ fontSize:13, color:C.primary, fontWeight:700, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", minWidth:0 }}>{w.meaning}</span>
           </div>
         </button>
-        <div draggable={false} onDragStart={e=>e.preventDefault()} style={{ display:"flex", gap:5, justifyContent:"end", flex:"0 0 86px" }}>
-          <button onClick={()=>toggleWordHidden(w.id)} title={w.hidden?"恢复课堂显示":"课堂隐藏该词"} aria-label={w.hidden?"恢复课堂显示":"课堂隐藏该词"} style={{ background:w.hidden?"rgba(209,67,67,0.1)":C.bg, border:"none", borderRadius:8, width:48, height:36, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>{w.hidden ? <IEyeOff size={18} color={C.wrong}/> : <IEye size={18} color={C.muted}/>}</button>
+        <div draggable={false} onDragStart={e=>e.preventDefault()} style={{ display:"flex", gap:5, justifyContent:"end", flex:"0 0 120px" }}>
+          <button
+            type="button"
+            onClick={() => playWordAudio(w)}
+            title="朗读单词发音"
+            aria-label="朗读单词发音"
+            style={{
+              background: "rgba(200,64,45,0.08)",
+              border: "none",
+              borderRadius: 8,
+              width: 32,
+              height: 36,
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: C.primary
+            }}
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+              <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+            </svg>
+          </button>
+          <button onClick={()=>toggleWordHidden(w.id)} title={w.hidden?"恢复课堂显示":"课堂隐藏该词"} aria-label={w.hidden?"恢复课堂显示":"课堂隐藏该词"} style={{ background:w.hidden?"rgba(209,67,67,0.1)":C.bg, border:"none", borderRadius:8, width:44, height:36, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>{w.hidden ? <IEyeOff size={18} color={C.wrong}/> : <IEye size={18} color={C.muted}/>}</button>
           <button onClick={()=>delWord(w.id)} style={{ background:"rgba(209,67,67,0.1)", border:"none", borderRadius:8, width:32, height:36, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}><ITrash size={14} color={C.wrong}/></button>
         </div>
       </div>
@@ -1544,7 +1819,7 @@ function CanvasPaint({ wordId, face, active, color, thickness, tool, strokes, on
 
     allStrokes.forEach(stroke => {
       if (!stroke.points || stroke.points.length === 0) return;
-      
+
       const baseWidth = stroke.width * (canvas.width / (400 * window.devicePixelRatio));
       ctx.strokeStyle = stroke.color;
       ctx.lineCap = 'round';
@@ -1567,23 +1842,23 @@ function CanvasPaint({ wordId, face, active, color, thickness, tool, strokes, on
       if (hasTime && stroke.points.length > 1) {
         const widths = new Array(stroke.points.length);
         widths[0] = baseWidth * 0.65; // Tapered start
-        
+
         for (let i = 1; i < stroke.points.length; i++) {
           const pPrev = stroke.points[i - 1];
           const pCurr = stroke.points[i];
-          
+
           const pxPrevX = pPrev.x * (canvas.width / window.devicePixelRatio);
           const pxPrevY = pPrev.y * (canvas.height / window.devicePixelRatio);
           const pxCurrX = pCurr.x * (canvas.width / window.devicePixelRatio);
           const pxCurrY = pCurr.y * (canvas.height / window.devicePixelRatio);
-          
+
           const dist = Math.hypot(pxCurrX - pxPrevX, pxCurrY - pxPrevY);
           const dt = Math.max(1, pCurr.t - pPrev.t);
           const v = dist / dt; // pixels per millisecond
-          
+
           // Map speed to thickness: base range [0.4x, 1.4x]
           const factor = Math.max(0.4, Math.min(1.4, 1.4 - v * 0.45));
-          
+
           // Low-pass filter for smooth width transitions
           widths[i] = widths[i - 1] * 0.72 + (baseWidth * factor) * 0.28;
         }
@@ -1592,7 +1867,7 @@ function CanvasPaint({ wordId, face, active, color, thickness, tool, strokes, on
         for (let i = 1; i < stroke.points.length; i++) {
           const pPrev = stroke.points[i - 1];
           const pCurr = stroke.points[i];
-          
+
           ctx.beginPath();
           ctx.lineWidth = widths[i];
           ctx.moveTo(pPrev.x * (canvas.width / window.devicePixelRatio), pPrev.y * (canvas.height / window.devicePixelRatio));
@@ -1605,7 +1880,7 @@ function CanvasPaint({ wordId, face, active, color, thickness, tool, strokes, on
         ctx.lineWidth = baseWidth;
         const p0 = stroke.points[0];
         ctx.moveTo(p0.x * (canvas.width / window.devicePixelRatio), p0.y * (canvas.height / window.devicePixelRatio));
-        
+
         if (stroke.points.length === 1) {
           ctx.lineTo(p0.x * (canvas.width / window.devicePixelRatio) + 0.1, p0.y * (canvas.height / window.devicePixelRatio));
         } else {
@@ -1806,8 +2081,39 @@ function TeachMode({
 
   // Selected word in normal teaching mode to keep track of user focus when switching view layouts
   const [selectedWordId, setSelectedWordId] = useState(null);
+  const [speakingWordId, setSpeakingWordId] = useState(null);
 
-  // Paint Tool States
+  const [autoPlayAudio, setAutoPlayAudioState] = useState(() => {
+    try {
+      return localStorage.getItem(`classtango_autoplay_${group?.id || 'default'}`) === "true";
+    } catch (e) {
+      return false;
+    }
+  });
+
+  const setAutoPlayAudio = useCallback((updater) => {
+    setAutoPlayAudioState(prev => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      try {
+        localStorage.setItem(`classtango_autoplay_${group?.id || 'default'}`, String(next));
+      } catch (e) {}
+      return next;
+    });
+  }, [group?.id]);
+
+  useEffect(() => {
+    const handleAudioState = (e) => {
+      if (e.detail) {
+        if (e.detail.state === "playing" || e.detail.state === "loading") {
+          setSpeakingWordId(e.detail.wordId);
+        } else {
+          setSpeakingWordId(null);
+        }
+      }
+    };
+    window.addEventListener("classtango_audio_state", handleAudioState);
+    return () => window.removeEventListener("classtango_audio_state", handleAudioState);
+  }, []);
   const [paintActive, setPaintActive] = useState(false);
   const [paintColor, setPaintColor] = useState("#FF3B30");
   const [paintThickness, setPaintThickness] = useState(1);
@@ -1881,6 +2187,13 @@ function TeachMode({
   const revealLabel = !allMeaningShown ? "👁 揭示释义" : (cfg.showExamples && !allExamplesShown ? "📖 揭示例句" : "✓ 已全部揭示");
 
   useEffect(() => {
+    if (autoPlayAudio && currentWords && currentWords.length > 0 && !quizPhase) {
+      const firstW = currentWords[0];
+      playWordAudio(firstW, { isAuto: true });
+    }
+  }, [safePage, autoPlayAudio]);
+
+  useEffect(() => {
     if (onTeachStateChange) {
       onTeachStateChange({
         page: safePage,
@@ -1900,6 +2213,8 @@ function TeachMode({
         currentWords,
         selectedCard,
         cardStatus,
+        autoPlayAudio,
+        setAutoPlayAudio,
         setChalkboardMode,
         goPage,
         chooseCount,
@@ -1928,7 +2243,7 @@ function TeachMode({
       });
     }
   }, [
-    safePage, totalPages, quizPhase, effectiveCount, pct, countdownLeft, countdownTotal, words.length, hiddenCount, restoreHiddenWords, allMeaningShown, chalkboardMode, showShortcutHelp, isPaused, currentWords, selectedCard, cardStatus, enterKanaPhase,
+    safePage, totalPages, quizPhase, effectiveCount, pct, countdownLeft, countdownTotal, words.length, hiddenCount, restoreHiddenWords, allMeaningShown, chalkboardMode, showShortcutHelp, isPaused, currentWords, selectedCard, cardStatus, autoPlayAudio, enterKanaPhase,
     paintActive, paintColor, paintThickness, paintTool, strokesRegistry
   ]);
   const countdownRatio = countdownTotal ? countdownLeft / countdownTotal : 0;
@@ -2122,7 +2437,7 @@ function TeachMode({
     if ((n === 4 && words.length < 4) || (n === 6 && words.length < 6)) return;
     resetQuizState();
     setCardCount(n);
-    
+
     // Find the index of the currently selected card/word to keep it visible
     let targetWordIndex = safePage * effectiveCount;
     if (selectedWordId) {
@@ -2250,7 +2565,7 @@ function TeachMode({
 
     // 2. Prevent fast clicks/transition overlap
     if (isFlippingRef.current) return;
-    
+
     // 3. Skip if button's own click has set the guard ref
     if (lastClickedBtnRef.current) {
       lastClickedBtnRef.current = false;
@@ -2383,9 +2698,17 @@ function TeachMode({
         "3": () => chooseCount(6),
         F5: () => startQuiz(),
         q: () => startQuiz(),
+        p: () => {
+          const curW = currentWords[selectedCard] || currentWords[0];
+          if (curW) playWordAudio(curW);
+        },
+        v: () => {
+          const curW = currentWords[selectedCard] || currentWords[0];
+          if (curW) playWordAudio(curW);
+        },
       };
       const action = teachActions[key] || teachActions[lower];
-      if (action) action();
+      if (action) action(e);
     };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
@@ -2454,15 +2777,19 @@ function TeachMode({
       textColor: kanaTextColor,
     };
 
+    const isSpeakingThisCard = speakingWordId === w.id || speakingWordId === w.kana;
+
     return (
-      <div className={`perspective-container fade-in ${paintActive ? "paint-mode-active-card" : ""} ${!isBackShown && !paintActive ? "tactile-card" : ""} ${isSelected ? "active-card" : ""} ${!isQuizCard && selectedWordId === w.id ? "selected-teach-card" : ""}`} key={w.id} onClick={() => handleCardClick(localIdx)} style={{
+      <div className={`perspective-container fade-in ${paintActive ? "paint-mode-active-card" : ""} ${!isBackShown && !paintActive ? "tactile-card" : ""} ${isSelected ? "active-card" : ""} ${!isQuizCard && selectedWordId === w.id ? "selected-teach-card" : ""} ${isSpeakingThisCard ? "is-speaking-word-card" : ""}`} key={w.id} onClick={() => handleCardClick(localIdx)} style={{
         opacity: dimCard ? 0.45 : 1,
-        zIndex: isSelected ? 5 : 1,
-        transition: "opacity 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)"
+        zIndex: isSelected ? 5 : (isSpeakingThisCard ? 4 : 1),
+        transition: "all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)"
       }}>
         <div className={`flip-card-inner ${isBackShown ? "flipped" : ""}`}
           style={{
-            cursor: isBackShown ? "default" : (isQuizCard && status === "pending" ? "pointer" : "pointer")
+            cursor: isBackShown ? "default" : (isQuizCard && status === "pending" ? "pointer" : "pointer"),
+            boxShadow: isSpeakingThisCard ? "0 0 0 3px #FF5252, 0 10px 28px rgba(255,82,82,0.38)" : undefined,
+            borderRadius: 20
           }}>
 
           {/* FRONT FACE */}
@@ -2488,7 +2815,7 @@ function TeachMode({
             )}
             <div style={{ flex: 1, minWidth: 0, padding: cfg.textPadding, display: "flex", flexDirection: "column", justifyContent: "center", gap: effectiveCount === 1 ? 20 : 8, textAlign: noImageSingle ? "center" : "left", position: "relative", zIndex: 3 }}>
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", width: "100%", textAlign: "center", position: "relative", zIndex: 3, flexShrink: 0 }}>
-                
+
                 {showMainCurve ? (
                   <div style={{ margin: "4px 0 2px", maxWidth:"100%", overflow:"visible" }}>
                     <VisualAccentCurve kana={w.kana} accent={w.accent} fontSize={noImageSingle ? cfg.noImgKanjiSize : cfg.kanjiSize} {...mainAccentCurveProps} />
@@ -2512,6 +2839,35 @@ function TeachMode({
                     <span style={{ padding: cfg.tagPadding, borderRadius: cfg.tagRadius, background: C.primaryLight, color: C.primary, fontSize: cfg.tagSize, fontWeight: 600 }}>声调 {w.accent}</span>
                   )}
                   <span style={{ padding: cfg.tagPadding, borderRadius: cfg.tagRadius, background: C.greenLight, color: C.green, fontSize: cfg.tagSize, fontWeight: 600 }}>{w.pos}</span>
+                  <button
+                    type="button"
+                    aria-label="朗读单词"
+                    style={{
+                      background: "rgba(200,64,45,0.08)",
+                      border: `1px solid ${C.primary}33`,
+                      borderRadius: cfg.tagRadius || 20,
+                      padding: cfg.tagPadding || "4px 10px",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 4,
+                      cursor: "pointer",
+                      color: C.primary,
+                      fontSize: cfg.tagSize || 14,
+                      fontWeight: 600,
+                      transition: "transform 0.15s, background 0.15s",
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      playWordAudio(w);
+                    }}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                      <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                      <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
+                    </svg>
+                    <span>发音</span>
+                  </button>
                 </div>}
               </div>
 
@@ -2871,7 +3227,7 @@ function TeachMode({
             </div>
             <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fit, minmax(220px, 1fr))", gap:14 }}>
               {[
-                ["渐进授课", [["PgDn / Space","推进一层"],["PgUp","撤回一层"]]],
+                ["渐进授课", [["PgDn / Space","推进一层"],["PgUp","撤回一层"],["P / V","朗读单词发音"]]],
                 ["直接翻页与布局", [["← / →","直接翻页"],["Home / End","首页 / 尾页"],["1 / 2 / 3","大图 / 4宫格 / 6宫格"]]],
                 ["训练模式", [["F5 / Q","开始训练"],["R","随机抽词"],["Enter / Space","抽取或揭示"],["N","下一阶段"]]],
                 ["全局", [["B / .","遮屏暂停"],["? / /","打开或关闭速查"],["Esc","关闭浮层 / 退出暂停 / 退出训练"]]],
@@ -2965,7 +3321,7 @@ function FlashcardPractice({ words, onBack, C, onStateChange }) {
   return (
     <div style={{ flex:1, minHeight:0, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"space-between", padding:"16px 28px 24px" }}>
       <div style={{ color:C.muted, fontSize:15, fontWeight:700, letterSpacing:1 }}>闪卡记忆 · 第 {idx+1} 题 / 共 {deck.length} 题</div>
-      
+
       <div onClick={()=>setFlipped(!flipped)} className={flipped?"fade-in":""}
         style={{
           width: "min(1080px, 94vw)",
@@ -3234,7 +3590,7 @@ function MatchPractice({ words, onBack, C, onStateChange }) {
   return (
     <div style={{ flex:1, minHeight:0, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"space-between", padding:"14px 28px 20px" }}>
       <div style={{ color:C.muted, fontSize:15, fontWeight:700, marginBottom:10 }}>配对连线 · 已完成 {matched.size} / {items.length}</div>
-      
+
       <div style={{
         width: "min(1240px, 95vw)",
         flex: 1,
@@ -3440,7 +3796,7 @@ function StudentsMode({ students, setStudents, pushStudents, pullStudents, syncM
   const [editingStudentId, setEditingStudentId] = useState(null);
   const [editPasswordVal, setEditPasswordVal] = useState("");
   const [viewProgressStudent, setViewProgressStudent] = useState(null);
-  
+
   // 关卡分层与等级标签相关状态
   const [assignStudentWords, setAssignStudentWords] = useState(null);
   const [batchAssignOpen, setBatchAssignOpen] = useState(false);
@@ -3541,7 +3897,7 @@ function StudentsMode({ students, setStudents, pushStudents, pullStudents, syncM
       const campus = s.campus || "未设校区";
       const grade = s.grade || "未设年级";
       const className = s.class_name || "未设班级";
-      
+
       if (!tree[campus]) tree[campus] = {};
       if (!tree[campus][grade]) tree[campus][grade] = new Set();
       tree[campus][grade].add(className);
@@ -3621,7 +3977,7 @@ function StudentsMode({ students, setStudents, pushStudents, pullStudents, syncM
       const finalUsername = ensureUniqueUsername(s.username, seen);
       uniqueList.push({ ...s, username: finalUsername });
     });
-    
+
     pushStudents(uniqueList);
     setSelectedPath({ type: "all" }); // 重置选择到全部
     setImportOpen(false);
@@ -3657,19 +4013,143 @@ function StudentsMode({ students, setStudents, pushStudents, pullStudents, syncM
     setEditingStudentId(null);
   };
 
-  const getStudentStats = (student) => {
-    const progress = student.progress || {};
-    const totalStars = Object.values(progress).reduce((sum, item) => sum + (item.stars || 0), 0);
-    const completedCount = Object.keys(progress).length;
-    return { completedCount, totalStars };
+  // 小关词量切分工具（与学生挑战端保持完全一致）
+  const getSubLevelCount = (wordCount) => {
+    const total = Math.max(0, Number(wordCount) || 0);
+    if (!total) return 0;
+    const candidates = Array.from({ length: Math.ceil(total / 6) }, (_, index) => index + 1);
+    const preferred = candidates.filter(count => {
+      const average = total / count;
+      return average >= 7 && average <= 12;
+    });
+    const pool = preferred.length ? preferred : candidates;
+    return pool.reduce((best, count) => Math.abs(total / count - 10) < Math.abs(total / best - 10) ? count : best, pool[0]);
   };
+
+  const getSubLevelBounds = (wordCount, subLevelIndex) => {
+    const total = Math.max(0, Number(wordCount) || 0);
+    const count = getSubLevelCount(total);
+    if (!count || subLevelIndex < 1 || subLevelIndex > count) return { start: 0, end: 0, total: count };
+    const baseSize = Math.floor(total / count);
+    const extra = total % count;
+    const start = (subLevelIndex - 1) * baseSize + Math.min(subLevelIndex - 1, extra);
+    const size = baseSize + (subLevelIndex <= extra ? 1 : 0);
+    return { start, end: start + size, total: count };
+  };
+
+  // 严谨全面的学生关卡统计与判定函数
+  const getStudentDetailedStats = (student) => {
+    const progress = student?.progress || {};
+    const gameProfile = student?.gameProfile || {};
+    const chapterRecords = gameProfile?.chapterRecords || {};
+
+    let completedGroupsCount = 0;
+    let inProgressGroupsCount = 0;
+    let totalStars = 0;
+    let totalPassedSubLevels = 0;
+    let totalPossibleSubLevels = 0;
+    let goldMedalCount = 0;
+    let silverMedalCount = 0;
+    let bronzeMedalCount = 0;
+
+    const groupDetails = (groups || []).map((g, idx) => {
+      const key = g.id || g.name;
+      const prog = progress[key] || {};
+      const activeWords = (g.words || []).filter(w => !w.hidden);
+      const expectedTotalSub = getSubLevelCount(activeWords.length) || 1;
+      const actualTotalSub = Math.max(Number(prog.totalSubLevels) || 0, expectedTotalSub);
+      totalPossibleSubLevels += actualTotalSub;
+
+      const subLevelsMap = prog.subLevelsCleared || {};
+      let passedSubInGroup = 0;
+      const subLevelsList = [];
+
+      for (let subIdx = 1; subIdx <= actualTotalSub; subIdx++) {
+        const bounds = getSubLevelBounds(activeWords.length, subIdx);
+        const subWords = activeWords.slice(bounds.start, bounds.end);
+        const subProg = subLevelsMap[subIdx] || {};
+        const recordKey = `${key}_sub_${subIdx}`;
+        const rec = chapterRecords[recordKey] || {};
+
+        const bestScore = Math.max(Number(subProg.score || 0), Number(rec.bestScore || 0));
+        const bestMedal = subProg.medal || rec.bestMedal || (bestScore >= 90 ? "gold" : bestScore >= 80 ? "silver" : bestScore >= 60 ? "bronze" : "unpassed");
+        const isPassed = !!subProg.isPassed || !!rec.isPassed || (bestMedal !== "unpassed" && bestScore > 0);
+
+        if (isPassed) {
+          passedSubInGroup++;
+          totalPassedSubLevels++;
+          if (bestMedal === "gold") goldMedalCount++;
+          else if (bestMedal === "silver") silverMedalCount++;
+          else if (bestMedal === "bronze") bronzeMedalCount++;
+        }
+
+        subLevelsList.push({
+          index: subIdx,
+          startNum: bounds.start + 1,
+          endNum: bounds.end,
+          wordCount: subWords.length,
+          isPassed,
+          score: bestScore,
+          medal: isPassed ? bestMedal : "unpassed",
+          attempts: Number(rec.attempts || 0),
+          firstTryRate: Number(rec.bestFirstTryRate || 0)
+        });
+      }
+
+      const completedSub = Math.max(Number(prog.completedSubLevels) || 0, passedSubInGroup);
+      const isCleared = (completedSub >= actualTotalSub && actualTotalSub > 0) || !!prog.completed_at;
+
+      let calculatedStars = 0;
+      if (isCleared) {
+        completedGroupsCount++;
+        if (typeof prog.stars === "number" && prog.stars > 0) {
+          calculatedStars = prog.stars;
+        } else {
+          const allGold = subLevelsList.every(s => s.medal === "gold" || s.score >= 90);
+          const avgScore = subLevelsList.reduce((sum, s) => sum + s.score, 0) / (subLevelsList.length || 1);
+          calculatedStars = allGold ? 3 : (avgScore >= 80 ? 2 : 1);
+        }
+        totalStars += calculatedStars;
+      } else if (completedSub > 0) {
+        inProgressGroupsCount++;
+      }
+
+      return {
+        groupKey: key,
+        groupName: g.name,
+        groupIndex: idx + 1,
+        wordCount: activeWords.length,
+        totalSubLevels: actualTotalSub,
+        completedSubLevels: completedSub,
+        isCleared,
+        stars: calculatedStars,
+        score: prog.score || (subLevelsList.length ? Math.round(subLevelsList.reduce((s, x) => s + x.score, 0) / subLevelsList.length) : 0),
+        subLevels: subLevelsList
+      };
+    });
+
+    return {
+      completedGroupsCount,
+      inProgressGroupsCount,
+      totalStars,
+      totalPassedSubLevels,
+      totalPossibleSubLevels,
+      goldMedalCount,
+      silverMedalCount,
+      bronzeMedalCount,
+      groupDetails,
+      hasAnyProgress: totalPassedSubLevels > 0 || completedGroupsCount > 0 || inProgressGroupsCount > 0
+    };
+  };
+
+  const [viewTab, setViewTab] = useState("list"); // "list" | "matrix"
 
   // 面包屑渲染
   const renderBreadcrumbs = () => {
     const breadcrumbStyle = { display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: C.muted, marginBottom: 12 };
     const activeStyle = { fontWeight: 700, color: C.text };
     const linkStyle = { cursor: "pointer", transition: "color 0.2s" };
-    
+
     if (selectedPath.type === "all") {
       return (
         <div style={breadcrumbStyle}>
@@ -3680,11 +4160,11 @@ function StudentsMode({ students, setStudents, pushStudents, pullStudents, syncM
         </div>
       );
     }
-    
+
     const parts = [
       <span key="all" style={linkStyle} onClick={() => setSelectedPath({ type: "all" })} onMouseEnter={e => e.target.style.color = C.primary} onMouseLeave={e => e.target.style.color = C.muted}>📂 所有学生</span>
     ];
-    
+
     if (selectedPath.type === "campus" || selectedPath.type === "grade" || selectedPath.type === "class") {
       parts.push(<span key="sep1">/</span>);
       if (selectedPath.type === "campus") {
@@ -3693,7 +4173,7 @@ function StudentsMode({ students, setStudents, pushStudents, pullStudents, syncM
         parts.push(<span key="campus" style={linkStyle} onClick={() => setSelectedPath({ type: "campus", campus: selectedPath.campus })} onMouseEnter={e => e.target.style.color = C.primary} onMouseLeave={e => e.target.style.color = C.muted}>🏢 {selectedPath.campus}校区</span>);
       }
     }
-    
+
     if (selectedPath.type === "grade" || selectedPath.type === "class") {
       parts.push(<span key="sep2">/</span>);
       if (selectedPath.type === "grade") {
@@ -3702,18 +4182,58 @@ function StudentsMode({ students, setStudents, pushStudents, pullStudents, syncM
         parts.push(<span key="grade" style={linkStyle} onClick={() => setSelectedPath({ type: "grade", campus: selectedPath.campus, grade: selectedPath.grade })} onMouseEnter={e => e.target.style.color = C.primary} onMouseLeave={e => e.target.style.color = C.muted}>📅 {selectedPath.grade}级</span>);
       }
     }
-    
+
     if (selectedPath.type === "class") {
       parts.push(<span key="sep3">/</span>);
       parts.push(<span key="class" style={activeStyle}>🏫 {selectedPath.className}班</span>);
     }
-    
+
     return (
-      <div style={breadcrumbStyle}>
-        {parts}
-        <span style={{ marginLeft: "auto", fontSize: 12, background: C.borderLight, color: C.text, padding: "2px 8px", borderRadius: 10, fontWeight: 700 }}>
-          共 {filteredStudents.length} 人
-        </span>
+      <div style={{ ...breadcrumbStyle, justifyContent: "space-between" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+          {parts}
+          <span style={{ fontSize: 12, background: C.borderLight, color: C.text, padding: "2px 8px", borderRadius: 10, fontWeight: 700 }}>
+            共 {filteredStudents.length} 人
+          </span>
+        </div>
+
+        {/* 视图切换：列表视图 vs 全景矩阵 */}
+        <div style={{ display: "flex", background: C.borderLight, padding: 3, borderRadius: 10, gap: 4, flexShrink: 0 }}>
+          <button
+            onClick={() => setViewTab("list")}
+            style={{
+              padding: "5px 12px",
+              fontSize: 12,
+              fontWeight: viewTab === "list" ? 800 : 600,
+              background: viewTab === "list" ? "#fff" : "transparent",
+              color: viewTab === "list" ? C.primary : C.muted,
+              border: "none",
+              borderRadius: 7,
+              cursor: "pointer",
+              boxShadow: viewTab === "list" ? "0 2px 5px rgba(0,0,0,0.06)" : "none",
+              transition: "all 0.15s ease"
+            }}
+          >
+            📋 学生名单明细
+          </button>
+          <button
+            onClick={() => setViewTab("matrix")}
+            style={{
+              padding: "5px 12px",
+              fontSize: 12,
+              fontWeight: viewTab === "matrix" ? 800 : 600,
+              background: viewTab === "matrix" ? "#fff" : "transparent",
+              color: viewTab === "matrix" ? C.primary : C.muted,
+              border: "none",
+              borderRadius: 7,
+              cursor: "pointer",
+              boxShadow: viewTab === "matrix" ? "0 2px 5px rgba(0,0,0,0.06)" : "none",
+              transition: "all 0.15s ease"
+            }}
+          >
+            📊 关卡全景矩阵
+          </button>
+        </div>
       </div>
     );
   };
@@ -3771,8 +4291,8 @@ function StudentsMode({ students, setStudents, pushStudents, pullStudents, syncM
                 onMouseLeave={e => leaveBg(e, isCampusActive)}
                 style={{ ...nodeStyle(isCampusActive), paddingLeft: 12 }}
               >
-                <span 
-                  onClick={(e) => toggleNode(campus, e)} 
+                <span
+                  onClick={(e) => toggleNode(campus, e)}
                   style={{ display: "inline-block", width: 14, cursor: "pointer", transform: isCampusExpanded ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.15s ease", fontSize: 9, opacity: 0.5 }}
                 >
                   ▶
@@ -3796,8 +4316,8 @@ function StudentsMode({ students, setStudents, pushStudents, pullStudents, syncM
                       onMouseLeave={e => leaveBg(e, isGradeActive)}
                       style={{ ...nodeStyle(isGradeActive), paddingLeft: 12 }}
                     >
-                      <span 
-                        onClick={(e) => toggleNode(gradeKey, e)} 
+                      <span
+                        onClick={(e) => toggleNode(gradeKey, e)}
                         style={{ display: "inline-block", width: 14, cursor: "pointer", transform: isGradeExpanded ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.15s ease", fontSize: 9, opacity: 0.5 }}
                       >
                         ▶
@@ -3856,142 +4376,387 @@ function StudentsMode({ students, setStudents, pushStudents, pullStudents, syncM
 
       {/* 主体双栏布局 */}
       <div style={{ display: "grid", gridTemplateColumns: "260px 1fr", gap: 24, flex: 1, overflow: "hidden" }}>
-        
+
         {/* 左侧：分类目录树 */}
-        <div 
-          style={{ 
-            background: C.card, 
-            borderRadius: 16, 
-            border: `1.5px solid ${C.border}`, 
-            padding: "20px 16px", 
-            overflowY: "auto", 
-            boxShadow: "0 8px 30px rgba(0,0,0,0.03)" 
+        <div
+          style={{
+            background: C.card,
+            borderRadius: 16,
+            border: `1.5px solid ${C.border}`,
+            padding: "20px 16px",
+            overflowY: "auto",
+            boxShadow: "0 8px 30px rgba(0,0,0,0.03)"
           }}
         >
           <div style={{ fontSize: 13, fontWeight: 700, color: C.muted, marginBottom: 12, paddingLeft: 6 }}>🗂️ 班级分类文件夹</div>
           {renderTreeNodes()}
         </div>
 
-        {/* 右侧：学生数据表 */}
+        {/* 右侧：主体展示区域（列表视图 或 关卡全景矩阵） */}
         <div style={{ display: "flex", flexDirection: "column", overflow: "hidden" }}>
           {renderBreadcrumbs()}
-          
-          <div 
-            style={{ 
-              background: C.card, 
-              borderRadius: 16, 
-              border: `1.5px solid ${C.border}`, 
-              overflowY: "auto", 
-              boxShadow: "0 8px 30px rgba(0,0,0,0.03)",
-              flex: 1
-            }}
-          >
-            <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
-              <thead>
-                <tr style={{ background: C.bg, borderBottom: `1.5px solid ${C.border}`, position: "sticky", top: 0, zIndex: 10 }}>
-                  {["序号", "姓名", "校区", "年级", "班级", "账号 (登录名)", "密码", "等级标签", "关卡分配", "闯关进度", "操作"].map(h => (
-                    <th key={h} style={{ padding: "14px 18px", fontSize: 13, fontWeight: 700, color: C.muted, background: C.bg }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {filteredStudents.length > 0 ? (
-                  filteredStudents.map((s, index) => {
-                    const { completedCount, totalStars } = getStudentStats(s);
-                    return (
-                      <tr key={s.id} style={{ borderBottom: `1px solid ${C.borderLight}` }} onMouseEnter={e => e.currentTarget.style.background = C.borderLight} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-                        <td style={{ padding: "14px 18px", fontSize: 13, color: C.muted }}>{index + 1}</td>
-                        <td style={{ padding: "14px 18px", fontSize: 14, fontWeight: 700, color: C.text }}>{s.name}</td>
-                        <td style={{ padding: "14px 18px", fontSize: 14, color: C.text }}>{s.campus}</td>
-                        <td style={{ padding: "14px 18px", fontSize: 14, color: C.text }}>{s.grade}级</td>
-                        <td style={{ padding: "14px 18px", fontSize: 14, color: C.text }}>{s.class_name}班</td>
-                        <td style={{ padding: "14px 18px", fontSize: 14, fontFamily: "monospace", fontWeight: 600, color: C.text }}>{s.username}</td>
-                        <td style={{ padding: "14px 18px", fontSize: 14 }}>
-                          {editingStudentId === s.id ? (
-                            <div style={{ display: "flex", gap: 6 }}>
-                              <input
-                                type="text"
-                                value={editPasswordVal}
-                                onChange={e => setEditPasswordVal(e.target.value)}
-                                onKeyDown={e => { if (e.key === "Enter") savePassword(s.id); if (e.key === "Escape") cancelEditPassword(); }}
-                                autoFocus
-                                style={{ padding: "4px 8px", fontSize: 13, border: `1.5px solid ${C.primary}`, borderRadius: 6, outline: "none", width: 90 }}
-                              />
-                              <button onClick={() => savePassword(s.id)} style={sBtnSm(C.primary, "#fff", { padding: "4px 8px", borderRadius: 6 })}>存</button>
-                              <button onClick={cancelEditPassword} style={sBtnSm(C.bg, C.muted, { padding: "4px 8px", border: `1px solid ${C.border}`, borderRadius: 6 })}>x</button>
-                            </div>
-                          ) : (
-                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                              <span style={{ color: s.password ? C.text : C.hint, fontStyle: s.password ? "normal" : "italic", fontWeight: s.password ? 600 : 400 }}>
-                                {s.password || "(学生未设密码)"}
-                              </span>
-                              <button onClick={() => startEditPassword(s)} style={{ border: "none", background: "none", cursor: "pointer", color: C.blue, fontSize: 12, padding: "2px 4px" }}>✏️ 修改</button>
-                            </div>
-                          )}
-                        </td>
-                        
-                        {/* 等级标签列 */}
-                        <td style={{ padding: "14px 18px", fontSize: 14 }}>
-                          <select
-                            value={s.tag || ""}
-                            onChange={e => updateStudentTag(s.id, e.target.value)}
-                            style={{
-                              padding: "4px 8px",
-                              fontSize: 13,
-                              border: `1.5px solid ${C.border}`,
-                              borderRadius: 6,
-                              background: s.tag === "A" ? C.primaryLight : s.tag === "B" ? C.blueLight : s.tag === "C" ? C.greenLight : "#fff",
-                              color: s.tag === "A" ? C.primary : s.tag === "B" ? C.blue : s.tag === "C" ? C.green : C.text,
-                              fontWeight: s.tag ? 700 : 400,
-                              outline: "none",
-                              cursor: "pointer"
-                            }}
-                          >
-                            <option value="">(无标签)</option>
-                            <option value="A">A级</option>
-                            <option value="B">B级</option>
-                            <option value="C">C级</option>
-                          </select>
-                        </td>
-                        
-                        {/* 关卡分配列 */}
-                        <td style={{ padding: "14px 18px", fontSize: 13 }}>
-                          <span
-                            onClick={() => setAssignStudentWords(s)}
-                            style={{
-                              color: C.blue,
-                              fontWeight: 600,
-                              cursor: "pointer",
-                              textDecoration: "underline"
-                            }}
-                          >
-                            {Array.isArray(s.assignedGroups) && s.assignedGroups.length > 0 ? `已分配 ${s.assignedGroups.length} 关` : "默认全部 ⚔️"}
-                          </span>
-                        </td>
 
-                        <td style={{ padding: "14px 18px", fontSize: 13 }}>
-                          <span onClick={() => completedCount > 0 && setViewProgressStudent(s)} style={{ color: completedCount > 0 ? C.primary : C.muted, fontWeight: completedCount > 0 ? 700 : 400, cursor: completedCount > 0 ? "pointer" : "default", textDecoration: completedCount > 0 ? "underline" : "none" }}>
-                            已通关 {completedCount} 关 (共 {totalStars} ⭐)
-                          </span>
-                        </td>
-                        <td style={{ padding: "14px 18px" }}>
-                          <button onClick={() => handleDeleteStudent(s.id, s.name)} style={{ border: "none", background: "none", cursor: "pointer", display: "flex", alignItems: "center" }} title="删除学生">
-                            <ITrash size={16} color={C.wrong} />
-                          </button>
+          {viewTab === "list" ? (
+            /* 1. 学生明细列表视图 */
+            <div
+              style={{
+                background: C.card,
+                borderRadius: 16,
+                border: `1.5px solid ${C.border}`,
+                overflowY: "auto",
+                boxShadow: "0 8px 30px rgba(0,0,0,0.03)",
+                flex: 1
+              }}
+            >
+              <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
+                <thead>
+                  <tr style={{ background: C.bg, borderBottom: `1.5px solid ${C.border}`, position: "sticky", top: 0, zIndex: 10 }}>
+                    {["序号", "姓名", "校区", "年级", "班级", "账号 (登录名)", "密码", "等级标签", "关卡分配", "闯关进度与成就", "操作"].map(h => (
+                      <th key={h} style={{ padding: "14px 18px", fontSize: 13, fontWeight: 700, color: C.muted, background: C.bg }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredStudents.length > 0 ? (
+                    filteredStudents.map((s, index) => {
+                      const stats = getStudentDetailedStats(s);
+                      return (
+                        <tr key={s.id} style={{ borderBottom: `1px solid ${C.borderLight}` }} onMouseEnter={e => e.currentTarget.style.background = C.borderLight} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                          <td style={{ padding: "14px 18px", fontSize: 13, color: C.muted }}>{index + 1}</td>
+                          <td style={{ padding: "14px 18px", fontSize: 14, fontWeight: 700, color: C.text }}>{s.name}</td>
+                          <td style={{ padding: "14px 18px", fontSize: 14, color: C.text }}>{s.campus}</td>
+                          <td style={{ padding: "14px 18px", fontSize: 14, color: C.text }}>{s.grade}级</td>
+                          <td style={{ padding: "14px 18px", fontSize: 14, color: C.text }}>{s.class_name}班</td>
+                          <td style={{ padding: "14px 18px", fontSize: 14, fontFamily: "monospace", fontWeight: 600, color: C.text }}>{s.username}</td>
+                          <td style={{ padding: "14px 18px", fontSize: 14 }}>
+                            {editingStudentId === s.id ? (
+                              <div style={{ display: "flex", gap: 6 }}>
+                                <input
+                                  type="text"
+                                  value={editPasswordVal}
+                                  onChange={e => setEditPasswordVal(e.target.value)}
+                                  onKeyDown={e => { if (e.key === "Enter") savePassword(s.id); if (e.key === "Escape") cancelEditPassword(); }}
+                                  autoFocus
+                                  style={{ padding: "4px 8px", fontSize: 13, border: `1.5px solid ${C.primary}`, borderRadius: 6, outline: "none", width: 90 }}
+                                />
+                                <button onClick={() => savePassword(s.id)} style={sBtnSm(C.primary, "#fff", { padding: "4px 8px", borderRadius: 6 })}>存</button>
+                                <button onClick={cancelEditPassword} style={sBtnSm(C.bg, C.muted, { padding: "4px 8px", border: `1px solid ${C.border}`, borderRadius: 6 })}>x</button>
+                              </div>
+                            ) : (
+                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                <span style={{ color: s.password ? C.text : C.hint, fontStyle: s.password ? "normal" : "italic", fontWeight: s.password ? 600 : 400 }}>
+                                  {s.password || "(学生未设密码)"}
+                                </span>
+                                <button onClick={() => startEditPassword(s)} style={{ border: "none", background: "none", cursor: "pointer", color: C.blue, fontSize: 12, padding: "2px 4px" }}>✏️ 修改</button>
+                              </div>
+                            )}
+                          </td>
+
+                          {/* 等级标签列 */}
+                          <td style={{ padding: "14px 18px", fontSize: 14 }}>
+                            <select
+                              value={s.tag || ""}
+                              onChange={e => updateStudentTag(s.id, e.target.value)}
+                              style={{
+                                padding: "4px 8px",
+                                fontSize: 13,
+                                border: `1.5px solid ${C.border}`,
+                                borderRadius: 6,
+                                background: s.tag === "A" ? C.primaryLight : s.tag === "B" ? C.blueLight : s.tag === "C" ? C.greenLight : "#fff",
+                                color: s.tag === "A" ? C.primary : s.tag === "B" ? C.blue : s.tag === "C" ? C.green : C.text,
+                                fontWeight: s.tag ? 700 : 400,
+                                outline: "none",
+                                cursor: "pointer"
+                              }}
+                            >
+                              <option value="">(无标签)</option>
+                              <option value="A">A级</option>
+                              <option value="B">B级</option>
+                              <option value="C">C级</option>
+                            </select>
+                          </td>
+
+                          {/* 关卡分配列 */}
+                          <td style={{ padding: "14px 18px", fontSize: 13 }}>
+                            <span
+                              onClick={() => setAssignStudentWords(s)}
+                              style={{
+                                color: C.blue,
+                                fontWeight: 600,
+                                cursor: "pointer",
+                                textDecoration: "underline"
+                              }}
+                            >
+                              {Array.isArray(s.assignedGroups) && s.assignedGroups.length > 0 ? `已分配 ${s.assignedGroups.length} 关` : "默认全部 ⚔️"}
+                            </span>
+                          </td>
+
+                          {/* 闯关进度与成就紧凑单行胶囊列 */}
+                          <td style={{ padding: "10px 18px", fontSize: 13, whiteSpace: "nowrap" }}>
+                            {stats.hasAnyProgress ? (
+                              <button
+                                onClick={() => setViewProgressStudent(s)}
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: 5,
+                                  cursor: "pointer",
+                                  padding: "4px 9px",
+                                  borderRadius: 7,
+                                  border: `1px solid ${
+                                    stats.completedGroupsCount > 0
+                                      ? "rgba(34, 197, 94, 0.4)"
+                                      : "rgba(234, 179, 8, 0.4)"
+                                  }`,
+                                  background:
+                                    stats.completedGroupsCount > 0
+                                      ? "rgba(34, 197, 94, 0.12)"
+                                      : "rgba(234, 179, 8, 0.12)",
+                                  color:
+                                    stats.completedGroupsCount > 0
+                                      ? "#22c55e"
+                                      : "#eab308",
+                                  fontSize: 12,
+                                  fontWeight: 800,
+                                  transition: "all 0.15s ease",
+                                  outline: "none"
+                                }}
+                                onMouseEnter={e => { e.currentTarget.style.filter = "brightness(1.18)"; }}
+                                onMouseLeave={e => { e.currentTarget.style.filter = "none"; }}
+                                title="点击查看该学生的详细通关档案"
+                              >
+                                {stats.completedGroupsCount > 0 ? (
+                                  <span>🏆 {stats.completedGroupsCount}关 ({stats.totalStars}⭐)</span>
+                                ) : (
+                                  <span>⏳ 进行中 ({stats.totalPassedSubLevels}小关)</span>
+                                )}
+                                <span style={{ opacity: 0.6, fontSize: 13, marginLeft: 1 }}>›</span>
+                              </button>
+                            ) : (
+                              <span style={{ color: C.hint, fontSize: 12 }}>⚪ 暂无</span>
+                            )}
+                          </td>
+
+                          <td style={{ padding: "14px 18px" }}>
+                            <button onClick={() => handleDeleteStudent(s.id, s.name)} style={{ border: "none", background: "none", cursor: "pointer", display: "flex", alignItems: "center" }} title="删除学生">
+                              <ITrash size={16} color={C.wrong} />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  ) : (
+                    <tr>
+                      <td colSpan="11" style={{ textAlign: "center", padding: "40px", color: C.hint, fontSize: 14 }}>
+                        {students.length === 0 ? "📭 当前分组内还没有学生名单，请点击右上方按钮导入学生 Excel 名单。" : "🔍 该分类下暂无学生。"}
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            /* 2. 班级关卡全景矩阵看板 */
+            <div
+              style={{
+                background: C.card,
+                borderRadius: 16,
+                border: `1.5px solid ${C.border}`,
+                display: "flex",
+                flexDirection: "column",
+                overflow: "hidden",
+                boxShadow: "0 8px 30px rgba(0,0,0,0.03)",
+                flex: 1
+              }}
+            >
+              {/* 矩阵看板顶部图例说明 */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 18px", borderBottom: `1.5px solid ${C.border}`, background: C.bg, flexShrink: 0, flexWrap: "wrap", gap: 8 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: C.text }}>
+                  🗺️ 班级关卡通关矩阵（横向为单词关卡，点击单元格可直接查看详情）
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 14, fontSize: 12, color: C.muted }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                    <span style={{ display: "inline-block", width: 14, height: 14, borderRadius: 4, background: "rgba(34, 197, 94, 0.2)", border: "1.5px solid #22C55E" }} />
+                    <span style={{ fontWeight: 700, color: "#22c55e" }}>大关全通 (🏆/⭐)</span>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                    <span style={{ display: "inline-block", width: 14, height: 14, borderRadius: 4, background: "rgba(234, 179, 8, 0.2)", border: "1.5px solid #EAB308" }} />
+                    <span style={{ fontWeight: 700, color: "#eab308" }}>进行中 (小关进度)</span>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                    <span style={{ display: "inline-block", width: 14, height: 14, borderRadius: 4, background: C.bg, border: `1px solid ${C.borderLight}` }} />
+                    <span style={{ color: C.hint }}>未开始</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 矩阵主体表格（支持横向纵向平滑滚动） */}
+              <div style={{ flex: 1, overflow: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0, textAlign: "center", fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ background: C.bg, position: "sticky", top: 0, zIndex: 20 }}>
+                      <th style={{ position: "sticky", left: 0, zIndex: 30, background: C.bg, padding: "12px 14px", borderBottom: `1.5px solid ${C.border}`, borderRight: `1.5px solid ${C.border}`, minWidth: 140, textAlign: "left", fontSize: 13, fontWeight: 800, color: C.text }}>
+                        学生姓名 (共 {filteredStudents.length} 人)
+                      </th>
+                      <th style={{ position: "sticky", left: 140, zIndex: 30, background: C.bg, padding: "12px 10px", borderBottom: `1.5px solid ${C.border}`, borderRight: `1.5px solid ${C.border}`, minWidth: 100, textAlign: "center", fontSize: 12, fontWeight: 700, color: C.muted }}>
+                        全通总览
+                      </th>
+                      {groups.map((g, gIdx) => {
+                        const wordsCount = (g.words || []).filter(w => !w.hidden).length;
+                        const subCount = getSubLevelCount(wordsCount) || 1;
+                        return (
+                          <th key={g.id || g.name} style={{ padding: "10px 14px", borderBottom: `1.5px solid ${C.border}`, borderRight: `1px solid ${C.borderLight}`, minWidth: 120, background: C.bg, fontWeight: 800 }}>
+                            <div style={{ fontSize: 11, color: C.primary, fontWeight: 900 }}>LEVEL {gIdx + 1}</div>
+                            <div style={{ fontSize: 13, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 140, marginTop: 2 }} title={g.name}>
+                              {g.name}
+                            </div>
+                            <div style={{ fontSize: 11, color: C.muted, fontWeight: 500, marginTop: 2 }}>
+                              {wordsCount} 词 ({subCount} 小关)
+                            </div>
+                          </th>
+                        );
+                      })}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredStudents.length > 0 ? (
+                      filteredStudents.map((s, sIdx) => {
+                        const stats = getStudentDetailedStats(s);
+                        return (
+                          <tr key={s.id} style={{ borderBottom: `1px solid ${C.borderLight}` }} onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.03)"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                            {/* 左侧固定学生姓名 */}
+                            <td
+                              onClick={() => setViewProgressStudent(s)}
+                              style={{
+                                position: "sticky",
+                                left: 0,
+                                zIndex: 10,
+                                background: C.card,
+                                padding: "10px 14px",
+                                borderBottom: `1px solid ${C.borderLight}`,
+                                borderRight: `1.5px solid ${C.border}`,
+                                textAlign: "left",
+                                cursor: "pointer"
+                              }}
+                              title="点击查看详情"
+                            >
+                              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                <span style={{ fontWeight: 800, color: C.text }}>{s.name}</span>
+                                {s.tag && (
+                                  <span style={{
+                                    fontSize: 10,
+                                    fontWeight: 900,
+                                    padding: "1px 5px",
+                                    borderRadius: 4,
+                                    background: s.tag === "A" ? C.primaryLight : s.tag === "B" ? C.blueLight : C.greenLight,
+                                    color: s.tag === "A" ? C.primary : s.tag === "B" ? C.blue : s.tag === "C" ? C.green : C.text
+                                  }}>
+                                    {s.tag}
+                                  </span>
+                                )}
+                              </div>
+                              <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{s.class_name}班</div>
+                            </td>
+
+                            {/* 固定全通总览汇总 */}
+                            <td
+                              onClick={() => setViewProgressStudent(s)}
+                              style={{
+                                position: "sticky",
+                                left: 140,
+                                zIndex: 10,
+                                background: "#fff",
+                                padding: "10px 8px",
+                                borderBottom: `1px solid ${C.borderLight}`,
+                                borderRight: `1.5px solid ${C.border}`,
+                                textAlign: "center",
+                                cursor: "pointer"
+                              }}
+                            >
+                              {stats.completedGroupsCount > 0 ? (
+                                <div style={{ fontSize: 12, fontWeight: 800, color: "#15803d" }}>
+                                  🏆 {stats.completedGroupsCount} / {groups.length}
+                                </div>
+                              ) : (
+                                <div style={{ fontSize: 12, color: C.muted }}>0 / {groups.length}</div>
+                              )}
+                              <div style={{ fontSize: 10, color: "#E8A040", fontWeight: 700 }}>
+                                {stats.totalStars > 0 ? `${stats.totalStars} ⭐` : "-"}
+                              </div>
+                            </td>
+
+                            {/* 各关卡矩阵单元格 */}
+                            {stats.groupDetails.map(gd => {
+                              const isCleared = gd.isCleared;
+                              const inProgress = !isCleared && gd.completedSubLevels > 0;
+
+                              return (
+                                <td
+                                  key={gd.groupKey}
+                                  onClick={() => setViewProgressStudent(s)}
+                                  style={{
+                                    padding: "8px 10px",
+                                    borderBottom: `1px solid ${C.borderLight}`,
+                                    borderRight: `1px solid ${C.borderLight}`,
+                                    cursor: "pointer",
+                                    transition: "all 0.15s ease",
+                                    background: isCleared
+                                      ? "rgba(34, 197, 94, 0.12)"
+                                      : inProgress
+                                      ? "rgba(234, 179, 8, 0.12)"
+                                      : "transparent"
+                                  }}
+                                  onMouseEnter={e => {
+                                    e.currentTarget.style.opacity = "0.8";
+                                  }}
+                                  onMouseLeave={e => {
+                                    e.currentTarget.style.opacity = "1";
+                                  }}
+                                  title={`${s.name} - ${gd.groupName}：${isCleared ? `已全通 (${gd.stars}星 · ${gd.score}分)` : inProgress ? `进行中 (${gd.completedSubLevels}/${gd.totalSubLevels}小关)` : "未开始"}`}
+                                >
+                                  {isCleared ? (
+                                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+                                      <div style={{ fontSize: 13, fontWeight: 900, color: "#15803d" }}>
+                                        {gd.stars === 3 ? "🏆 3⭐" : gd.stars === 2 ? "🏅 2⭐" : "🥉 1⭐"}
+                                      </div>
+                                      <div style={{ fontSize: 10, color: "#166534", fontWeight: 700 }}>
+                                        {gd.score}分
+                                      </div>
+                                    </div>
+                                  ) : inProgress ? (
+                                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+                                      <span style={{
+                                        fontSize: 11,
+                                        fontWeight: 800,
+                                        color: "#a16207",
+                                        background: "rgba(234, 179, 8, 0.2)",
+                                        padding: "1px 6px",
+                                        borderRadius: 6
+                                      }}>
+                                        ⏳ {gd.completedSubLevels}/{gd.totalSubLevels}
+                                      </span>
+                                    </div>
+                                  ) : (
+                                    <span style={{ color: "#CBD5E1", fontSize: 13 }}>⚪</span>
+                                  )}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        );
+                      })
+                    ) : (
+                      <tr>
+                        <td colSpan={groups.length + 2} style={{ textAlign: "center", padding: "40px", color: C.hint, fontSize: 14 }}>
+                          🔍 该分类下暂无学生。
                         </td>
                       </tr>
-                    );
-                  })
-                ) : (
-                  <tr>
-                    <td colSpan="11" style={{ textAlign: "center", padding: "40px", color: C.hint, fontSize: 14 }}>
-                      {students.length === 0 ? "📭 当前分组内还没有学生名单，请点击右上方按钮导入学生 Excel 名单。" : "🔍 该分类下暂无学生。"}
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
 
       </div>
@@ -4003,7 +4768,7 @@ function StudentsMode({ students, setStudents, pushStudents, pullStudents, syncM
             请打开包含学生信息的 Excel，<strong>依次复制『 校区、姓名、年级、班级、等级标签（可选填 A/B/C） 』数据</strong>，然后在下方粘贴。<br />
             每一行代表一位学生（例如：<code>师上  张三  2024  B  A</code> 或 <code>师上  李四  2024  B</code>）。系统会按班级内导入顺序生成账号，格式为 <strong>校区简拼 + 年级 + 班级 + 序号 + 姓名首字母</strong>，如 <code>ss2024b01zs</code>，并自动识别初始等级。
           </div>
-          
+
           <textarea
             value={pasteText}
             onChange={e => setPasteText(e.target.value)}
@@ -4133,39 +4898,234 @@ function StudentsMode({ students, setStudents, pushStudents, pullStudents, syncM
         </div>
       </Modal>
 
-      {/* 学生进度明细 Modal */}
-      {viewProgressStudent && (
-        <Modal open={!!viewProgressStudent} onClose={() => setViewProgressStudent(null)} title={`${viewProgressStudent.name} 学生的闯关详情`} themeC={C}>
-          <div>
-            <div style={{ background: C.bg, padding: "10px 14px", borderRadius: 10, fontSize: 13, color: C.muted, marginBottom: 16 }}>
-              账号：<strong style={{ fontFamily: "monospace", color: C.text }}>{viewProgressStudent.username}</strong><br />
-              班级：{viewProgressStudent.campus} {viewProgressStudent.grade}级 {viewProgressStudent.class_name}班
-            </div>
-            <div style={{ maxHeight: 300, overflowY: "auto" }}>
-              {Object.keys(viewProgressStudent.progress || {}).length > 0 ? (
-                Object.entries(viewProgressStudent.progress).map(([groupKey, data]) => {
-                  const matchingGroup = groups.find(g => g.id === groupKey || g.name === groupKey);
-                  const gName = matchingGroup ? matchingGroup.name : groupKey;
+      {/* 学生个人闯关档案看板 Modal */}
+      {viewProgressStudent && (() => {
+        const modalStats = getStudentDetailedStats(viewProgressStudent);
+        const studentTag = String(viewProgressStudent?.tag || "").trim().toUpperCase();
+        const tagPassingScore = Number(challengePassingScores?.[studentTag]) || (studentTag === "A" ? 90 : studentTag === "B" ? 80 : studentTag === "C" ? 60 : (Number(challengePassingScores?.default) || 80));
+        const totalGroups = groups.length || 1;
+        const groupPct = Math.round((modalStats.completedGroupsCount / totalGroups) * 100);
+        const subPct = modalStats.totalPossibleSubLevels > 0 ? Math.round((modalStats.totalPassedSubLevels / modalStats.totalPossibleSubLevels) * 100) : 0;
+
+        return (
+          <Modal
+            open={!!viewProgressStudent}
+            onClose={() => setViewProgressStudent(null)}
+            title={`🏅 ${viewProgressStudent.name} 的单词闯关档案`}
+            wide
+            themeC={C}
+          >
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {/* 顶部：学生基本资料与荣誉墙概览条 */}
+              <div style={{
+                background: C.card,
+                border: `1.5px solid ${C.border}`,
+                borderRadius: 14,
+                padding: "16px 20px",
+                display: "flex",
+                flexDirection: "column",
+                gap: 12
+              }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                    <span style={{ fontSize: 18, fontWeight: 900, color: C.text }}>{viewProgressStudent.name}</span>
+                    <span style={{ fontSize: 12, fontFamily: "monospace", color: C.muted, background: C.bg, padding: "2px 8px", borderRadius: 6, border: `1px solid ${C.borderLight}` }}>
+                      {viewProgressStudent.username}
+                    </span>
+                    <span style={{ fontSize: 12, color: C.muted }}>
+                      {viewProgressStudent.campus} · {viewProgressStudent.grade}级 · {viewProgressStudent.class_name}班
+                    </span>
+                  </div>
+
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <span style={{
+                      fontSize: 12,
+                      fontWeight: 800,
+                      padding: "3px 10px",
+                      borderRadius: 20,
+                      background: studentTag === "A" ? (C.primaryLight || "rgba(255,82,82,0.15)") : studentTag === "B" ? (C.blueLight || "rgba(115,183,255,0.15)") : studentTag === "C" ? (C.greenLight || "rgba(80,200,120,0.15)") : C.borderLight,
+                      color: studentTag === "A" ? C.primary : studentTag === "B" ? C.blue : studentTag === "C" ? C.green : C.text,
+                      border: `1px solid ${studentTag === "A" ? C.primary : studentTag === "B" ? C.blue : studentTag === "C" ? C.green : C.border}`
+                    }}>
+                      🏷️ {studentTag ? `${studentTag} 级学生` : "普通学生"} (达标线 ≥ {tagPassingScore}分)
+                    </span>
+                  </div>
+                </div>
+
+                {/* 荣誉勋章与通关指标条 */}
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 10, background: C.bg, padding: "12px 14px", borderRadius: 10, border: `1px solid ${C.borderLight}` }}>
+                  <div style={{ textAlign: "center" }}>
+                    <div style={{ fontSize: 11, color: C.muted, fontWeight: 700 }}>大关全通</div>
+                    <div style={{ fontSize: 16, fontWeight: 900, color: "#22c55e", marginTop: 2 }}>
+                      {modalStats.completedGroupsCount} / {groups.length} <span style={{ fontSize: 11, color: C.hint }}>({groupPct}%)</span>
+                    </div>
+                  </div>
+                  <div style={{ textAlign: "center", borderLeft: `1px solid ${C.borderLight}` }}>
+                    <div style={{ fontSize: 11, color: C.muted, fontWeight: 700 }}>小关通关</div>
+                    <div style={{ fontSize: 16, fontWeight: 900, color: C.primary, marginTop: 2 }}>
+                      {modalStats.totalPassedSubLevels} / {modalStats.totalPossibleSubLevels} <span style={{ fontSize: 11, color: C.hint }}>({subPct}%)</span>
+                    </div>
+                  </div>
+                  <div style={{ textAlign: "center", borderLeft: `1px solid ${C.borderLight}` }}>
+                    <div style={{ fontSize: 11, color: C.muted, fontWeight: 700 }}>累积星数</div>
+                    <div style={{ fontSize: 16, fontWeight: 900, color: "#EAB308", marginTop: 2 }}>
+                      ⭐ {modalStats.totalStars}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: "center", borderLeft: `1px solid ${C.borderLight}` }}>
+                    <div style={{ fontSize: 11, color: C.muted, fontWeight: 700 }}>荣誉奖章</div>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: C.text, marginTop: 4, display: "flex", justifyContent: "center", gap: 8 }}>
+                      <span>🏆 {modalStats.goldMedalCount}</span>
+                      <span>🏅 {modalStats.silverMedalCount}</span>
+                      <span>🥉 {modalStats.bronzeMedalCount}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 中部：各大关卡与小关节点卡片列表 */}
+              <div style={{ maxHeight: 420, overflowY: "auto", display: "flex", flexDirection: "column", gap: 12, paddingRight: 4 }}>
+                {modalStats.groupDetails.map(gd => {
+                  const isCleared = gd.isCleared;
+                  const inProgress = !isCleared && gd.completedSubLevels > 0;
+
                   return (
-                    <div key={groupKey} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", borderBottom: `1px solid ${C.borderLight}` }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{gName}</span>
-                      <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                        <span style={{ color: "#E8A040", fontSize: 14 }}>{"⭐".repeat(data.stars || 0)}</span>
-                        <span style={{ fontSize: 12, color: C.muted }}>得分: {data.score || 0}</span>
+                    <div
+                      key={gd.groupKey}
+                      style={{
+                        background: C.card,
+                        border: `1.5px solid ${isCleared ? "rgba(34, 197, 94, 0.45)" : inProgress ? "rgba(234, 179, 8, 0.45)" : C.border}`,
+                        borderRadius: 14,
+                        padding: "14px 16px",
+                        boxShadow: "0 2px 8px rgba(0,0,0,0.02)"
+                      }}
+                    >
+                      {/* 大关卡头部 */}
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 6 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                          <span style={{ fontSize: 11, fontWeight: 900, background: C.bg, color: C.muted, padding: "2px 6px", borderRadius: 6, border: `1px solid ${C.borderLight}` }}>
+                            LEVEL {gd.groupIndex}
+                          </span>
+                          <span style={{ fontSize: 15, fontWeight: 900, color: C.text }}>
+                            {gd.groupName}
+                          </span>
+                          <span style={{ fontSize: 12, color: C.muted }}>
+                            (共 {gd.wordCount} 词 · 划分 {gd.totalSubLevels} 小关)
+                          </span>
+                        </div>
+
+                        <div>
+                          {isCleared ? (
+                            <span style={{
+                              background: "rgba(34, 197, 94, 0.15)",
+                              color: "#22c55e",
+                              border: "1px solid rgba(34, 197, 94, 0.3)",
+                              padding: "3px 10px",
+                              borderRadius: 20,
+                              fontWeight: 800,
+                              fontSize: 12,
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 4
+                            }}>
+                              ✅ 已全通 · {"⭐".repeat(gd.stars || 1)} ({gd.score}分)
+                            </span>
+                          ) : inProgress ? (
+                            <span style={{
+                              background: "rgba(234, 179, 8, 0.15)",
+                              color: "#eab308",
+                              border: "1px solid rgba(234, 179, 8, 0.3)",
+                              padding: "3px 10px",
+                              borderRadius: 20,
+                              fontWeight: 800,
+                              fontSize: 12,
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 4
+                            }}>
+                              ⏳ 进行中 (已通关 {gd.completedSubLevels}/{gd.totalSubLevels} 小关)
+                            </span>
+                          ) : (
+                            <span style={{ color: C.hint, fontSize: 12, fontStyle: "italic" }}>
+                              ⚪ 尚未挑战
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* 小关卡节点网格 */}
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: 10 }}>
+                        {gd.subLevels.map(sub => {
+                          const isSubPassed = sub.isPassed;
+                          const isSubAttempted = !isSubPassed && (sub.attempts > 0 || sub.score > 0);
+
+                          return (
+                            <div
+                              key={sub.index}
+                              style={{
+                                background: isSubPassed ? "rgba(34, 197, 94, 0.12)" : isSubAttempted ? "rgba(239, 68, 68, 0.12)" : C.bg,
+                                border: `1.5px solid ${isSubPassed ? "rgba(34, 197, 94, 0.35)" : isSubAttempted ? "rgba(239, 68, 68, 0.35)" : C.borderLight}`,
+                                borderRadius: 10,
+                                padding: "10px 12px",
+                                display: "flex",
+                                flexDirection: "column",
+                                gap: 4
+                              }}
+                            >
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                <span style={{ fontSize: 12, fontWeight: 800, color: isSubPassed ? C.text : isSubAttempted ? C.text : C.muted }}>
+                                  第 {sub.index} 小关
+                                </span>
+                                <span style={{ fontSize: 11, color: isSubPassed ? C.muted : isSubAttempted ? C.muted : C.hint }}>
+                                  {sub.startNum}~{sub.endNum} 词 ({sub.wordCount}词)
+                                </span>
+                              </div>
+
+                              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 4 }}>
+                                {isSubPassed ? (
+                                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                                    <span style={{ fontSize: 16 }}>
+                                      {sub.medal === "gold" ? "🏆" : sub.medal === "silver" ? "🏅" : "🥉"}
+                                    </span>
+                                    <span style={{ fontSize: 14, fontWeight: 900, color: "#22c55e" }}>
+                                      {sub.score} 分
+                                    </span>
+                                  </div>
+                                ) : isSubAttempted ? (
+                                  <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                                    <span style={{ fontSize: 11, fontWeight: 800, color: "#ef4444" }}>
+                                      ⚠️ {sub.score} 分 (需≥{tagPassingScore}分)
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <span style={{ fontSize: 11, color: C.hint }}>🔒 待挑战</span>
+                                )}
+
+                                {sub.attempts > 0 && (
+                                  <span style={{ fontSize: 10, color: C.muted }}>
+                                    尝试 {sub.attempts} 次
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   );
-                })
-              ) : (
-                <div style={{ color: C.hint, textAlign: "center", padding: 20 }}>暂无通关记录</div>
-              )}
+                })}
+              </div>
+
+              {/* 底部按钮 */}
+              <div style={{ textAlign: "right", borderTop: `1px solid ${C.borderLight}`, paddingTop: 14 }}>
+                <button onClick={() => setViewProgressStudent(null)} style={sBtn(C.primary, "#fff", { fontWeight: 700 })}>
+                  完成并关闭
+                </button>
+              </div>
             </div>
-            <div style={{ textAlign: "right", marginTop: 20, borderTop: `1px solid ${C.borderLight}`, paddingTop: 14 }}>
-              <button onClick={() => setViewProgressStudent(null)} style={sBtn(C.primary, "#fff")}>确定</button>
-            </div>
-          </div>
-        </Modal>
-      )}
+          </Modal>
+        );
+      })()}
 
       {/* 单人分配关卡 Modal */}
       {assignStudentWords && (
@@ -4179,7 +5139,7 @@ function StudentsMode({ students, setStudents, pushStudents, pullStudents, syncM
             <div style={{ fontSize: 13, color: C.muted, marginBottom: 16, lineHeight: 1.5 }}>
               勾选当前学生可以挑战的单词组关卡。未勾选的关卡将在学生端隐去。若全部取消勾选，则默认学生可以挑战所有关卡。
             </div>
-            
+
             <div style={{ display: "flex", flexDirection: "column", gap: 10, maxHeight: 260, overflowY: "auto", border: `1.5px solid ${C.border}`, borderRadius: 10, padding: 12, marginBottom: 18 }}>
               {groups.length > 0 ? (
                 groups.map(g => {
@@ -4204,7 +5164,7 @@ function StudentsMode({ students, setStudents, pushStudents, pullStudents, syncM
                 <div style={{ color: C.hint, textAlign: "center", padding: 10, fontSize: 13 }}>暂无单词关卡</div>
               )}
             </div>
-            
+
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, borderTop: `1px solid ${C.borderLight}`, paddingTop: 14 }}>
               <button onClick={() => setAssignStudentWords(null)} style={sBtn(C.primary, "#fff")}>确定</button>
             </div>
@@ -4233,7 +5193,7 @@ function StudentsMode({ students, setStudents, pushStudents, pullStudents, syncM
                 <option value="C">C级学生</option>
               </select>
             </div>
-            
+
             <div style={{ marginBottom: 16 }}>
               <label style={sLabel}>选择允许挑战的关卡</label>
               <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>
@@ -4268,7 +5228,7 @@ function StudentsMode({ students, setStudents, pushStudents, pullStudents, syncM
                 )}
               </div>
             </div>
-            
+
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, borderTop: `1px solid ${C.borderLight}`, paddingTop: 14 }}>
               <button onClick={() => setBatchAssignOpen(false)} style={sBtn(C.bg, C.muted)}>取消</button>
               <button onClick={handleApplyBatchAssign} style={sBtn(C.primary, "#fff", { fontWeight: 700 })}>确认批量应用</button>
@@ -4317,7 +5277,7 @@ function App() {
       }
     }
   }, []);
-  
+
   const pullStudentsList = useCallback(async () => {
     const activeGroupId = groupIdRef.current || groupId;
     const studentsGroupId = sanitizeGroupId(activeGroupId);
@@ -4552,7 +5512,7 @@ function App() {
   }, []);
   const applyPayloadToState = useCallback((groupIdValue, payload, { message, status = "synced", loading = false, error = "" } = {}) => {
     const normalized = normalizeSyncPayload(payload, groupIdValue);
-    
+
     // Merge local and remote tombstones to prevent overwriting deletions
     const localT = tombstonesRef.current || { groups: {}, words: {} };
     const remoteT = normalized.tombstones || { groups: {}, words: {} };
@@ -4814,11 +5774,11 @@ function App() {
           setGroups(hydrated.groups);
           setCategories(hydrated.categories);
           setTombstones(hydrated.tombstones);
-          
+
           const savedLastGid = localStorage.getItem("classtango_last_uploaded_" + resolvedGroupId);
           const hasSavedGroup = savedLastGid && hydrated.groups.some(g => g.id === savedLastGid);
           setCurGid(hasSavedGroup ? savedLastGid : (hydrated.groups[0]?.id || null));
-          
+
           setReady(true);
           setSyncMeta({
             loading:true,
@@ -4840,11 +5800,11 @@ function App() {
         setGroups(normalized.groups);
         setCategories(normalized.categories);
         setTombstones(normalized.tombstones);
-        
+
         const savedLastGid = localStorage.getItem("classtango_last_uploaded_" + resolvedGroupId);
         const hasSavedGroup = savedLastGid && normalized.groups.some(g => g.id === savedLastGid);
         setCurGid(hasSavedGroup ? savedLastGid : (normalized.groups[0]?.id || null));
-        
+
         setReady(true);
         storage.save(resolvedGroupId, normalized);
         setSyncMeta({
@@ -5136,6 +6096,8 @@ function App() {
         effectiveCount,
         pct,
         allMeaningShown,
+        autoPlayAudio,
+        setAutoPlayAudio,
         goPage,
         chooseCount,
         revealMeaningsForCurrentPage,
@@ -5282,7 +6244,7 @@ function App() {
                     top: 0
                   }}
                 />
-                
+
                 <div
                   style={{
                     position: "absolute",
@@ -5363,6 +6325,22 @@ function App() {
                 );
               })}
             </div>
+
+            <button
+              onClick={() => setAutoPlayAudio(prev => !prev)}
+              title="翻页时自动朗读当前页单词发音"
+              style={sBtnSm(autoPlayAudio ? appC.primaryLight : appC.bg, autoPlayAudio ? appC.primary : appC.muted, {
+                ...bottomBtnBase,
+                border: `1.5px solid ${autoPlayAudio ? appC.primary : appC.border}`,
+                fontWeight: 800,
+                fontSize: 12,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4
+              })}
+            >
+              <span>{autoPlayAudio ? "🔊 自动朗读: 开" : "🔈 自动朗读: 关"}</span>
+            </button>
 
             <button
               onClick={allMeaningShown ? startQuiz : revealMeaningsForCurrentPage}
@@ -5893,7 +6871,7 @@ function App() {
             >
               <span>⚙️ 更多</span>
             </button>
-            
+
             {showMoreMenu && (
               <>
                 <div style={{ position: "fixed", top: 0, right: 0, bottom: 0, left: 0, zIndex: 1010 }} onClick={() => setShowMoreMenu(false)} />
