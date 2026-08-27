@@ -3791,16 +3791,29 @@ function PracticeMode({ groups, gid: curGid, chalkboardMode, onPracticeStateChan
 function StudentsMode({ students, setStudents, pushStudents, pullStudents, syncMeta, groups, challengePassingScores, saveChallengePassingScores, challengeCycle, saveChallengeCycle, themeC }) {
   const C = themeC;
   const [importOpen, setImportOpen] = useState(false);
+  const [importTab, setImportTab] = useState("manual"); // "manual" | "batch"
   const [pasteText, setPasteText] = useState("");
   const [importDraft, setImportDraft] = useState([]);
   const [editingStudentId, setEditingStudentId] = useState(null);
   const [editPasswordVal, setEditPasswordVal] = useState("");
   const [viewProgressStudent, setViewProgressStudent] = useState(null);
 
+  // 手动录入单人表单状态
+  const [manualForm, setManualForm] = useState({
+    campus: "",
+    grade: "",
+    className: "",
+    name: "",
+    tag: "B",
+    customUsername: "",
+    password: ""
+  });
+  const [lastAddedStudent, setLastAddedStudent] = useState(null);
+
   // 关卡分层与等级标签相关状态
   const [assignStudentWords, setAssignStudentWords] = useState(null);
   const [batchAssignOpen, setBatchAssignOpen] = useState(false);
-  const [batchTargetTag, setBatchTargetTag] = useState("A");
+  const [batchTargetTag, setBatchTargetTag] = useState("ALL");
   const [batchSelectedGroups, setBatchSelectedGroups] = useState([]);
   const [passingScoreSettingsOpen, setPassingScoreSettingsOpen] = useState(false);
   const [passingScoreDraft, setPassingScoreDraft] = useState(() => ({
@@ -3868,19 +3881,6 @@ function StudentsMode({ students, setStudents, pushStudents, pullStudents, syncM
     });
   };
 
-  const handleApplyBatchAssign = () => {
-    if (!batchTargetTag) return;
-    const nextList = students.map(s => {
-      if (s.tag === batchTargetTag) {
-        return { ...s, assignedGroups: [...batchSelectedGroups] };
-      }
-      return s;
-    });
-    pushStudents(nextList);
-    setBatchAssignOpen(false);
-    alert(`已将选中的 ${batchSelectedGroups.length} 个单词关卡批量应用给所有 ${batchTargetTag} 级学生！`);
-  };
-
   // 文件夹折叠与分类状态
   const [selectedPath, setSelectedPath] = useState({ type: "all" });
   const [expandedNodes, setExpandedNodes] = useState({});
@@ -3934,6 +3934,49 @@ function StudentsMode({ students, setStudents, pushStudents, pullStudents, syncM
     });
   }, [students, selectedPath]);
 
+  // 当前浏览范围描述
+  const currentScopeDescription = useMemo(() => {
+    if (!selectedPath || selectedPath.type === "all") return "全部校区 · 全部班级";
+    if (selectedPath.type === "campus") return `${selectedPath.campus}校区`;
+    if (selectedPath.type === "grade") return `${selectedPath.campus}校区 · ${selectedPath.grade}级`;
+    if (selectedPath.type === "class") return `${selectedPath.campus}校区 · ${selectedPath.grade}级 · ${selectedPath.className}班`;
+    return "当前浏览分类";
+  }, [selectedPath]);
+
+  // 当前浏览范围内匹配目标标签的学生
+  const batchMatchingStudents = useMemo(() => {
+    if (batchTargetTag === "ALL") return filteredStudents;
+    if (batchTargetTag === "UNTAGGED") return filteredStudents.filter(s => !s.tag);
+    return filteredStudents.filter(s => s.tag === batchTargetTag);
+  }, [filteredStudents, batchTargetTag]);
+
+  // 按等级标签批量分配关卡（仅对当前浏览范围内的学生生效）
+  const handleApplyBatchAssign = () => {
+    if (!batchTargetTag) return;
+    const tagLabel = batchTargetTag === "ALL"
+      ? "全部学生"
+      : batchTargetTag === "UNTAGGED"
+      ? "未分级学生"
+      : `${batchTargetTag} 级学生`;
+
+    if (batchMatchingStudents.length === 0) {
+      alert(`当前浏览范围【${currentScopeDescription}】下没有找到 ${tagLabel}！`);
+      return;
+    }
+
+    const targetIds = new Set(batchMatchingStudents.map(s => s.id));
+    const nextList = students.map(s => {
+      if (targetIds.has(s.id)) {
+        return { ...s, assignedGroups: [...batchSelectedGroups] };
+      }
+      return s;
+    });
+
+    pushStudents(nextList);
+    setBatchAssignOpen(false);
+    alert(`✅ 已成功将选中的 ${batchSelectedGroups.length} 个单词关卡分配给【${currentScopeDescription}】下的 ${batchMatchingStudents.length} 位【${tagLabel}】！`);
+  };
+
   const handleParsePaste = () => {
     const lines = pasteText.split("\n").map(l => l.trim()).filter(Boolean);
     const draft = [];
@@ -3942,7 +3985,7 @@ function StudentsMode({ students, setStudents, pushStudents, pullStudents, syncM
       const cols = line.split(/\t|\s{2,}/).map(c => c.trim()).filter(Boolean);
       if (cols.length >= 4) {
         const [campus, name, grade, className, tagVal] = cols;
-        const tag = (tagVal && ["A", "B", "C"].includes(tagVal.toUpperCase())) ? tagVal.toUpperCase() : "";
+        const tag = (tagVal && ["A", "B", "C"].includes(tagVal.toUpperCase())) ? tagVal.toUpperCase() : "B";
         const classKey = makeClassKey(campus, grade, className);
         classCounters[classKey] = (classCounters[classKey] || 0) + 1;
         const username = makeUsername(campus, name, grade, className, classCounters[classKey]);
@@ -3991,6 +4034,82 @@ function StudentsMode({ students, setStudents, pushStudents, pullStudents, syncM
     setImportDraft(nextDraft);
   };
 
+  // 提取当前已有的校区、年级、班级选项（供手动录入快速选择与智能联想）
+  const existingCampuses = useMemo(() => Array.from(new Set(students.map(s => s.campus).filter(Boolean))), [students]);
+  const existingGrades = useMemo(() => Array.from(new Set(students.map(s => s.grade).filter(Boolean))), [students]);
+  const existingClasses = useMemo(() => Array.from(new Set(students.map(s => s.class_name).filter(Boolean))), [students]);
+
+  // 打开导入/添加弹窗
+  const openImportModal = (tab = "manual") => {
+    setImportTab(tab);
+    setManualForm(prev => ({
+      campus: prev.campus || (selectedPath.type === "campus" || selectedPath.type === "grade" || selectedPath.type === "class" ? selectedPath.campus : (existingCampuses[0] || "师上")),
+      grade: prev.grade || (selectedPath.type === "grade" || selectedPath.type === "class" ? selectedPath.grade : (existingGrades[0] || "2024")),
+      className: prev.className || (selectedPath.type === "class" ? selectedPath.className : (existingClasses[0] || "B")),
+      name: "",
+      tag: prev.tag || "B",
+      customUsername: "",
+      password: ""
+    }));
+    setLastAddedStudent(null);
+    setImportOpen(true);
+  };
+
+  // 智能自动推荐登录账号
+  const autoSuggestedUsername = useMemo(() => {
+    const campus = manualForm.campus.trim();
+    const name = manualForm.name.trim();
+    const grade = manualForm.grade.trim();
+    const className = manualForm.className.trim();
+    if (!name || !campus) return "";
+    const classKey = makeClassKey(campus, grade, className);
+    const existingInClass = students.filter(s => makeClassKey(s.campus, s.grade, s.class_name) === classKey).length;
+    return makeUsername(campus, name, grade, className, existingInClass + 1);
+  }, [manualForm.campus, manualForm.name, manualForm.grade, manualForm.className, students]);
+
+  // 手动录入并直接添加单个学生
+  const handleAddSingleStudent = (e) => {
+    if (e) e.preventDefault();
+    const name = manualForm.name.trim();
+    if (!name) {
+      alert("请输入学生姓名！");
+      return;
+    }
+    const campus = manualForm.campus.trim() || "未设校区";
+    const grade = manualForm.grade.trim() || "未设年级";
+    const className = manualForm.className.trim() || "未设班级";
+    const tag = manualForm.tag || "B";
+    const baseUsername = manualForm.customUsername.trim() || autoSuggestedUsername || "student";
+
+    const seen = new Set(students.map(s => String(s.username).toLowerCase()));
+    const finalUsername = ensureUniqueUsername(baseUsername, seen);
+
+    const newStudent = {
+      id: gid(),
+      name,
+      campus,
+      grade,
+      class_name: className,
+      username: finalUsername,
+      password: manualForm.password.trim(),
+      tag,
+      assignedGroups: [],
+      progress: {}
+    };
+
+    const nextList = [...students, newStudent];
+    pushStudents(nextList);
+    setLastAddedStudent(newStudent);
+
+    // 清空姓名与自定义账号，保留校区、年级、班级方便继续录入下一位
+    setManualForm(prev => ({
+      ...prev,
+      name: "",
+      customUsername: "",
+      password: ""
+    }));
+  };
+
   const handleDeleteStudent = (id, name) => {
     if (window.confirm(`确定删除学生 "${name}" 吗？该生的所有闯关记录也会一同被清除。`)) {
       const nextList = students.filter(s => s.id !== id);
@@ -4037,11 +4156,23 @@ function StudentsMode({ students, setStudents, pushStudents, pullStudents, syncM
     return { start, end: start + size, total: count };
   };
 
-  // 严谨全面的学生关卡统计与判定函数
+  // 严谨全面的学生关卡统计与判定函数（严格仅统计分配给该学生的关卡）
   const getStudentDetailedStats = (student) => {
     const progress = student?.progress || {};
     const gameProfile = student?.gameProfile || {};
     const chapterRecords = gameProfile?.chapterRecords || {};
+
+    const isCustomAssigned = Array.isArray(student?.assignedGroups) && student.assignedGroups.length > 0;
+    const assignedKeysSet = isCustomAssigned
+      ? new Set(student.assignedGroups.map(k => String(k || "").trim().toLowerCase()))
+      : null;
+
+    const isGroupAssignedToStudent = (g) => {
+      if (!assignedKeysSet) return true; // 若未单独限定分配，则默认全量
+      const gId = String(g.id || "").trim().toLowerCase();
+      const gName = String(g.name || "").trim().toLowerCase();
+      return assignedKeysSet.has(gId) || assignedKeysSet.has(gName);
+    };
 
     let completedGroupsCount = 0;
     let inProgressGroupsCount = 0;
@@ -4052,13 +4183,16 @@ function StudentsMode({ students, setStudents, pushStudents, pullStudents, syncM
     let silverMedalCount = 0;
     let bronzeMedalCount = 0;
 
-    const groupDetails = (groups || []).map((g, idx) => {
+    const allGroupDetailsMap = {};
+    const assignedGroupDetails = [];
+
+    (groups || []).forEach((g, idx) => {
       const key = g.id || g.name;
+      const isAssigned = isGroupAssignedToStudent(g);
       const prog = progress[key] || {};
       const activeWords = (g.words || []).filter(w => !w.hidden);
       const expectedTotalSub = getSubLevelCount(activeWords.length) || 1;
       const actualTotalSub = Math.max(Number(prog.totalSubLevels) || 0, expectedTotalSub);
-      totalPossibleSubLevels += actualTotalSub;
 
       const subLevelsMap = prog.subLevelsCleared || {};
       let passedSubInGroup = 0;
@@ -4077,10 +4211,12 @@ function StudentsMode({ students, setStudents, pushStudents, pullStudents, syncM
 
         if (isPassed) {
           passedSubInGroup++;
-          totalPassedSubLevels++;
-          if (bestMedal === "gold") goldMedalCount++;
-          else if (bestMedal === "silver") silverMedalCount++;
-          else if (bestMedal === "bronze") bronzeMedalCount++;
+          if (isAssigned) {
+            totalPassedSubLevels++;
+            if (bestMedal === "gold") goldMedalCount++;
+            else if (bestMedal === "silver") silverMedalCount++;
+            else if (bestMedal === "bronze") bronzeMedalCount++;
+          }
         }
 
         subLevelsList.push({
@@ -4101,7 +4237,6 @@ function StudentsMode({ students, setStudents, pushStudents, pullStudents, syncM
 
       let calculatedStars = 0;
       if (isCleared) {
-        completedGroupsCount++;
         if (typeof prog.stars === "number" && prog.stars > 0) {
           calculatedStars = prog.stars;
         } else {
@@ -4109,26 +4244,42 @@ function StudentsMode({ students, setStudents, pushStudents, pullStudents, syncM
           const avgScore = subLevelsList.reduce((sum, s) => sum + s.score, 0) / (subLevelsList.length || 1);
           calculatedStars = allGold ? 3 : (avgScore >= 80 ? 2 : 1);
         }
-        totalStars += calculatedStars;
-      } else if (completedSub > 0) {
-        inProgressGroupsCount++;
       }
 
-      return {
+      if (isAssigned) {
+        totalPossibleSubLevels += actualTotalSub;
+        if (isCleared) {
+          completedGroupsCount++;
+          totalStars += calculatedStars;
+        } else if (completedSub > 0) {
+          inProgressGroupsCount++;
+        }
+      }
+
+      const gdItem = {
         groupKey: key,
         groupName: g.name,
         groupIndex: idx + 1,
         wordCount: activeWords.length,
         totalSubLevels: actualTotalSub,
         completedSubLevels: completedSub,
+        isAssigned,
         isCleared,
         stars: calculatedStars,
         score: prog.score || (subLevelsList.length ? Math.round(subLevelsList.reduce((s, x) => s + x.score, 0) / subLevelsList.length) : 0),
         subLevels: subLevelsList
       };
+
+      allGroupDetailsMap[key] = gdItem;
+      if (isAssigned) {
+        assignedGroupDetails.push(gdItem);
+      }
     });
 
+    const targetGroupsCount = assignedGroupDetails.length;
+
     return {
+      targetGroupsCount,
       completedGroupsCount,
       inProgressGroupsCount,
       totalStars,
@@ -4137,7 +4288,8 @@ function StudentsMode({ students, setStudents, pushStudents, pullStudents, syncM
       goldMedalCount,
       silverMedalCount,
       bronzeMedalCount,
-      groupDetails,
+      groupDetails: assignedGroupDetails,
+      allGroupDetailsMap,
       hasAnyProgress: totalPassedSubLevels > 0 || completedGroupsCount > 0 || inProgressGroupsCount > 0
     };
   };
@@ -4370,7 +4522,7 @@ function StudentsMode({ students, setStudents, pushStudents, pullStudents, syncM
           <button onClick={() => { setCycleDraft(challengeCycle); setCycleSettingsOpen(true); }} style={sBtnSm(C.greenLight, C.green, { fontWeight: 700 })}>🗺️ 设置周期任务</button>
           <button onClick={openPassingScoreSettings} style={sBtnSm(C.blueLight, C.blue, { fontWeight: 700 })}>🎯 设置通关达标分</button>
           <button onClick={() => { setBatchSelectedGroups([]); setBatchAssignOpen(true); }} style={sBtnSm(C.bg, C.text, { border: `1.5px solid ${C.border}`, fontWeight: 700 })}>🏷️ 按标签批量分配</button>
-          <button onClick={() => setImportOpen(true)} style={sBtnSm(C.primary, "#fff", { fontWeight: 700 })}>📥 导入学生名单</button>
+          <button onClick={() => openImportModal("manual")} style={sBtnSm(C.primary, "#fff", { fontWeight: 700 })}>📥 导入 / 添加学生</button>
         </div>
       </div>
 
@@ -4665,7 +4817,7 @@ function StudentsMode({ students, setStudents, pushStudents, pullStudents, syncM
                                 position: "sticky",
                                 left: 140,
                                 zIndex: 10,
-                                background: "#fff",
+                                background: C.card,
                                 padding: "10px 8px",
                                 borderBottom: `1px solid ${C.borderLight}`,
                                 borderRight: `1.5px solid ${C.border}`,
@@ -4673,26 +4825,51 @@ function StudentsMode({ students, setStudents, pushStudents, pullStudents, syncM
                                 cursor: "pointer"
                               }}
                             >
-                              {stats.completedGroupsCount > 0 ? (
-                                <div style={{ fontSize: 12, fontWeight: 800, color: "#15803d" }}>
-                                  🏆 {stats.completedGroupsCount} / {groups.length}
-                                </div>
+                              {stats.targetGroupsCount > 0 ? (
+                                stats.completedGroupsCount > 0 ? (
+                                  <div style={{ fontSize: 12, fontWeight: 900, color: "#22c55e" }}>
+                                    🏆 {stats.completedGroupsCount} / {stats.targetGroupsCount}
+                                  </div>
+                                ) : (
+                                  <div style={{ fontSize: 12, color: C.muted }}>0 / {stats.targetGroupsCount}</div>
+                                )
                               ) : (
-                                <div style={{ fontSize: 12, color: C.muted }}>0 / {groups.length}</div>
+                                <div style={{ fontSize: 11, color: C.hint }}>未分配</div>
                               )}
-                              <div style={{ fontSize: 10, color: "#E8A040", fontWeight: 700 }}>
+                              <div style={{ fontSize: 11, color: "#EAB308", fontWeight: 800, marginTop: 2 }}>
                                 {stats.totalStars > 0 ? `${stats.totalStars} ⭐` : "-"}
                               </div>
                             </td>
 
                             {/* 各关卡矩阵单元格 */}
-                            {stats.groupDetails.map(gd => {
+                            {groups.map(g => {
+                              const gKey = g.id || g.name;
+                              const gd = stats.allGroupDetailsMap?.[gKey];
+
+                              if (!gd || !gd.isAssigned) {
+                                return (
+                                  <td
+                                    key={gKey}
+                                    style={{
+                                      padding: "8px 10px",
+                                      borderBottom: `1px solid ${C.borderLight}`,
+                                      borderRight: `1px solid ${C.borderLight}`,
+                                      color: C.hint,
+                                      fontSize: 12
+                                    }}
+                                    title={`${s.name} - ${g.name}：未分配此关卡`}
+                                  >
+                                    <span style={{ opacity: 0.35 }}>—</span>
+                                  </td>
+                                );
+                              }
+
                               const isCleared = gd.isCleared;
                               const inProgress = !isCleared && gd.completedSubLevels > 0;
 
                               return (
                                 <td
-                                  key={gd.groupKey}
+                                  key={gKey}
                                   onClick={() => setViewProgressStudent(s)}
                                   style={{
                                     padding: "8px 10px",
@@ -4707,19 +4884,19 @@ function StudentsMode({ students, setStudents, pushStudents, pullStudents, syncM
                                       : "transparent"
                                   }}
                                   onMouseEnter={e => {
-                                    e.currentTarget.style.opacity = "0.8";
+                                    e.currentTarget.style.filter = "brightness(1.15)";
                                   }}
                                   onMouseLeave={e => {
-                                    e.currentTarget.style.opacity = "1";
+                                    e.currentTarget.style.filter = "none";
                                   }}
                                   title={`${s.name} - ${gd.groupName}：${isCleared ? `已全通 (${gd.stars}星 · ${gd.score}分)` : inProgress ? `进行中 (${gd.completedSubLevels}/${gd.totalSubLevels}小关)` : "未开始"}`}
                                 >
                                   {isCleared ? (
                                     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
-                                      <div style={{ fontSize: 13, fontWeight: 900, color: "#15803d" }}>
+                                      <div style={{ fontSize: 13, fontWeight: 900, color: "#22c55e" }}>
                                         {gd.stars === 3 ? "🏆 3⭐" : gd.stars === 2 ? "🏅 2⭐" : "🥉 1⭐"}
                                       </div>
-                                      <div style={{ fontSize: 10, color: "#166534", fontWeight: 700 }}>
+                                      <div style={{ fontSize: 11, color: C.muted, fontWeight: 700 }}>
                                         {gd.score}分
                                       </div>
                                     </div>
@@ -4728,16 +4905,17 @@ function StudentsMode({ students, setStudents, pushStudents, pullStudents, syncM
                                       <span style={{
                                         fontSize: 11,
                                         fontWeight: 800,
-                                        color: "#a16207",
-                                        background: "rgba(234, 179, 8, 0.2)",
-                                        padding: "1px 6px",
+                                        color: "#eab308",
+                                        background: "rgba(234, 179, 8, 0.18)",
+                                        border: "1px solid rgba(234, 179, 8, 0.3)",
+                                        padding: "2px 6px",
                                         borderRadius: 6
                                       }}>
                                         ⏳ {gd.completedSubLevels}/{gd.totalSubLevels}
                                       </span>
                                     </div>
                                   ) : (
-                                    <span style={{ color: "#CBD5E1", fontSize: 13 }}>⚪</span>
+                                    <span style={{ color: C.hint, fontSize: 13 }}>⚪</span>
                                   )}
                                 </td>
                               );
@@ -4761,68 +4939,255 @@ function StudentsMode({ students, setStudents, pushStudents, pullStudents, syncM
 
       </div>
 
-      <Modal open={importOpen} onClose={() => setImportOpen(false)} title="导入学生名单" wide themeC={C}>
+      <Modal open={importOpen} onClose={() => setImportOpen(false)} title="📥 导入与添加学生" wide themeC={C}>
         <div>
-          <div style={{ background: C.bg, borderRadius: 10, padding: "12px 14px", fontSize: 13, color: C.muted, lineHeight: 1.6, marginBottom: 16 }}>
-            💡 <strong>导入格式指南：</strong><br />
-            请打开包含学生信息的 Excel，<strong>依次复制『 校区、姓名、年级、班级、等级标签（可选填 A/B/C） 』数据</strong>，然后在下方粘贴。<br />
-            每一行代表一位学生（例如：<code>师上  张三  2024  B  A</code> 或 <code>师上  李四  2024  B</code>）。系统会按班级内导入顺序生成账号，格式为 <strong>校区简拼 + 年级 + 班级 + 序号 + 姓名首字母</strong>，如 <code>ss2024b01zs</code>，并自动识别初始等级。
+          {/* 模式切换 Tab 胶囊 */}
+          <div style={{ display: "flex", gap: 8, marginBottom: 16, background: C.bg, padding: 4, borderRadius: 10, border: `1px solid ${C.borderLight}` }}>
+            <button
+              onClick={() => setImportTab("manual")}
+              style={{
+                flex: 1,
+                padding: "8px 16px",
+                borderRadius: 8,
+                border: "none",
+                cursor: "pointer",
+                fontWeight: 800,
+                fontSize: 13,
+                background: importTab === "manual" ? C.card : "transparent",
+                color: importTab === "manual" ? C.primary : C.muted,
+                boxShadow: importTab === "manual" ? "0 2px 8px rgba(0,0,0,0.06)" : "none",
+                transition: "all 0.15s ease"
+              }}
+            >
+              ⌨️ 键盘手动录入（单个 / 插班生快捷添加）
+            </button>
+            <button
+              onClick={() => setImportTab("batch")}
+              style={{
+                flex: 1,
+                padding: "8px 16px",
+                borderRadius: 8,
+                border: "none",
+                cursor: "pointer",
+                fontWeight: 800,
+                fontSize: 13,
+                background: importTab === "batch" ? C.card : "transparent",
+                color: importTab === "batch" ? C.primary : C.muted,
+                boxShadow: importTab === "batch" ? "0 2px 8px rgba(0,0,0,0.06)" : "none",
+                transition: "all 0.15s ease"
+              }}
+            >
+              📋 Excel 批量粘贴导入（全班大批量）
+            </button>
           </div>
 
-          <textarea
-            value={pasteText}
-            onChange={e => setPasteText(e.target.value)}
-            placeholder="请在此粘贴 Excel 中的数据..."
-            style={{ width: "100%", height: 160, padding: 12, fontSize: 13, border: `1.5px solid ${C.border}`, borderRadius: 10, outline: "none", background: "#fff", color: "#000", fontFamily: "monospace", resize: "vertical", marginBottom: 14 }}
-          />
+          {/* Datalist 快捷联想 */}
+          <datalist id="campus-options">
+            {existingCampuses.map(c => <option key={c} value={c} />)}
+          </datalist>
+          <datalist id="grade-options">
+            {existingGrades.map(g => <option key={g} value={g} />)}
+          </datalist>
+          <datalist id="class-options">
+            {existingClasses.map(cl => <option key={cl} value={cl} />)}
+          </datalist>
 
-          <button onClick={handleParsePaste} style={sBtnSm(C.primaryLight, C.primary, { fontWeight: 800, padding: "8px 16px", marginBottom: 16 })}>⚡ 解析数据并生成账号</button>
+          {importTab === "manual" ? (
+            /* ===== 模式一：键盘手动录入单人 ===== */
+            <form onSubmit={handleAddSingleStudent} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div style={{ background: C.bg, borderRadius: 10, padding: "12px 14px", fontSize: 13, color: C.muted, lineHeight: 1.6, border: `1px solid ${C.borderLight}` }}>
+                💡 <strong>极速添加学生：</strong> 输入学生信息后点击『确认添加』或直接在输入框按 <strong>Enter 回车</strong> 即可秒级完成入库！校区、年级与班级会自动保留，方便连续录入多位学生。
+              </div>
 
-          {importDraft.length > 0 && (
-            <div style={{ marginBottom: 18 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 8 }}>解析预览（共 {importDraft.length} 人，账号可手动修正）：</div>
-              <div style={{ maxHeight: 200, overflowY: "auto", border: `1.5px solid ${C.border}`, borderRadius: 10 }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-                  <thead>
-                    <tr style={{ background: C.bg, borderBottom: `1.5px solid ${C.border}` }}>
-                      {["校区", "姓名", "年级", "班级", "等级", "系统自动生成账号"].map(h => (
-                        <th key={h} style={{ padding: "8px 12px", color: C.muted, textAlign: "left" }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {importDraft.map((item, idx) => (
-                      <tr key={item.id} style={{ borderBottom: `1px solid ${C.borderLight}` }}>
-                        <td style={{ padding: "8px 12px" }}>{item.campus}</td>
-                        <td style={{ padding: "8px 12px", fontWeight: 700 }}>{item.name}</td>
-                        <td style={{ padding: "8px 12px" }}>{item.grade}级</td>
-                        <td style={{ padding: "8px 12px" }}>{item.class_name}班</td>
-                        <td style={{ padding: "8px 12px" }}>{item.tag ? `${item.tag}级` : "无"}</td>
-                        <td style={{ padding: "6px 12px" }}>
-                          <input
-                            type="text"
-                            value={item.username}
-                            onChange={e => handleUpdateDraftUsername(idx, e.target.value)}
-                            style={{ padding: "4px 8px", fontSize: 12, border: `1.5px solid ${C.border}`, borderRadius: 6, width: 140, outline: "none", fontFamily: "monospace" }}
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              {/* 第一行：校区、年级、班级 */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+                <div>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: C.muted, marginBottom: 6 }}>校区名称</label>
+                  <input
+                    type="text"
+                    list="campus-options"
+                    value={manualForm.campus}
+                    onChange={e => setManualForm({ ...manualForm, campus: e.target.value })}
+                    placeholder="如: 师上"
+                    style={{ width: "100%", padding: "8px 12px", fontSize: 13, border: `1.5px solid ${C.border}`, borderRadius: 8, outline: "none", background: C.bg, color: C.text }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: C.muted, marginBottom: 6 }}>年级</label>
+                  <input
+                    type="text"
+                    list="grade-options"
+                    value={manualForm.grade}
+                    onChange={e => setManualForm({ ...manualForm, grade: e.target.value })}
+                    placeholder="如: 2024"
+                    style={{ width: "100%", padding: "8px 12px", fontSize: 13, border: `1.5px solid ${C.border}`, borderRadius: 8, outline: "none", background: C.bg, color: C.text }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: C.muted, marginBottom: 6 }}>班级</label>
+                  <input
+                    type="text"
+                    list="class-options"
+                    value={manualForm.className}
+                    onChange={e => setManualForm({ ...manualForm, className: e.target.value })}
+                    placeholder="如: B 或 1"
+                    style={{ width: "100%", padding: "8px 12px", fontSize: 13, border: `1.5px solid ${C.border}`, borderRadius: 8, outline: "none", background: C.bg, color: C.text }}
+                  />
+                </div>
+              </div>
+
+              {/* 第二行：姓名、等级标签、初始密码 */}
+              <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr 1fr", gap: 12 }}>
+                <div>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: C.primary, marginBottom: 6 }}>
+                    学生姓名 <span style={{ color: C.primary }}>* (必填)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={manualForm.name}
+                    onChange={e => setManualForm({ ...manualForm, name: e.target.value })}
+                    placeholder="请输入学生姓名，如：张三"
+                    autoFocus
+                    style={{ width: "100%", padding: "8px 12px", fontSize: 13, border: `1.5px solid ${C.primary}`, borderRadius: 8, outline: "none", background: C.bg, color: C.text, fontWeight: 700 }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: C.muted, marginBottom: 6 }}>等级标签 (达标线)</label>
+                  <select
+                    value={manualForm.tag}
+                    onChange={e => setManualForm({ ...manualForm, tag: e.target.value })}
+                    style={{ width: "100%", padding: "8px 10px", fontSize: 13, border: `1.5px solid ${C.border}`, borderRadius: 8, outline: "none", background: C.bg, color: C.text }}
+                  >
+                    <option value="B">🏷️ B 级学生 (默认推荐 · 稳步 ≥ 80分)</option>
+                    <option value="A">🏷️ A 级学生 (冲刺高分 · 需 ≥ 90分)</option>
+                    <option value="C">🏷️ C 级学生 (起步巩固 · 需 ≥ 60分)</option>
+                    <option value="">(无标签 · 默认达标分)</option>
+                  </select>
+                </div>
+                <div>
+                  <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: C.muted, marginBottom: 6 }}>登录密码 (可选)</label>
+                  <input
+                    type="text"
+                    value={manualForm.password}
+                    onChange={e => setManualForm({ ...manualForm, password: e.target.value })}
+                    placeholder="留空即学生免密直接登录"
+                    style={{ width: "100%", padding: "8px 12px", fontSize: 13, border: `1.5px solid ${C.border}`, borderRadius: 8, outline: "none", background: C.bg, color: C.text }}
+                  />
+                </div>
+              </div>
+
+              {/* 智能账号生成预览与自定义修改 */}
+              <div style={{ background: C.card, border: `1.5px solid ${C.border}`, borderRadius: 10, padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 12, fontWeight: 700, color: C.muted }}>系统自动分配登录账号:</span>
+                  <span style={{ fontSize: 14, fontWeight: 900, fontFamily: "monospace", color: autoSuggestedUsername ? C.primary : C.hint, background: C.bg, padding: "3px 10px", borderRadius: 6, border: `1px solid ${C.borderLight}` }}>
+                    {manualForm.customUsername || autoSuggestedUsername || "待输入姓名与校区..."}
+                  </span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontSize: 11, color: C.hint }}>自定义账号:</span>
+                  <input
+                    type="text"
+                    value={manualForm.customUsername}
+                    onChange={e => setManualForm({ ...manualForm, customUsername: e.target.value })}
+                    placeholder="如需自定义请输入"
+                    style={{ padding: "4px 8px", fontSize: 12, border: `1px solid ${C.border}`, borderRadius: 6, width: 140, outline: "none", background: C.bg, color: C.text, fontFamily: "monospace" }}
+                  />
+                </div>
+              </div>
+
+              {/* 刚刚添加成功的反馈提示 */}
+              {lastAddedStudent && (
+                <div style={{ background: "rgba(34, 197, 94, 0.12)", border: "1px solid rgba(34, 197, 94, 0.3)", borderRadius: 8, padding: "10px 14px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <span style={{ fontSize: 13, color: "#22c55e", fontWeight: 800 }}>
+                    ✅ 已成功添加学生【{lastAddedStudent.name}】（账号：<code>{lastAddedStudent.username}</code>）到 {lastAddedStudent.campus} · {lastAddedStudent.grade}级 · {lastAddedStudent.class_name}班！
+                  </span>
+                  <span style={{ fontSize: 11, color: C.muted }}>可继续输入下一位</span>
+                </div>
+              )}
+
+              {/* 底部按钮栏 */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: `1px solid ${C.borderLight}`, paddingTop: 16, marginTop: 4 }}>
+                <span style={{ fontSize: 12, color: C.muted }}>
+                  当前系统已有学生总数：<strong style={{ color: C.text }}>{students.length}</strong> 人
+                </span>
+                <div style={{ display: "flex", gap: 10 }}>
+                  <button type="button" onClick={() => setImportOpen(false)} style={sBtn(C.bg, C.muted)}>
+                    完成并关闭
+                  </button>
+                  <button type="submit" style={sBtn(C.primary, "#fff", { fontWeight: 800, padding: "8px 20px" })}>
+                    ➕ 确认添加该学生 (Enter)
+                  </button>
+                </div>
+              </div>
+            </form>
+          ) : (
+            /* ===== 模式二：Excel 批量粘贴导入 ===== */
+            <div>
+              <div style={{ background: C.bg, borderRadius: 10, padding: "12px 14px", fontSize: 13, color: C.muted, lineHeight: 1.6, marginBottom: 16, border: `1px solid ${C.borderLight}` }}>
+                💡 <strong>批量导入格式指南：</strong><br />
+                请打开包含学生信息的 Excel，<strong>依次复制『 校区、姓名、年级、班级、等级标签（可选填 A/B/C） 』数据</strong>，然后在下方粘贴。<br />
+                每一行代表一位学生（例如：<code>师上  张三  2024  B  A</code> 或 <code>师上  李四  2024  B</code>）。系统会按班级内导入顺序自动生成标准规范账号，如 <code>ss2024b01zs</code>。
+              </div>
+
+              <textarea
+                value={pasteText}
+                onChange={e => setPasteText(e.target.value)}
+                placeholder="请在此粘贴 Excel 中的数据..."
+                style={{ width: "100%", height: 160, padding: 12, fontSize: 13, border: `1.5px solid ${C.border}`, borderRadius: 10, outline: "none", background: C.bg, color: C.text, fontFamily: "monospace", resize: "vertical", marginBottom: 14 }}
+              />
+
+              <button type="button" onClick={handleParsePaste} style={sBtnSm(C.primaryLight, C.primary, { fontWeight: 800, padding: "8px 16px", marginBottom: 16 })}>
+                ⚡ 解析数据并生成账号
+              </button>
+
+              {importDraft.length > 0 && (
+                <div style={{ marginBottom: 18 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: C.text, marginBottom: 8 }}>解析预览（共 {importDraft.length} 人，账号可手动修正）：</div>
+                  <div style={{ maxHeight: 200, overflowY: "auto", border: `1.5px solid ${C.border}`, borderRadius: 10 }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                      <thead>
+                        <tr style={{ background: C.bg, borderBottom: `1.5px solid ${C.border}` }}>
+                          {["校区", "姓名", "年级", "班级", "等级", "系统自动生成账号"].map(h => (
+                            <th key={h} style={{ padding: "8px 12px", color: C.muted, textAlign: "left" }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {importDraft.map((item, idx) => (
+                          <tr key={item.id} style={{ borderBottom: `1px solid ${C.borderLight}` }}>
+                            <td style={{ padding: "8px 12px" }}>{item.campus}</td>
+                            <td style={{ padding: "8px 12px", fontWeight: 700, color: C.text }}>{item.name}</td>
+                            <td style={{ padding: "8px 12px" }}>{item.grade}级</td>
+                            <td style={{ padding: "8px 12px" }}>{item.class_name}班</td>
+                            <td style={{ padding: "8px 12px" }}>{item.tag ? `${item.tag}级` : "无"}</td>
+                            <td style={{ padding: "6px 12px" }}>
+                              <input
+                                type="text"
+                                value={item.username}
+                                onChange={e => handleUpdateDraftUsername(idx, e.target.value)}
+                                style={{ padding: "4px 8px", fontSize: 12, border: `1.5px solid ${C.border}`, borderRadius: 6, width: 140, outline: "none", background: C.bg, color: C.text, fontFamily: "monospace" }}
+                              />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, borderTop: `1px solid ${C.borderLight}`, paddingTop: 16 }}>
+                <button type="button" onClick={() => setImportOpen(false)} style={sBtn(C.bg, C.muted)}>取消</button>
+                {importDraft.length > 0 && (
+                  <>
+                    <button type="button" onClick={() => handleConfirmImport("append")} style={sBtn(C.blueLight, C.blue, { fontWeight: 700 })}>➕ 追加到现有列表</button>
+                    <button type="button" onClick={() => handleConfirmImport("replace")} style={sBtn(C.primary, "#fff", { fontWeight: 700 })}>🔄 覆盖现有列表</button>
+                  </>
+                )}
               </div>
             </div>
           )}
-
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, borderTop: `1px solid ${C.borderLight}`, paddingTop: 16 }}>
-            <button onClick={() => setImportOpen(false)} style={sBtn(C.bg, C.muted)}>取消</button>
-            {importDraft.length > 0 && (
-              <>
-                <button onClick={() => handleConfirmImport("append")} style={sBtn(C.blueLight, C.blue, { fontWeight: 700 })}>➕ 追加到现有列表</button>
-                <button onClick={() => handleConfirmImport("replace")} style={sBtn(C.primary, "#fff", { fontWeight: 700 })}>🔄 覆盖现有列表</button>
-              </>
-            )}
-          </div>
         </div>
       </Modal>
 
@@ -4903,8 +5268,8 @@ function StudentsMode({ students, setStudents, pushStudents, pullStudents, syncM
         const modalStats = getStudentDetailedStats(viewProgressStudent);
         const studentTag = String(viewProgressStudent?.tag || "").trim().toUpperCase();
         const tagPassingScore = Number(challengePassingScores?.[studentTag]) || (studentTag === "A" ? 90 : studentTag === "B" ? 80 : studentTag === "C" ? 60 : (Number(challengePassingScores?.default) || 80));
-        const totalGroups = groups.length || 1;
-        const groupPct = Math.round((modalStats.completedGroupsCount / totalGroups) * 100);
+        const targetGroupsTotal = modalStats.targetGroupsCount || 0;
+        const groupPct = targetGroupsTotal > 0 ? Math.round((modalStats.completedGroupsCount / targetGroupsTotal) * 100) : 0;
         const subPct = modalStats.totalPossibleSubLevels > 0 ? Math.round((modalStats.totalPassedSubLevels / modalStats.totalPossibleSubLevels) * 100) : 0;
 
         return (
@@ -4957,7 +5322,7 @@ function StudentsMode({ students, setStudents, pushStudents, pullStudents, syncM
                   <div style={{ textAlign: "center" }}>
                     <div style={{ fontSize: 11, color: C.muted, fontWeight: 700 }}>大关全通</div>
                     <div style={{ fontSize: 16, fontWeight: 900, color: "#22c55e", marginTop: 2 }}>
-                      {modalStats.completedGroupsCount} / {groups.length} <span style={{ fontSize: 11, color: C.hint }}>({groupPct}%)</span>
+                      {modalStats.completedGroupsCount} / {targetGroupsTotal} <span style={{ fontSize: 11, color: C.hint }}>({groupPct}%)</span>
                     </div>
                   </div>
                   <div style={{ textAlign: "center", borderLeft: `1px solid ${C.borderLight}` }}>
@@ -4985,7 +5350,8 @@ function StudentsMode({ students, setStudents, pushStudents, pullStudents, syncM
 
               {/* 中部：各大关卡与小关节点卡片列表 */}
               <div style={{ maxHeight: 420, overflowY: "auto", display: "flex", flexDirection: "column", gap: 12, paddingRight: 4 }}>
-                {modalStats.groupDetails.map(gd => {
+                {modalStats.groupDetails.length > 0 ? (
+                  modalStats.groupDetails.map(gd => {
                   const isCleared = gd.isCleared;
                   const inProgress = !isCleared && gd.completedSubLevels > 0;
 
@@ -5113,7 +5479,12 @@ function StudentsMode({ students, setStudents, pushStudents, pullStudents, syncM
                       </div>
                     </div>
                   );
-                })}
+                })
+              ) : (
+                <div style={{ textAlign: "center", padding: "40px 20px", color: C.hint, fontSize: 13, background: C.card, borderRadius: 12, border: `1px solid ${C.borderLight}` }}>
+                  📭 暂未为该学生分配任何单词关卡。请在学生管理列表中点击『分配关卡』或使用『按标签批量分配』为其布置关卡。
+                </div>
+              )}
               </div>
 
               {/* 底部按钮 */}
@@ -5181,31 +5552,76 @@ function StudentsMode({ students, setStudents, pushStudents, pullStudents, syncM
           themeC={C}
         >
           <div>
+            {/* 当前作用范围提示卡片 */}
+            <div style={{ background: C.bg, borderRadius: 10, padding: "12px 14px", fontSize: 13, color: C.muted, lineHeight: 1.6, marginBottom: 16, border: `1px solid ${C.borderLight}` }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 6 }}>
+                <div>
+                  📍 <strong>当前生效范围：</strong>
+                  <span style={{ color: C.primary, fontWeight: 800, marginLeft: 4 }}>
+                    {currentScopeDescription}
+                  </span>
+                </div>
+                <span style={{
+                  fontSize: 12,
+                  fontWeight: 800,
+                  padding: "2px 8px",
+                  borderRadius: 12,
+                  background: batchMatchingStudents.length > 0 ? "rgba(34, 197, 94, 0.15)" : "rgba(239, 68, 68, 0.12)",
+                  color: batchMatchingStudents.length > 0 ? "#22c55e" : "#ef4444",
+                  border: `1px solid ${batchMatchingStudents.length > 0 ? "rgba(34, 197, 94, 0.3)" : "rgba(239, 68, 68, 0.3)"}`
+                }}>
+                  {batchMatchingStudents.length > 0 ? `共匹配 ${batchMatchingStudents.length} 位学生` : "当前范围无此等级学生"}
+                </span>
+              </div>
+              <div style={{ fontSize: 11, color: C.hint, marginTop: 4 }}>
+                💡 本次分配<strong>仅会对当前浏览范围内的学生生效</strong>，不会影响其他校区或班级的同等级学生。
+              </div>
+            </div>
+
             <div style={{ marginBottom: 16 }}>
-              <label style={sLabel}>选择学生等级标签</label>
+              <label style={sLabel}>选择目标学生等级标签</label>
               <select
                 value={batchTargetTag}
                 onChange={e => setBatchTargetTag(e.target.value)}
-                style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: `1.5px solid ${C.border}`, fontSize: 14, outline: "none", cursor: "pointer" }}
+                style={{ width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${C.border}`, fontSize: 13, outline: "none", cursor: "pointer", background: C.bg, color: C.text }}
               >
-                <option value="A">A级学生</option>
-                <option value="B">B级学生</option>
-                <option value="C">C级学生</option>
+                <option value="ALL">🌟 全部学生 (当前范围内所有等级及普通学生)</option>
+                <option value="A">🏷️ A 级学生 (冲刺高分)</option>
+                <option value="B">🏷️ B 级学生 (稳步提升)</option>
+                <option value="C">🏷️ C 级学生 (起步巩固)</option>
+                <option value="UNTAGGED">⚪ 未分级 / 普通学生</option>
               </select>
             </div>
 
             <div style={{ marginBottom: 16 }}>
-              <label style={sLabel}>选择允许挑战的关卡</label>
-              <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>
-                选中的关卡将一键覆盖应用到所有属于该等级的学生身上。
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                <label style={{ ...sLabel, margin: 0 }}>选择允许挑战的关卡</label>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button
+                    type="button"
+                    onClick={() => setBatchSelectedGroups(groups.map(g => g.id || g.name))}
+                    style={{ fontSize: 11, color: C.primary, background: "none", border: "none", cursor: "pointer", fontWeight: 700 }}
+                  >
+                    全选全部关卡
+                  </button>
+                  <span style={{ fontSize: 11, color: C.hint }}>|</span>
+                  <button
+                    type="button"
+                    onClick={() => setBatchSelectedGroups([])}
+                    style={{ fontSize: 11, color: C.muted, background: "none", border: "none", cursor: "pointer", fontWeight: 700 }}
+                  >
+                    清空选择
+                  </button>
+                </div>
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 10, maxHeight: 220, overflowY: "auto", border: `1.5px solid ${C.border}`, borderRadius: 10, padding: 12 }}>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 220, overflowY: "auto", border: `1.5px solid ${C.border}`, borderRadius: 8, padding: 12, background: C.bg }}>
                 {groups.length > 0 ? (
-                  groups.map(g => {
+                  groups.map((g, gIdx) => {
                     const key = g.id || g.name;
                     const isChecked = batchSelectedGroups.includes(key);
                     return (
-                      <label key={key} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, cursor: "pointer", userSelect: "none" }}>
+                      <label key={key} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13, cursor: "pointer", userSelect: "none", padding: "6px 8px", borderRadius: 6, background: isChecked ? C.card : "transparent", border: `1px solid ${isChecked ? C.border : "transparent"}` }}>
                         <input
                           type="checkbox"
                           checked={isChecked}
@@ -5218,8 +5634,9 @@ function StudentsMode({ students, setStudents, pushStudents, pullStudents, syncM
                           }}
                           style={{ cursor: "pointer", width: 16, height: 16 }}
                         />
-                        <strong>{g.name}</strong>
-                        <span style={{ fontSize: 12, color: C.muted }}>({(g.words || []).length} 个单词)</span>
+                        <span style={{ fontSize: 11, fontWeight: 900, color: C.primary, background: C.borderLight, padding: "1px 5px", borderRadius: 4 }}>Level {gIdx + 1}</span>
+                        <strong style={{ color: C.text }}>{g.name}</strong>
+                        <span style={{ fontSize: 11, color: C.muted }}>({(g.words || []).length} 词)</span>
                       </label>
                     );
                   })
@@ -5231,7 +5648,13 @@ function StudentsMode({ students, setStudents, pushStudents, pullStudents, syncM
 
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, borderTop: `1px solid ${C.borderLight}`, paddingTop: 14 }}>
               <button onClick={() => setBatchAssignOpen(false)} style={sBtn(C.bg, C.muted)}>取消</button>
-              <button onClick={handleApplyBatchAssign} style={sBtn(C.primary, "#fff", { fontWeight: 700 })}>确认批量应用</button>
+              <button
+                onClick={handleApplyBatchAssign}
+                disabled={batchMatchingStudents.length === 0}
+                style={sBtn(batchMatchingStudents.length > 0 ? C.primary : C.borderLight, batchMatchingStudents.length > 0 ? "#fff" : C.hint, { fontWeight: 700, cursor: batchMatchingStudents.length > 0 ? "pointer" : "not-allowed" })}
+              >
+                确认批量应用 ({batchMatchingStudents.length} 人)
+              </button>
             </div>
           </div>
         </Modal>
