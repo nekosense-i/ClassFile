@@ -2074,7 +2074,9 @@ function TeachMode({
   const [countdownTotal, setCountdownTotal] = useState(60);
   const [countdownLeft, setCountdownLeft] = useState(0);
   const [selectedCard, setSelectedCard] = useState(null);
-  const [cardStatus, setCardStatus] = useState({});
+  // 授课练习由教师控制：答案是否显示不等同于学生是否“已答”。
+  // 这里仅记录当前卡片是否翻到答案面，允许课堂中反复显示和隐藏。
+  const [quizAnswerVisibleMap, setQuizAnswerVisibleMap] = useState({});
   const [quizWords, setQuizWords] = useState([]);
   const [isPaused, setIsPaused] = useState(false);
   const [showShortcutHelp, setShowShortcutHelp] = useState(false);
@@ -2212,7 +2214,6 @@ function TeachMode({
         isPaused,
         currentWords,
         selectedCard,
-        cardStatus,
         autoPlayAudio,
         setAutoPlayAudio,
         setChalkboardMode,
@@ -2243,7 +2244,7 @@ function TeachMode({
       });
     }
   }, [
-    safePage, totalPages, quizPhase, effectiveCount, pct, countdownLeft, countdownTotal, words.length, hiddenCount, restoreHiddenWords, allMeaningShown, chalkboardMode, showShortcutHelp, isPaused, currentWords, selectedCard, cardStatus, autoPlayAudio, enterKanaPhase,
+    safePage, totalPages, quizPhase, effectiveCount, pct, countdownLeft, countdownTotal, words.length, hiddenCount, restoreHiddenWords, allMeaningShown, chalkboardMode, showShortcutHelp, isPaused, currentWords, selectedCard, quizAnswerVisibleMap, autoPlayAudio, enterKanaPhase,
     paintActive, paintColor, paintThickness, paintTool, strokesRegistry
   ]);
   const countdownRatio = countdownTotal ? countdownLeft / countdownTotal : 0;
@@ -2418,7 +2419,7 @@ function TeachMode({
     setQuizPhase(null);
     setCountdownLeft(0);
     setSelectedCard(null);
-    setCardStatus({});
+    setQuizAnswerVisibleMap({});
     setQuizWords([]);
     drawBagRef.current = [];
     lastPickedWordIdRef.current = null;
@@ -2469,14 +2470,14 @@ function TeachMode({
     const nextQuizWords = shuffle(pageWords);
     setQuizWords(nextQuizWords);
     setQuizPhase("kana");
-    setCardStatus(Object.fromEntries(nextQuizWords.map((_, i) => [i, "pending"])));
+    setQuizAnswerVisibleMap({});
     setSelectedCard(null);
     drawBagRef.current = [];
     lastPickedWordIdRef.current = null;
   }, [pageWords]);
   const enterReversePhase = () => {
     setQuizPhase("reverse");
-    setCardStatus(Object.fromEntries((quizWords.length ? quizWords : currentWords).map((_, i) => [i, "pending"])));
+    setQuizAnswerVisibleMap({});
     setSelectedCard(null);
     drawBagRef.current = [];
     lastPickedWordIdRef.current = null;
@@ -2491,29 +2492,28 @@ function TeachMode({
     if (safePage < totalPages - 1) goPage(safePage + 1);
   };
   const pickRandomCard = () => {
-    // 获取当前所有待抽选（未揭示）的有效卡片列表
-    const pending = currentWords
-      .map((word, i) => ({ index: i, word, id: word?.id || String(i) }))
-      .filter(item => cardStatus[item.index] === "pending");
+    // 授课练习不记录答题进度；随机抽取仅用于教师点名或聚焦卡片。
+    const candidates = currentWords
+      .map((word, i) => ({ index: i, word, id: word?.id || String(i) }));
 
-    if (pending.length === 0) return;
+    if (candidates.length === 0) return;
 
     // 仅剩 1 张时直接选中
-    if (pending.length === 1) {
-      const onlyOne = pending[0];
+    if (candidates.length === 1) {
+      const onlyOne = candidates[0];
       setSelectedCard(onlyOne.index);
       lastPickedWordIdRef.current = onlyOne.id;
       drawBagRef.current = [];
       return;
     }
 
-    // 过滤掉词袋中已被揭示或失效的卡片
-    const validPendingIds = new Set(pending.map(p => p.id));
-    let currentBag = (drawBagRef.current || []).filter(item => validPendingIds.has(item.id));
+    // 词袋只避免同一轮中重复抽取，不承担“已作答”记录。
+    const validCandidateIds = new Set(candidates.map(p => p.id));
+    let currentBag = (drawBagRef.current || []).filter(item => validCandidateIds.has(item.id));
 
     // 若当前词袋已抽空，开启新一轮全量 Fisher-Yates 真正随机乱序洗牌
     if (currentBag.length === 0) {
-      currentBag = shuffle(pending);
+      currentBag = shuffle(candidates);
       // 跨轮防连续重复：新词袋第一张若与上一轮最后一张相同，则与新词袋中随机另一张交换
       if (currentBag.length > 1 && currentBag[0].id === lastPickedWordIdRef.current) {
         const swapIdx = 1 + Math.floor(Math.random() * (currentBag.length - 1));
@@ -2536,15 +2536,15 @@ function TeachMode({
       lastPickedWordIdRef.current = picked.id;
     }
   };
-  const revealQuizCard = (i) => {
-    if (!["kana","reverse"].includes(quizPhase) || cardStatus[i] !== "pending") return;
-    setCardStatus(prev => ({ ...prev, [i]: "revealed" }));
-    setSelectedCard(null);
+  const toggleQuizCard = (i) => {
+    if (!["kana","reverse"].includes(quizPhase)) return;
+    setSelectedCard(i);
+    setQuizAnswerVisibleMap(prev => ({ ...prev, [i]: !prev[i] }));
   };
   const revealSelectedOrPick = () => {
     if (!["kana","reverse"].includes(quizPhase)) return;
-    if (selectedCard !== null && cardStatus[selectedCard] === "pending") {
-      revealQuizCard(selectedCard);
+    if (selectedCard !== null) {
+      toggleQuizCard(selectedCard);
       return;
     }
     pickRandomCard();
@@ -2552,8 +2552,7 @@ function TeachMode({
   const handleCardClick = (i) => {
     // 1. Practice/Quiz Mode logic
     if (quizPhase) {
-      if (!["kana","reverse"].includes(quizPhase) || cardStatus[i] !== "pending") return;
-      revealQuizCard(i);
+      toggleQuizCard(i);
       return;
     }
 
@@ -2712,7 +2711,7 @@ function TeachMode({
     };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
-  }, [words.length, shortcutsDisabled, showShortcutHelp, isPaused, quizPhase, zoomedImage, safePage, totalPages, selectedCard, cardStatus, progressiveForward, progressiveBackward, enterKanaPhase, enterReversePhase, enterResultPhase]);
+  }, [words.length, shortcutsDisabled, showShortcutHelp, isPaused, quizPhase, zoomedImage, safePage, totalPages, selectedCard, progressiveForward, progressiveBackward, enterKanaPhase, enterReversePhase, enterResultPhase]);
 
   useEffect(() => () => clearCountdownTimer(), []);
 
@@ -2736,10 +2735,9 @@ function TeachMode({
     const hasImage = cfg.showImg && w.imageUrl;
     const noImageSingle = effectiveCount === 1 && !hasImage;
     const isQuizCard = ["kana","reverse"].includes(quizPhase);
-    const status = cardStatus[localIdx];
-    const isRevealed = !isQuizCard || status === "revealed";
-    const isSelected = isQuizCard && selectedCard === localIdx && status === "pending";
-    const dimCard = isQuizCard && selectedCard !== null && !isSelected && status === "pending";
+    const isRevealed = !isQuizCard || !!quizAnswerVisibleMap[localIdx];
+    const isSelected = isQuizCard && selectedCard === localIdx;
+    const dimCard = false;
     const showFullInfo = !isQuizCard || isRevealed;
     const showTags = !isQuizCard || isRevealed;
     const showMeaningBlock = !isQuizCard || quizPhase === "reverse" || isRevealed;
@@ -2787,7 +2785,7 @@ function TeachMode({
       }}>
         <div className={`flip-card-inner ${isBackShown ? "flipped" : ""}`}
           style={{
-            cursor: isBackShown ? "default" : (isQuizCard && status === "pending" ? "pointer" : "pointer"),
+            cursor: isBackShown ? "default" : "pointer",
             boxShadow: isSpeakingThisCard ? "0 0 0 3px #FF5252, 0 10px 28px rgba(255,82,82,0.38)" : undefined,
             borderRadius: 20
           }}>
@@ -2893,7 +2891,7 @@ function TeachMode({
                       transition: "filter 0.55s cubic-bezier(0.25, 0.8, 0.25, 1), opacity 0.55s cubic-bezier(0.25, 0.8, 0.25, 1)"
                     }}>{smartBreak(w.meaning, "cn", cfg.meaningSize)}</div>
                   )}
-                  {cfg.showUsage && w.usage && (quizPhase !== "kana" || isRevealed) && (
+                  {!isQuizCard && cfg.showUsage && w.usage && (
                     <div className="card-usage-text" style={{
                       fontSize: cfg.usageSize,
                       color: C.muted,
@@ -3082,7 +3080,7 @@ function TeachMode({
     setCountdownLeft(0);
     setSelectedCard(null);
     setQuizWords([]);
-    setCardStatus({});
+    setQuizAnswerVisibleMap({});
     setQuizPhase("countdown");
   };
   const renderStageBar = () => {
