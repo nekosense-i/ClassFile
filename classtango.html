@@ -2737,7 +2737,8 @@ function TeachMode({
     const isQuizCard = ["kana","reverse"].includes(quizPhase);
     const isRevealed = !isQuizCard || !!quizAnswerVisibleMap[localIdx];
     const isSelected = isQuizCard && selectedCard === localIdx;
-    const dimCard = false;
+    // 课堂抽卡时弱化其他卡片，让教师和学生一眼锁定当前被抽中的单词。
+    const dimCard = isQuizCard && selectedCard !== null && !isSelected;
     const showFullInfo = !isQuizCard || isRevealed;
     const showTags = !isQuizCard || isRevealed;
     const showMeaningBlock = !isQuizCard || quizPhase === "reverse" || isRevealed;
@@ -2779,9 +2780,10 @@ function TeachMode({
 
     return (
       <div className={`perspective-container fade-in ${paintActive ? "paint-mode-active-card" : ""} ${!isBackShown && !paintActive ? "tactile-card" : ""} ${isSelected ? "active-card" : ""} ${!isQuizCard && selectedWordId === w.id ? "selected-teach-card" : ""} ${isSpeakingThisCard ? "is-speaking-word-card" : ""}`} key={w.id} onClick={() => handleCardClick(localIdx)} style={{
-        opacity: dimCard ? 0.45 : 1,
+        opacity: dimCard ? 0.52 : 1,
+        filter: dimCard ? "brightness(0.52) saturate(0.72)" : "none",
         zIndex: isSelected ? 5 : (isSpeakingThisCard ? 4 : 1),
-        transition: "all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)"
+        transition: "opacity 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), filter 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)"
       }}>
         <div className={`flip-card-inner ${isBackShown ? "flipped" : ""}`}
           style={{
