@@ -1580,6 +1580,16 @@
         .student-link:hover { color: var(--primary-hover); }
 
         /* 成绩录入优化样式 */
+        #view-exams .tree-table-wrapper.flat-wrap.table-scroll-container thead th {
+            position: sticky;
+            top: 0;
+            z-index: calc(var(--z-sticky) + 3);
+            background-color: #f8fafc !important;
+            box-shadow: 0 2px 4px -1px var(--line), inset 0 -1px 0 var(--border);
+        }
+        #view-exams .tree-table-wrapper.flat-wrap.table-scroll-container thead th.score-estimated-header {
+            background-color: #fff3e0 !important;
+        }
         @keyframes shake {
             0%, 100% { transform: translateX(0); }
             16% { transform: translateX(-4px); }
@@ -1598,6 +1608,8 @@
         .score-cell.score-cell-needs-check::after { content:''; position:absolute; top:5px; right:6px; width:7px; height:7px; border-radius:999px; background:#fbbf24; box-shadow:0 0 0 2px rgba(255,255,255,0.9), 0 2px 6px rgba(251,191,36,0.35); pointer-events:none; }
         .exam-absent-row { opacity: 0.45; pointer-events: none; }
         .exam-absent-row td:first-child { pointer-events: auto; }
+        .details-absent-row td { background: rgba(148,163,184,0.08); }
+        .details-absent-row td.sticky-col-left { background: rgba(248,250,252,0.98); }
         .exam-absent-row .score-input {
             background: repeating-linear-gradient(-45deg, transparent, transparent 3px, rgba(148,163,184,0.12) 3px, rgba(148,163,184,0.12) 6px) !important;
             color: transparent !important;
@@ -1949,6 +1961,7 @@
 
         .analysis-top-navbar { gap: 14px; }
         .analysis-top-actions { flex: 1 1 auto; min-width: 0; }
+        #view-analysis .analysis-top-actions > button { border-radius: var(--radius-pill) !important; }
         .analysis-tabs--inline { margin: 0; min-height: 34px; flex: 1 1 auto; max-width: min(680px, 58vw); }
         .analysis-tabs--inline .analysis-tab { padding: 6px 10px; font-size: 12px; }
         @media (min-width: 1280px) {
@@ -2471,7 +2484,7 @@
                         <div class="analysis-tab target-tab" data-type="target" data-tab-group="deep" title="回答：学生是否达成了目标分？" onclick="window.app.ui.switchAnalysisTab('target')">🎯 目标</div>
                         <div class="analysis-tab alert-tab" data-type="borderline" data-tab-group="deep" title="回答：哪些学生最接近及格线或优秀线？" onclick="window.app.ui.switchAnalysisTab('borderline')">🚨 临界生</div>
                     </div>
-                    <button class="secondary" onclick="window.app.ui.exportAnalysisExcel()">📥 导出综合报表</button>
+                    <button class="secondary" onclick="window.app.ui.exportAnalysisExcel()">📥 导出成绩详情</button>
                 </div>
             </div>
 
@@ -2623,7 +2636,7 @@
                         <h3 id="table-title" class="dialog-title" style="font-size: 15px;">
                             成绩数据明细 <small class="pill text-muted" style="font-weight:normal; font-size:12px;">点击表头可重新排序</small>
                         </h3>
-                        <button class="secondary btn--compact" onclick="window.app.ui.exportDetailTableExcel()">📥 导出综合报表</button>
+                        <button class="secondary btn--compact" onclick="window.app.ui.exportDetailTableExcel()">📥 导出成绩详情</button>
                     </div>
                     <div class="table-scroll-container flex-1">
                         <table id="table-analysis"><thead id="thead-analysis"></thead><tbody id="tbody-analysis"></tbody></table>
@@ -6649,7 +6662,7 @@
                                 <th class="sticky-col-left header-sticky-100">学生姓名</th>
                                 <th class="header-sticky-80">校区</th>
                                 <th class="header-sticky-80">原班级</th>
-                                <th class="header-sticky-80" style="color: var(--score-pass); background: var(--warning-soft);">考前预估总分</th>`;
+                                <th class="header-sticky-80 score-estimated-header" style="color: var(--score-pass); background: var(--warning-soft);">考前预估总分</th>`;
                             (exam.types || []).forEach(t => { html += `<th>${Utils.escapeHTML(t.name)}<span class="table-side-note">满分: ${t.max}</span><br><button class="secondary btn--tiny" onclick="event.preventDefault(); window.app.ui.quickFillScoreColumn(this, '${eid}', '${String(t.name).replace(/'/g, "\\'")}', ${Number(t.max)||0})">快速填充</button></th>`; });
                             html += `<th class="header-sticky-120" style="color: var(--primary);">实际获得总分</th></tr></thead><tbody>`;
                         
@@ -9801,11 +9814,12 @@
                     return `<span class="inline-marked-cell"><span class="inline-marked-cell-main">${primaryHtml}</span>${markers}</span>`;
                 }
 
-                _getDetailsViewScoreRows(eid) {
+                _getDetailsViewScoreRows(eid, options = {}) {
                     const state = this.store && this.store.state ? this.store.state : {};
                     const data = state.data || { students: [], exams: [], scores: [] };
                     const exam = (data.exams || []).find(e => e.id === eid);
                     if (!exam) return { exam: null, scoreRows: [] };
+                    const includeAbsent = options.includeAbsent === true;
 
                     const studentsById = new Map((data.students || []).map(s => [s.id, s]));
                     const focus = this.store.state.globalFocus || { campuses: [], grades: [], phases: [], tClasses: [], tags: [] };
@@ -9813,7 +9827,7 @@
                     const allowedIds = new Set(allowedStudents.map(s => s.id));
 
                     const scoreRows = (data.scores || [])
-                        .filter(s => s.examId === eid && allowedIds.has(s.studentId) && !s.examAbsent)
+                        .filter(s => s.examId === eid && allowedIds.has(s.studentId) && (includeAbsent || !s.examAbsent))
                         .map(s => {
                             const stu = studentsById.get(s.studentId) || {};
                             const classAtExam = Utils.getClassForExam(stu, exam);
@@ -9830,7 +9844,10 @@
                                 examAbsent: s.examAbsent === true
                             };
                         })
-                        .sort((a, b) => b.total - a.total);
+                        .sort((a, b) => {
+                            if (a.examAbsent !== b.examAbsent) return a.examAbsent ? 1 : -1;
+                            return b.total - a.total;
+                        });
 
                     return { exam, scoreRows };
                 }
@@ -13817,7 +13834,8 @@
                         return;
                     }
 
-                    const { scoreRows } = this._getDetailsViewScoreRows(eid);
+                    const { scoreRows: detailRows } = this._getDetailsViewScoreRows(eid, { includeAbsent: true });
+                    const scoreRows = detailRows.filter(row => !row.examAbsent);
 
                     const maxScore = Number(exam.maxTotal || ((exam.types || []).reduce((sum, t) => sum + Number(t.max || 0), 0)) || 0);
                     // Build rich rows similar to renderAnalysisTableRows()
@@ -13825,16 +13843,16 @@
                     const maxScoreLocal = maxScore;
                     const passLineLocal = maxScoreLocal * 0.6;
                     const excLineLocal = maxScoreLocal * 0.8;
-                    const dataRows = [...scoreRows];
+                    const dataRows = [...detailRows];
                     // compute current ranks
                     const currentRanksLocal = {};
-                    [...dataRows].sort((a,b) => b.total - a.total).forEach((d, idx) => { currentRanksLocal[d.id] = idx + 1; });
+                    [...scoreRows].sort((a,b) => b.total - a.total).forEach((d, idx) => { currentRanksLocal[d.id] = idx + 1; });
 
                     const rowsHTML = [];
                     dataRows.forEach((d) => {
                         const currRank = currentRanksLocal[d.id];
                         const rankPrefixHtml = currRank === 1 ? '🥇' : currRank === 2 ? '🥈' : currRank === 3 ? '🥉' : '';
-                        let rankValueHtml = currRank <= 3 ? `${currRank}` : `<b>${currRank}</b>`;
+                        let rankValueHtml = d.examAbsent ? '<span class="exam-absent-pill">缺考</span>' : (currRank <= 3 ? `${currRank}` : `<b>${currRank}</b>`);
 
                         if (prevRanks[d.id]) {
                             const diff = prevRanks[d.id] - currRank;
@@ -13854,24 +13872,26 @@
 
                         // diagnostic dots / badges
                         let diagDots = '';
-                        try {
-                            const types = exam.types || [];
-                            const rates = types.map(t => {
-                                const s = d.details[t.name] || 0; return t.max > 0 ? (s / t.max) : 0;
-                            });
-                            const maxRate = rates.length ? Math.max(...rates) : 0;
-                            const minRate = rates.length ? Math.min(...rates) : 0;
-                            if ((maxRate - minRate) > 0.4 && rates.some(r => r < 0.5)) {
-                                diagDots += `<span class="diag-dot diag-pianke" title="偏科警告"></span>`;
-                            }
-                            const totalStudents = (data.students || []).length || 0;
-                            if (false && prevRanks && prevRanks[d.id]) { /* preserved structure, no prev ranks here */ }
-                            if (d.total >= passLineLocal - 5 && d.total < passLineLocal) {
-                                diagDots += `<span class="diag-dot diag-near-pass" title="差一点就及格"></span>`;
-                            } else if (d.total >= excLineLocal - 5 && d.total < excLineLocal) {
-                                diagDots += `<span class="diag-dot diag-near-excellent" title="差一点就优秀"></span>`;
-                            }
-                        } catch (diagE) { console.warn('diag label error', diagE); }
+                        if (!d.examAbsent) {
+                            try {
+                                const types = exam.types || [];
+                                const rates = types.map(t => {
+                                    const s = d.details[t.name] || 0; return t.max > 0 ? (s / t.max) : 0;
+                                });
+                                const maxRate = rates.length ? Math.max(...rates) : 0;
+                                const minRate = rates.length ? Math.min(...rates) : 0;
+                                if ((maxRate - minRate) > 0.4 && rates.some(r => r < 0.5)) {
+                                    diagDots += `<span class="diag-dot diag-pianke" title="偏科警告"></span>`;
+                                }
+                                const totalStudents = (data.students || []).length || 0;
+                                if (false && prevRanks && prevRanks[d.id]) { /* preserved structure, no prev ranks here */ }
+                                if (d.total >= passLineLocal - 5 && d.total < passLineLocal) {
+                                    diagDots += `<span class="diag-dot diag-near-pass" title="差一点就及格"></span>`;
+                                } else if (d.total >= excLineLocal - 5 && d.total < excLineLocal) {
+                                    diagDots += `<span class="diag-dot diag-near-excellent" title="差一点就优秀"></span>`;
+                                }
+                            } catch (diagE) { console.warn('diag label error', diagE); }
+                        }
 
                         const totalScore = Number(d.total || 0);
                         const fullScoreVal = (exam && (exam.fullScore || exam.maxTotal))
@@ -13890,7 +13910,7 @@
                         let gapHtml = '-';
                         let statusHtml = '-';
                         
-                        if (d.estimatedTotal && d.estimatedTotal > 0) {
+                        if (!d.examAbsent && d.estimatedTotal && d.estimatedTotal > 0) {
                             targetScoreHtml = `${d.estimatedTotal}`;
                             const gap = parseFloat(((d.total || 0) - d.estimatedTotal).toFixed(1));
                             const remainingGap = d.estimatedTotal - (d.total || 0);
@@ -13901,8 +13921,12 @@
                             statusHtml = `<span style="color:${statusColor}; font-weight:700;">${status}</span>`;
                         }
 
-                        let trHtml = `<tr style="background: ${rowBgColor}; transition: background var(--motion-base);" class="${rowClass}"><td class="sticky-col-left" style="width:80px; min-width:80px; max-width:80px;">${rankCellHtml}</td><td class="sticky-col-left" style="left:80px; width:120px; min-width:120px; max-width:120px; font-weight:700;">${nameCellHtml}</td><td class="table-meta">${Utils.escapeHTML(d.adminClass||'-')}</td>`;
+                        let trHtml = `<tr data-student-name="${Utils.escapeHTML(d.name || '')}" style="background: ${rowBgColor}; transition: background var(--motion-base);" class="${d.examAbsent ? 'details-absent-row' : rowClass}"><td class="sticky-col-left" style="width:80px; min-width:80px; max-width:80px;">${d.examAbsent ? rankValueHtml : rankCellHtml}</td><td class="sticky-col-left" style="left:80px; width:120px; min-width:120px; max-width:120px; font-weight:700;">${nameCellHtml}</td><td class="table-meta">${Utils.escapeHTML(d.adminClass||'-')}</td>`;
                         (exam.types||[]).forEach(t => {
+                            if (d.examAbsent) {
+                                trHtml += `<td style="color:var(--text-faint);">-</td>`;
+                                return;
+                            }
                             const stuScore = d.details[t.name] || 0;
                             const stuRate = t.max > 0 ? (stuScore / t.max) : 0;
                             const otherRates = (exam.types || [])
@@ -13915,7 +13939,7 @@
                             trHtml += `<td style="${cellStyle}">${stuScore}${anomalyIcon}</td>`;
                         });
                         const rate = (exam && exam.maxTotal) ? (d.total / exam.maxTotal) : 0;
-	                        trHtml += `<td class="score-total-cell">${d.total}</td><td>${targetScoreHtml}</td><td>${gapHtml}</td><td>${statusHtml}</td><td id="ai-status-cell-${d.id}">${aiStatus}</td></tr>`;
+                        	trHtml += `<td class="score-total-cell">${d.examAbsent ? '-' : d.total}</td><td>${targetScoreHtml}</td><td>${gapHtml}</td><td>${statusHtml}</td><td id="ai-status-cell-${d.id}">${d.examAbsent ? '-' : aiStatus}</td></tr>`;
                         rowsHTML.push(trHtml);
                     });
 
@@ -14024,7 +14048,7 @@
                         const prevStats = prevExam ? StatsEngine.gradeStats(prevExam, data.students, data.scores, null) : null;
 
                         const studentChanges = new Map();
-                        scoreRows.forEach(d => {
+                        detailRows.forEach(d => {
                             const currentRec = this.store.getScore(d.id, eid);
                             if (!currentRec || currentRec.examAbsent || currentRec.total <= 0) {
                                 studentChanges.set(d.id, -99999); // 缺考或无本次成绩的学生排最后
@@ -14046,7 +14070,7 @@
                             }
                         });
 
-                        const changesScoreRows = [...scoreRows].sort((a, b) => {
+                        const changesScoreRows = [...detailRows].sort((a, b) => {
                             const changeA = studentChanges.get(a.id);
                             const changeB = studentChanges.get(b.id);
                             if (changeA !== changeB) {
@@ -14057,12 +14081,17 @@
 
                         const rows = [];
                         changesScoreRows.forEach((d) => {
-                            let tr = `<tr>
+                            let tr = `<tr class="${d.examAbsent ? 'details-absent-row' : ''}" data-student-name="${Utils.escapeHTML(d.name || '')}">
                                 <td class="sticky-col-left" style="font-weight:700; text-align:center; left: 0; z-index: 2;"><a href="javascript:void(0)" onclick="window.app.ui.openStudentProfile('${d.id}')" class="student-link">${Utils.escapeHTML(d.name)}</a></td>
                                 <td style="color:var(--text-sub); text-align:center;">${Utils.escapeHTML(d.adminClass || '-')}</td>`;
                             
                             gradeLast4.forEach(ex => {
                                 const currentRec = this.store.getScore(d.id, ex.id);
+                                if (currentRec && currentRec.examAbsent) {
+                                    tr += `<td style="text-align:center;"><span class="exam-absent-pill">缺考</span></td>
+                                           <td style="text-align:center; color:var(--text-faint);">-</td>`;
+                                    return;
+                                }
                                 if (!currentRec || currentRec.examAbsent || currentRec.total <= 0) {
                                     tr += `<td style="text-align:center; color:var(--text-faint);">-</td>
                                            <td style="text-align:center; color:var(--text-faint);">-</td>`;
@@ -14144,7 +14173,7 @@
             <input type="text" id="details-search-student" placeholder="🔍 搜索学生姓名或拼音..." style="width:160px; border-color:#bfdbfe;" oninput="window.app.ui.searchStudentInDetails(this.value)">
 	            <button class="secondary" onclick="window.app.ui.exportAnalysisExcel()" style="padding: 6px 14px; border-radius: var(--radius-sm); border: none; background: rgba(0,122,255,0.1); color: var(--primary); font-weight: 600; cursor: pointer; transition: all var(--motion-base); display:flex; align-items:center; gap:6px;">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-	                导出综合报表
+	                导出成绩详情
             </button>
         </div>
     </div>
